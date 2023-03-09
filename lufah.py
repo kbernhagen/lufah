@@ -26,7 +26,7 @@ def bool_from_string(value):
 
 validKeysValues = {
   "fold-anon": {"type": bool_from_string},
-  "user": {"default":'Anonymous', "type":str.strip, "re":r'^[^\t\n\r]{1,254}$',
+  "user": {"default":'Anonymous', "type":str.strip, "re":r'^[^\t\n\r]{1,100}$',
     "help": 'If you are using unusual chars, please use Web Control.'},
   "team": {"default": 0, "type": int, "values": range(0, 0x7FFFFFFF)},
   "passkey": {"default": '', "type": str.lower, "re": r'^[0-9a-fA-F]{32}$',
@@ -104,10 +104,18 @@ def validate():
       options.value = default
       return
 
+    value0 = value
     if conv is not None: # assume callable
       options.value = value = conv(value)
 
     if conv == bool_from_string: return
+
+    if 'user' == key:
+      if len(value.encode('utf-8')) > 100:
+        raise Exception(f'error: max user length is 100 bytes')
+      if value != value0:
+        print('warning: leading/trailing whitespace removed from user',
+          file=sys.stderr)
 
     if values:
       if value in values: return
