@@ -7,9 +7,10 @@ from urllib.parse import urlparse
 import argparse
 import re
 from websockets import connect # pip3 install websockets
+from websockets.exceptions import *
 
 program = os.path.basename(sys.argv[0])
-version = '0.1.0'
+version = '0.1.1'
 
 commands = 'status pause unpause finish log config'.split()
 if sys.platform == 'darwin': commands += ['start', 'stop']
@@ -258,7 +259,11 @@ async def main():
     await config(options.uri, options.key, options.value)
 
   elif options.command in ['log']:
-    await log(options.uri, options.group)
+    try:
+      await log(options.uri, options.group)
+    except ConnectionClosed:
+      if options.verbose: print('connection closed')
+      pass
 
   else:
     raise Exception(f'unknown command: {options.command}')
