@@ -10,7 +10,7 @@ from websockets import connect # pip3 install websockets
 from websockets.exceptions import *
 
 program = os.path.basename(sys.argv[0])
-version = '0.1.1'
+version = '0.1.2'
 
 commands = 'status pause unpause finish log config'.split()
 if sys.platform == 'darwin': commands += ['start', 'stop']
@@ -41,7 +41,8 @@ validKeysValues = {
   "on-idle": {"type": bool_from_string},
   "cpus": {"type": int, "values": range(0, 256)},
   "checkpoint": {"default": 15, "type": int, "values": range(3, 30)},
-  "priority": {"default": 'idle', "type": str.lower, "values": ['idle','low','normal','inherit','high']},
+  "priority": {"default": 'idle', "type": str.lower,
+    "values": ['idle', 'low', 'normal', 'inherit']},
   # no peer editing; an add-peer command might be reasonable
   # it would be an error to change gpus, paused, finish
   # get-only keys
