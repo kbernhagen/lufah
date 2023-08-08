@@ -10,7 +10,7 @@ from websockets import connect # pip3 install websockets
 from websockets.exceptions import *
 
 program = os.path.basename(sys.argv[0])
-version = '0.1.2'
+version = '0.1.3'
 
 commands = 'status pause unpause finish log config'.split()
 if sys.platform == 'darwin': commands += ['start', 'stop']
@@ -209,9 +209,11 @@ async def config(uri, key, value):
       print(json.dumps(snapshot.get('config', {}).get(key)))
       return
     if 'cpus' == key:
-      maxcpus = snapshot.get('info', {}).get('cpus', 0)
+      maxcpus0 = snapshot.get('info', {}).get('cpus', 0)
+      # available_cpus in fah v8.1.19+
+      maxcpus = snapshot.get('config', {}).get('available_cpus', maxcpus0)
       if value > maxcpus:
-        raise Exception(f'error: cpus is greater than peer max {maxcpus}')
+        raise Exception(f'error: cpus is greater than available cpus {maxcpus}')
     conf = {key: value}
     if options.debug:
       print(f'WOULD BE sending config: {json.dumps(conf)}')
