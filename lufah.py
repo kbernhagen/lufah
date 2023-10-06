@@ -6,11 +6,12 @@ import asyncio
 from urllib.parse import urlparse
 import argparse
 import re
+import datetime
 from websockets import connect # pip3 install websockets
 from websockets.exceptions import *
 
 program = os.path.basename(sys.argv[0])
-version = '0.1.3'
+version = '0.1.4'
 
 commands = 'status pause unpause finish log config'.split()
 if sys.platform == 'darwin': commands += ['start', 'stop']
@@ -228,15 +229,17 @@ async def log(uri, group):
   # sent 1011 (unexpected error) keepalive ping timeout; no close frame received
   async with connect(uri, ping_interval=None) as websocket:
     r = await websocket.recv()
-    await websocket.send(json.dumps({"cmd": "log", "enable": True}))
+    t = f'{datetime.datetime.utcnow().isoformat()}Z'
+    await websocket.send(json.dumps({"cmd": "log", "enable": True, "time": t}))
     while True:
       r = await websocket.recv()
       msg = json.loads(r)
-      if group:
-        filter = f':{group}:'
-        if msg[0] == 'log' and filter in msg[2]: print(msg[2])
-      else:
-        if msg[0] == 'log': print(msg[2])
+      if msg[0] == 'log':
+        v = msg[2]
+        if isinstance(v, (list, tuple)):
+          for line in v: print(line)
+        else:
+          print(v)
 
 
 async def main():
