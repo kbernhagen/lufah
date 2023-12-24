@@ -11,9 +11,10 @@ from websockets import connect # pip3 install websockets
 from websockets.exceptions import *
 
 program = os.path.basename(sys.argv[0])
-version = '0.1.4'
+version = '0.1.5'
 
-commands = 'status pause unpause finish log config'.split()
+# v8.3(and v8.2?) adds fold as a state cmd
+commands = 'status pause unpause fold finish log config'.split()
 if sys.platform == 'darwin': commands += ['start', 'stop']
 
 
@@ -44,9 +45,9 @@ validKeysValues = {
   "checkpoint": {"default": 15, "type": int, "values": range(3, 30)},
   "priority": {"default": 'idle', "type": str.lower,
     "values": ['idle', 'low', 'normal', 'inherit']},
-  # no peer editing; an add-peer command might be reasonable
-  # it would be an error to change gpus, paused, finish
-  # get-only keys
+  # no peer editing; peers not supported by v8.2+
+  # it would be an error to directly change gpus, paused, finish
+  # get-only config keys
   "peers": {},
   "gpus": {},
   "paused": {},
@@ -68,8 +69,15 @@ def validate():
   port = r.port or 7396
   group = r.path or ''
   if host == '.': host = '127.0.0.1'
+
+  if options.debug:
+    print(f'host: "{host}"')
+    print(f'port: {port}')
+    print(f'group: "{group}"')
+
   # validate group ^\/[\w.-]*$ future ^\/[\w.-]+$
-  if group and not re.match(r'^\/[\w.-]*$', group):
+  # for v8.3, allow "//" prefix
+  if group and not re.match(r'^\/{1,2}[\w.-]*$', group):
     raise Exception(f'error: group must consist of letters, numbers, period, underscore, hyphen')
 
   options.host = host
@@ -77,6 +85,10 @@ def validate():
   options.group = group
   if r.username and r.password: host = f'{r.username}:{r.password}@{host}'
   options.uri = f'ws://{host}:{port}/api/websocket{group}'
+  # this is what v8.3 expects, but currently appending /group seems ok
+  # when v8.1 support is dropped, use this instead, and modify group RE above
+  # less restrictive group names are not url friendly
+  options.uri0= f'ws://{host}:{port}/api/websocket'
 
   # validate config key value
   if options.command in ['config']:
@@ -147,15 +159,25 @@ Examples
 
 Notes
 
-An error may not be shown if initial connection times out.
-If group does not exist, script will hang until silent timeout.
-Command log may not notice a disconnect.
+All commands except config are supported for fah v8.3.
+Command config may not behave as expected for fah v8.3.
+Command config is not supported with groups for fah v8.3.
+Group names must conform to v8.1 restrictions:
+  begins "/", has only letters, numbers, period, underscore, hyphen
+Group "/" is taken to mean the default group, which is "".
+For a group actually named "/" on v8.3, use "//".
+An error may not be shown if the initial connection times out.
+If group does not exist, script may hang until silent timeout.
+Config priority does not seem to work. Cores are probably setting priority.
 '''
+
+  if sys.platform == 'darwin':
+    epilog += 'Commands start and stop are macOS-only.'
 
   parser = argparse.ArgumentParser(description=description, epilog=epilog,
     formatter_class=argparse.RawDescriptionHelpFormatter)
 
-  parser.set_defaults(key=None, value=None)
+  parser.set_defaults(key=None, value=None) # do not remove this
   parser.set_defaults(host='127.0.0.1', port=7396, group='', uri='')
 
   parser.add_argument('-v', '--verbose', action='store_true')
@@ -175,6 +197,8 @@ Command log may not notice a disconnect.
       help = 'get or set config values'
     elif cmd == 'log':
       help = 'show log; use control-c to exit'
+    elif cmd == 'unpause':
+      help = 'alias for fold'
     par = subparsers.add_parser(cmd, description=help, help=help)
     if cmd == 'config':
       # TODO: add subparser for each valid config key
@@ -196,8 +220,38 @@ async def status(uri):
 async def command(uri, cmd):
   if options.verbose: print(f'opening {uri}')
   async with connect(uri) as websocket:
-    if options.verbose: print(f'sending command: {cmd}')
-    await websocket.send(json.dumps({"cmd": cmd}))
+    r = await websocket.recv()
+    snapshot = json.loads(r)
+    v = snapshot.get("info", {}).get("version", "0")
+    ver = tuple([int(x) for x in v.split('.')])
+    if ver < (8,3):
+      if cmd == 'fold': cmd = 'unpause'
+      msg = {"cmd": cmd}
+    else:
+      t = datetime.datetime.utcnow().isoformat() + 'Z'
+      if cmd == 'unpause': cmd = 'fold'
+      msg = {"state": cmd, "cmd": "state", "time": t}
+      # if group is not set, cmd applies to all groups
+      group = options.group
+      # NOTE: group would be created if it doesn't exist
+      # need to validate group or /group exists after connect
+      # need to strip '/' prefix if group name doesn't have it
+      # if default group switches to '/', handle that
+      # maybe just always strip leading "/" for v8.3
+      if group:
+        # treat "/" as default group ''
+        group = '' if group == "/" else group
+        group = '/' if group == "//" else group
+        groups = list(snapshot.get('groups', {}).keys())
+        if options.verbose: print(f'groups: {groups}')
+        if not group in groups:
+          raise Exception(f'error: group "{group}" is not in {groups}')
+        msg["group"] = group
+    if options.debug:
+      print(f'WOULD BE sending: {json.dumps(msg)}')
+      return
+    if options.verbose: print(f'sending: {json.dumps(msg)}')
+    await websocket.send(json.dumps(msg))
 
 
 async def config(uri, key, value):
@@ -205,13 +259,20 @@ async def config(uri, key, value):
   async with connect(uri) as websocket:
     r = await websocket.recv()
     snapshot = json.loads(r)
+    v = snapshot.get("info", {}).get("version", "0")
+    ver = tuple([int(x) for x in v.split('.')])
+    if options.group and (8,3) <= ver:
+      raise Exception(f'error: group config is not supported for fah v8.3')
+    if (8,3) <= ver:
+      print(f'warning: config may not work as expected on fah v8.3',
+        file=sys.stderr)
     key = key.replace('-', '_')
     if value is None:
       print(json.dumps(snapshot.get('config', {}).get(key)))
       return
     if 'cpus' == key:
       maxcpus0 = snapshot.get('info', {}).get('cpus', 0)
-      # available_cpus in fah v8.1.19+
+      # available_cpus in fah v8.1.19 only
       maxcpus = snapshot.get('config', {}).get('available_cpus', maxcpus0)
       if value > maxcpus:
         raise Exception(f'error: cpus is greater than available cpus {maxcpus}')
@@ -220,16 +281,17 @@ async def config(uri, key, value):
       print(f'WOULD BE sending config: {json.dumps(conf)}')
       return
     if options.verbose: print(f'sending config: {json.dumps(conf)}')
-    await websocket.send(json.dumps({"cmd": "config", "config": conf}))
+    t = datetime.datetime.utcnow().isoformat() + 'Z'
+    await websocket.send(json.dumps({"cmd":"config", "time":t, "config":conf}))
 
 
-async def log(uri, group):
+async def log(uri):
   if options.verbose: print(f'opening {uri}')
   # ping_interval=None to prevent timeout:
   # sent 1011 (unexpected error) keepalive ping timeout; no close frame received
   async with connect(uri, ping_interval=None) as websocket:
     r = await websocket.recv()
-    t = f'{datetime.datetime.utcnow().isoformat()}Z'
+    t = datetime.datetime.utcnow().isoformat() + 'Z'
     await websocket.send(json.dumps({"cmd": "log", "enable": True, "time": t}))
     while True:
       r = await websocket.recv()
@@ -258,7 +320,7 @@ async def main():
   if options.command in [None, '', 'status']:
     await status(options.uri)
 
-  elif options.command in ['pause', 'unpause', 'finish']:
+  elif options.command in ['pause', 'fold', 'unpause', 'finish']:
     await command(options.uri, options.command)
 
   elif options.command in ['config']:
@@ -266,7 +328,7 @@ async def main():
 
   elif options.command in ['log']:
     try:
-      await log(options.uri, options.group)
+      await log(options.uri)
     except ConnectionClosed:
       if options.verbose: print('connection closed')
       pass
