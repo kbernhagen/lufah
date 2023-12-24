@@ -8,7 +8,7 @@ work on macOS, Linux, and Windows.
 
 ## Requirements
 
-- python3
+- python 3.8 or later
 - pip3 install websockets
 
 
@@ -24,9 +24,10 @@ positional arguments:
   command
     status
     pause
-    unpause
+    unpause      alias for fold
+    fold
     finish
-    log
+    log          show log; use control-c to exit
     config       get or set config values
     start        start local client service; peer must be "."
     stop         stop local client service; peer must be "."
@@ -39,15 +40,26 @@ options:
 
 Examples
 
-lufah.py . finish
-lufah.py other.local/rg1 status
-lufah.py /my-p-cores config priority normal
+lufah . finish
+lufah other.local/rg1 status
+lufah /my-p-cores config priority normal
 
-Bugs
+Notes
 
-An error may not be shown if initial connection times out.
-If group does not exist, script will hang until silent timeout.
-Command log may not notice a disconnect.
+All commands except config are supported for fah v8.3.
+Command config may not behave as expected for fah v8.3.
+Command config is not supported with groups for fah v8.3.
+Group names must conform to v8.1 restrictions:
+  begins "/", has only letters, numbers, period, underscore, hyphen
+Group "/" is taken to mean the default group, which is "".
+For a group actually named "/" on v8.3, use "//".
+An error may not be shown if the initial connection times out.
+If group does not exist, script may hang until silent timeout.
+Config priority does not seem to work. Cores are probably setting priority.
+Commands start and stop are macOS-only.
 ```
 
-Note: commands start and stop are macOS-only.
+On Windows, usage resembles
+```
+python .\somewhere\lufah.py . pause
+```
