@@ -451,7 +451,8 @@ async def log(uri):
     while True:
       r = await websocket.recv()
       msg = json.loads(r)
-      if msg[0] == 'log':
+      # client doesn't just send arrays
+      if isinstance(msg, (list)) and len(msg) and msg[0] == 'log':
         # ignore msg[1], which is -1 or -2
         v = msg[2]
         if isinstance(v, (list, tuple)):
@@ -515,6 +516,7 @@ if __name__ == '__main__':
   try:
     asyncio.run(main())
   except KeyboardInterrupt:
+    print('\n')
     pass
   except Exception as e:
     eprint(e)
