@@ -11,11 +11,59 @@ from websockets import connect # pip3 install websockets
 from websockets.exceptions import *
 
 program = os.path.basename(sys.argv[0])
-version = '0.1.5'
+version = '0.1.6'
 
-# v8.3(and v8.2?) adds fold as a state cmd
+# TODO:
+#   lufah . get <keypath> # show json for snapshot.keypath
+#   lufah . groups # show json array of names
+#   lufah . create-group <name> # by sending pause to nonexistent group
+#   lufah . delete-group <name> # refuse if group has running WU?
+HIDDEN_COMMANDS = ['x'] # simple experimental stuff
+# allowed cli commands; all visible
 commands = 'status pause unpause fold finish log config'.split()
 if sys.platform == 'darwin': commands += ['start', 'stop']
+
+commandsHelp = dict(
+  status = 'default command if none is specified',
+  pause = '',
+  unpause = 'alias for fold',
+  fold = '',
+  finish = '',
+  log = 'show log; use control-c to exit',
+  config = 'get or set config values',
+  start = 'start local client service; peer must be "."',
+  stop = 'stop local client service; peer must be "."',
+)
+
+# config keys; first two sets are separate on fah 8.3
+# note that these are the actual keys with underscore
+
+# keys to settings possibly owned by node account (if logged in)
+# I don't know if it's safe to change these while logged in
+GLOBAL_CONFIG_KEYS = ['user', 'team', 'passkey', 'cause']
+
+# keys to settings in groups under v8.3; in main config before 8.3
+GROUP_CONFIG_KEYS = ['on_idle', 'beta', 'key', 'cpus']
+
+# peers is v8.1.x only, but possibly remains as cruft
+READ_ONLY_GLOBAL_KEYS = ["peers"]
+
+# should never be changed externally
+READ_ONLY_GROUP_KEYS = ["gpus", "paused", "finish"]
+
+READ_ONLY_CONFIG_KEYS = READ_ONLY_GLOBAL_KEYS + READ_ONLY_GROUP_KEYS
+VALID_CONFIG_SET_KEYS = GLOBAL_CONFIG_KEYS + GROUP_CONFIG_KEYS
+VALID_CONFIG_GET_KEYS = VALID_CONFIG_SET_KEYS + READ_ONLY_CONFIG_KEYS
+# maybe read-only for 8.3; maybe deprecated; writable < 8.3
+LEGACY_GLOBAL_KEYS = ['fold_anon', 'checkpoint', 'priority']
+DEPRECATED_CONFIG_KEYS = ["peers"]
+
+# as sent to client, not cli commands
+SIMPLE_CLIENT_COMMANDS = ['pause', 'fold', 'unpause', 'finish']
+
+
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
 
 
 def bool_from_string(value):
@@ -27,6 +75,7 @@ def bool_from_string(value):
     raise Exception(f'error: not a bool string: {value}')
 
 
+# allowed config keys
 validKeysValues = {
   "fold-anon": {"type": bool_from_string},
   "user": {"default":'Anonymous', "type":str.strip, "re":r'^[^\t\n\r]{1,100}$',
@@ -63,32 +112,48 @@ validKeys = validKeysValues.keys()
 
 def validate():
   if options.debug: options.verbose = True
-
+  # do not strip right; 8.3 group names might not be stripped
+  # create-group should strip what is specified, as web control does
+  options.peer = options.peer.lstrip()
+  if not options.peer: raise Exception(f'error: no peer specified')
   r = urlparse('//' + options.peer)
-  host = r.hostname or '127.0.0.1'
+  host = r.hostname or '127.0.0.1' # note r.hostname can be None
   port = r.port or 7396
   group = r.path or ''
+  host = host.strip()
   if host == '.': host = '127.0.0.1'
 
-  if options.debug:
-    print(f'host: "{host}"')
-    print(f'port: {port}')
-    print(f'group: "{group}"')
+  if not options.command: options.command = 'status'
 
-  # validate group ^\/[\w.-]*$ future ^\/[\w.-]+$
-  # for v8.3, allow "//" prefix
-  if group and not re.match(r'^\/{1,2}[\w.-]*$', group):
-    raise Exception(f'error: group must consist of letters, numbers, period, underscore, hyphen')
+  if options.debug:
+    print(f'   peer: "{options.peer}"')
+    print(f'   host: "{host}"')
+    print(f'   port: {port}')
+    print(f'  group: "{group}"')
+    print(f'command: {options.command}')
+
+  # validate group ^\/[\w.-]*$
+  # for v8.3, allow "//" prefix, spaces, special chars
+  #   '' is no group (all groups)
+  #   '/' is default group (actually named '')
+  #   '//' is group '/'
+  #   anything else tried as-is else without leading /
+  if group == '' or re.match(r'^\/[\w.-]*$', group):
+    options.legacyGroupMatch = True
 
   options.host = host
   options.port = port
   options.group = group
   if r.username and r.password: host = f'{r.username}:{r.password}@{host}'
-  options.uri = f'ws://{host}:{port}/api/websocket{group}'
-  # this is what v8.3 expects, but currently appending /group seems ok
-  # when v8.1 support is dropped, use this instead, and modify group RE above
-  # less restrictive group names are not url friendly
-  options.uri0= f'ws://{host}:{port}/api/websocket'
+  elif r.username: host = f'{r.username}@{host}'
+  # TODO: validate host, port; maybe disallow numeric IPv6 addresses
+  if options.legacyGroupMatch:
+    options.uri = f'ws://{host}:{port}/api/websocket{group}'
+  else:
+    # this is what v8.3 expects, but currently appending /group seems ok
+    # when v8.1 support is dropped, just use this instead
+    # less restrictive group names are not url friendly
+    options.uri = f'ws://{host}:{port}/api/websocket'
 
   # validate config key value
   if options.command in ['config']:
@@ -114,6 +179,7 @@ def validate():
       raise Exception(f'unsupported config key: {key}\nknown keys: {k}')
 
     if value is None: return
+    # else validate value
 
     if default is not None and value == '':
       options.value = default
@@ -129,8 +195,7 @@ def validate():
       if len(value.encode('utf-8')) > 100:
         raise Exception(f'error: max user length is 100 bytes')
       if value != value0:
-        print('warning: leading/trailing whitespace removed from user',
-          file=sys.stderr)
+        eprint('warning: leading/trailing whitespace trimmed from user')
 
     if values:
       if value in values: return
@@ -142,7 +207,7 @@ def validate():
         help = info.get('help')
         if help: m += '\n' + help
         raise Exception(m)
-      return
+      return # valid regex match
     else:
       raise Exception(f'error: config {key} is read-only')
 
@@ -178,27 +243,21 @@ Config priority does not seem to work. Cores are probably setting priority.
     formatter_class=argparse.RawDescriptionHelpFormatter)
 
   parser.set_defaults(key=None, value=None) # do not remove this
+  parser.set_defaults(legacyGroupMatch=False)
   parser.set_defaults(host='127.0.0.1', port=7396, group='', uri='')
 
   parser.add_argument('-v', '--verbose', action='store_true')
   parser.add_argument('-d', '--debug', action='store_true')
   parser.add_argument('--version', action='version', version=version)
 
-  parser.add_argument('peer', default = '.',
+  parser.add_argument('peer',
     help = '[host][:port][/group]  Use "." for localhost')
 
   subparsers = parser.add_subparsers(dest='command', metavar = 'command')
+  for cmd in HIDDEN_COMMANDS:
+    subparsers.add_parser(cmd, help=argparse.SUPPRESS)
   for cmd in commands:
-    # TODO: put help text in a validCommands dict
-    help = None
-    if cmd in ['start', 'stop']:
-      help = f'{cmd} local client service; peer must be "."'
-    elif cmd == 'config':
-      help = 'get or set config values'
-    elif cmd == 'log':
-      help = 'show log; use control-c to exit'
-    elif cmd == 'unpause':
-      help = 'alias for fold'
+    help = commandsHelp.get(cmd)
     par = subparsers.add_parser(cmd, description=help, help=help)
     if cmd == 'config':
       # TODO: add subparser for each valid config key
@@ -210,6 +269,41 @@ Config priority does not seem to work. Cores are probably setting priority.
   validate()
 
 
+CLIENTS = {}
+
+class FahClient:
+  def __init__(self, host='127.0.0.1', port=7396, group=None):
+    self._name = f'{host}:{port}'
+    self._uri = f'ws://{host}:{port}/api/websocket'
+    self._conn = connect(self._uri)
+    self._ws = None
+    self.data = {} # snapshot
+    self._version = (0,0,0) # data.info.version as tuple
+  def __del__(self):
+    #print("Destructor called for", type(self).__name__, self._name)
+    pass
+  def version(self): return self._version
+  async def connect(self):
+    # FIXME: check if connected first
+    if not self._ws: self._ws = await self._conn.__aenter__()
+    r = await self._ws.recv()
+    snapshot = json.loads(r)
+    v = snapshot.get("info", {}).get("version", "0")
+    self._version = tuple([int(x) for x in v.split('.')])
+    self.data.update(snapshot)
+    pass
+  async def close(self):
+    await self._ws.close()
+    self._ws = None
+  def update(self, data): # data: json array or dict
+    if isinstance(v, (dict)):
+      self.data.update(data)
+    elif isinstance(v, (list)):
+      pass # self._process_update_list(data)
+  async def __aexit__(self, *args, **kwargs):
+    await self._conn.__aexit__(*args, **kwargs)
+
+
 async def status(uri):
   if options.verbose: print(f'opening {uri}')
   async with connect(uri) as websocket:
@@ -217,7 +311,37 @@ async def status(uri):
     print(r)
 
 
+def munged_group_name(group, snapshot):
+  # return a group name that exists, else throw
+  # assume v8.3
+  # NOTE: must have connected to have snapshot
+  # pre-munging would be simpler if require '//name' for actual '/name'
+  groups = list(snapshot.get('groups', {}).keys())
+  if group is None: raise Exception(f'error: group is None')
+  if options.verbose: print(f'groups: {groups}')
+  if group == '/': group = '' # default group
+  elif group == '//': group = '/' # literal group name '/'
+  elif group.startswith('//'): group = group[1:]
+  elif group.startswith('/'):
+    group0 = group[1:] # without leading '/'
+    if group0 in groups and not group in groups:
+      group = group0
+  if not group in groups:
+    raise Exception(f'error: no "{group}" in groups {groups}')
+  if options.debug: print(f'munged group: "{group}"')
+  return group
+
+
+def value_for_key_path(adict, kp):
+  # kp: an array of keys or a dot-separated str of keys
+  # like to handle int array indicies in str kp
+  # ? import munch/addict/benedict
+  return None
+
+
 async def command(uri, cmd):
+  if not cmd in SIMPLE_CLIENT_COMMANDS:
+    raise Exception(f'unknown client command: {cmd}')
   if options.verbose: print(f'opening {uri}')
   async with connect(uri) as websocket:
     r = await websocket.recv()
@@ -231,22 +355,15 @@ async def command(uri, cmd):
       t = datetime.datetime.utcnow().isoformat() + 'Z'
       if cmd == 'unpause': cmd = 'fold'
       msg = {"state": cmd, "cmd": "state", "time": t}
-      # if group is not set, cmd applies to all groups
-      group = options.group
       # NOTE: group would be created if it doesn't exist
       # need to validate group or /group exists after connect
       # need to strip '/' prefix if group name doesn't have it
       # if default group switches to '/', handle that
       # maybe just always strip leading "/" for v8.3
-      if group:
-        # treat "/" as default group ''
-        group = '' if group == "/" else group
-        group = '/' if group == "//" else group
-        groups = list(snapshot.get('groups', {}).keys())
-        if options.verbose: print(f'groups: {groups}')
-        if not group in groups:
-          raise Exception(f'error: group "{group}" is not in {groups}')
-        msg["group"] = group
+      # if group is '', cmd applies to all groups (no group)
+      # must test before munge to distinguish no group from default group
+      if options.group:
+        msg["group"] = munged_group_name(options.group, snapshot)
     if options.debug:
       print(f'WOULD BE sending: {json.dumps(msg)}')
       return
@@ -254,6 +371,7 @@ async def command(uri, cmd):
     await websocket.send(json.dumps(msg))
 
 
+# TODO: refactor into config_get(), config_set(), get_config(snapshot,group)
 async def config(uri, key, value):
   if options.verbose: print(f'opening {uri}')
   async with connect(uri) as websocket:
@@ -261,28 +379,61 @@ async def config(uri, key, value):
     snapshot = json.loads(r)
     v = snapshot.get("info", {}).get("version", "0")
     ver = tuple([int(x) for x in v.split('.')])
-    if options.group and (8,3) <= ver:
-      raise Exception(f'error: group config is not supported for fah v8.3')
-    if (8,3) <= ver:
-      print(f'warning: config may not work as expected on fah v8.3',
-        file=sys.stderr)
-    key = key.replace('-', '_')
+    haveAcct = 0 < len(snapshot.get("info", {}).get("account", ''))
+
+    # FIXME: potential race if groups changes before we write
+    # think currently client deletes groups not in group config command
+    groups = list(snapshot.get('groups', {}).keys()) # [] on < 8.3
+    # we don't care about 8.1 peer groups because everything is in main config
+    # just need to be mindful of possible config.available_cpus
+
+    # v8.3 splits config between global/account and group(s)
+    # TODO: only allow user/team/passkey/cause when not linked to an account
+    # TODO: only allow group config on_idle/cpus/beta/key
+
+    key0 = key # FIXME: might need to check this too for 8.1
+    key = key.replace('-', '_') # convert cli keys to actual; on 8.2+ ?
+
     if value is None:
-      print(json.dumps(snapshot.get('config', {}).get(key)))
+      # get and show value for key
+      if (8,3) <= ver and key in GROUP_CONFIG_KEYS:
+        group = munged_group_name(options.group, snapshot)
+        conf = snapshot.get('groups',{}).get(group,{}).get("config",{})
+        print(json.dumps(conf.get(key)))
+      else:
+        print(json.dumps(snapshot.get('config', {}).get(key)))
       return
+
     if 'cpus' == key:
       maxcpus0 = snapshot.get('info', {}).get('cpus', 0)
       # available_cpus in fah v8.1.19 only
       maxcpus = snapshot.get('config', {}).get('available_cpus', maxcpus0)
       if value > maxcpus:
         raise Exception(f'error: cpus is greater than available cpus {maxcpus}')
+      # FIXME: cpus are in groups on fah 8.3; need to sum cpus across groups
+      # available_cpus = maxcpus - total_group_cpus
+      # if value > (available_cpus - current_group_cpus)
+      # this is simpler if only have one group (the default group)
+
+    if (8,3) <= ver:
+      if haveAcct and key in GLOBAL_CONFIG_KEYS:
+        raise Exception(f'error: cannot config "{key}": owned by account')
+      if key in GROUP_CONFIG_KEYS:
+        raise Exception(f'error: group config is not supported for fah 8.3')
+      if not key in VALID_CONFIG_SET_KEYS:
+        raise Exception(f'error: config key {key} is not supported for fah 8.3')
+
+    if (8,3) <= ver:
+      eprint(f'warning: config may not work as expected on fah 8.3')
+
     conf = {key: value}
-    if options.debug:
-      print(f'WOULD BE sending config: {json.dumps(conf)}')
-      return
-    if options.verbose: print(f'sending config: {json.dumps(conf)}')
     t = datetime.datetime.utcnow().isoformat() + 'Z'
-    await websocket.send(json.dumps({"cmd":"config", "time":t, "config":conf}))
+    msg = {"cmd":"config", "time":t, "config":conf}
+    if options.debug:
+      print(f'WOULD BE sending: {json.dumps(msg)}')
+      return
+    if options.verbose: print(f'sending: {json.dumps(msg)}')
+    await websocket.send(json.dumps(msg))
 
 
 async def log(uri):
@@ -290,18 +441,35 @@ async def log(uri):
   # ping_interval=None to prevent timeout:
   # sent 1011 (unexpected error) keepalive ping timeout; no close frame received
   async with connect(uri, ping_interval=None) as websocket:
-    r = await websocket.recv()
+    r = await websocket.recv() # consume snapshot
     t = datetime.datetime.utcnow().isoformat() + 'Z'
-    await websocket.send(json.dumps({"cmd": "log", "enable": True, "time": t}))
+    msg = {"cmd": "log", "enable": True, "time": t}
+    if options.debug:
+      print(f'WOULD BE sending: {json.dumps(msg)}')
+      return
+    await websocket.send(json.dumps(msg))
     while True:
       r = await websocket.recv()
       msg = json.loads(r)
       if msg[0] == 'log':
+        # ignore msg[1], which is -1 or -2
         v = msg[2]
         if isinstance(v, (list, tuple)):
           for line in v: print(line)
         else:
           print(v)
+
+
+async def experimental():
+  # seems to work
+  # ~1 sec delay if remote host ends with '.local'
+  client = FahClient(options.host, options.port, options.group)
+  await client.connect()
+  print(json.dumps(client.data, indent=2))
+  #print(client.version())
+  # ~10 sec delay exiting if don't close first; no async context manager?
+  # destructor is called immediatly
+  await client.close()
 
 
 async def main():
@@ -313,14 +481,20 @@ async def main():
     from subprocess import check_call
     note = f'org.foldingathome.fahclient.nobody.{options.command}'
     cmd = ['notifyutil', '-p', note]
+    if options.debug:
+      print(f'WOULD BE running: {" ".join(cmd)}')
+      return
     if options.verbose: print(' '.join(cmd))
     check_call(cmd)
     return
 
-  if options.command in [None, '', 'status']:
+  if options.command == 'x':
+    await experimental()
+
+  elif options.command in [None, '', 'status']:
     await status(options.uri)
 
-  elif options.command in ['pause', 'fold', 'unpause', 'finish']:
+  elif options.command in SIMPLE_CLIENT_COMMANDS:
     await command(options.uri, options.command)
 
   elif options.command in ['config']:
@@ -343,5 +517,5 @@ if __name__ == '__main__':
   except KeyboardInterrupt:
     pass
   except Exception as e:
-    print(e, file=sys.stderr)
+    eprint(e)
     exit(1)
