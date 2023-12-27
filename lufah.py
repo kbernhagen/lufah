@@ -255,7 +255,7 @@ Config priority does not seem to work. Cores are probably setting priority.
 
   subparsers = parser.add_subparsers(dest='command', metavar = 'command')
   for cmd in HIDDEN_COMMANDS:
-    subparsers.add_parser(cmd, help=argparse.SUPPRESS)
+    subparsers.add_parser(cmd)
   for cmd in commands:
     help = commandsHelp.get(cmd)
     par = subparsers.add_parser(cmd, description=help, help=help)
