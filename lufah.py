@@ -125,7 +125,7 @@ def validate():
   port = r.port or 7396
   group = r.path or ''
   host = host.strip()
-  if host == '.': host = '127.0.0.1'
+  if host in ['.', 'localhost']: host = '127.0.0.1'
 
   if not options.command: options.command = 'status'
 
@@ -228,15 +228,18 @@ Examples
 
 Notes
 
-All commands except config are supported for fah v8.3.
-Command config may not behave as expected for fah v8.3.
-Command config is not supported with groups for fah v8.3.
-Group names must conform to v8.1 restrictions:
+All commands except setting group config are supported for fah 8.3.
+Command config may not behave as expected for fah 8.3.
+Command config is not supported with groups for fah 8.3.
+
+Group names should preferably conform to fah 8.1 restrictions:
   begins "/", has only letters, numbers, period, underscore, hyphen
+Group names with spaces and special chars may work with 8.3. This is untested.
 Group "/" is taken to mean the default group, which is "".
-For a group actually named "/" on v8.3, use "//".
+For a group actually named "/" on 8.3, use "//".
+
 An error may not be shown if the initial connection times out.
-If group does not exist, script may hang until silent timeout.
+If group does not exist on 8.1, this script may hang until silent timeout.
 Config priority does not seem to work. Cores are probably setting priority.
 '''
 
