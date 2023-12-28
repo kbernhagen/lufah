@@ -11,7 +11,7 @@ from websockets import connect # pip3 install websockets
 from websockets.exceptions import *
 
 program = os.path.basename(sys.argv[0])
-version = '0.1.6'
+version = '0.1.7'
 
 # TODO:
 #   lufah . get <keypath> # show json for snapshot.keypath
@@ -35,28 +35,32 @@ commandsHelp = dict(
   stop = 'stop local client service; peer must be "."',
 )
 
-# config keys; first two sets are separate on fah 8.3
+# fah 8.3 config keys
+# valid global/group keys are in json files:
+# https://github.com/FoldingAtHome/fah-client-bastet/tree/master/src/resources
 # note that these are the actual keys with underscore
 
-# keys to settings possibly owned by node account (if logged in)
-# I don't know if it's safe to change these while logged in
+# keys to settings possibly owned by account (if logged in)
+# Joseph says it's safe to change these while logged in
+# it is possible for a machine to differ from account
+# web control will only show the account values when logged in
 GLOBAL_CONFIG_KEYS = ['user', 'team', 'passkey', 'cause']
 
 # keys to settings in groups under v8.3; in main config before 8.3
 GROUP_CONFIG_KEYS = ['on_idle', 'beta', 'key', 'cpus']
 
 # peers is v8.1.x only, but possibly remains as cruft
-READ_ONLY_GLOBAL_KEYS = ["peers"]
-
-# should never be changed externally
+# gpus, paused, finish in main config before 8.3
+READ_ONLY_GLOBAL_KEYS = ["peers", "gpus", "paused", "finish"]
+# should never be changed externally for any fah version
 READ_ONLY_GROUP_KEYS = ["gpus", "paused", "finish"]
 
 READ_ONLY_CONFIG_KEYS = READ_ONLY_GLOBAL_KEYS + READ_ONLY_GROUP_KEYS
 VALID_CONFIG_SET_KEYS = GLOBAL_CONFIG_KEYS + GROUP_CONFIG_KEYS
 VALID_CONFIG_GET_KEYS = VALID_CONFIG_SET_KEYS + READ_ONLY_CONFIG_KEYS
-# maybe read-only for 8.3; maybe deprecated; writable < 8.3
-LEGACY_GLOBAL_KEYS = ['fold_anon', 'checkpoint', 'priority']
-DEPRECATED_CONFIG_KEYS = ["peers"]
+
+# removed in 8.3; there may be others
+DEPRECATED_CONFIG_KEYS = ["fold_anon", "peers", "checkpoint", "priority"]
 
 # as sent to client, not cli commands
 SIMPLE_CLIENT_COMMANDS = ['pause', 'fold', 'unpause', 'finish']
@@ -220,7 +224,7 @@ Examples
 
 {program} . finish
 {program} other.local/rg1 status
-{program} /my-p-cores config priority normal
+{program} /mygpu1 config cpus 0
 
 Notes
 
@@ -387,21 +391,26 @@ async def config(uri, key, value):
     # we don't care about 8.1 peer groups because everything is in main config
     # just need to be mindful of possible config.available_cpus
 
-    # v8.3 splits config between global/account and group(s)
-    # TODO: only allow user/team/passkey/cause when not linked to an account
-    # TODO: only allow group config on_idle/cpus/beta/key
+    if (8,3) <= ver:
+      group = munged_group_name(options.group, snapshot)
+    else:
+      group = options.group
 
-    key0 = key # FIXME: might need to check this too for 8.1
-    key = key.replace('-', '_') # convert cli keys to actual; on 8.2+ ?
+    # v8.3 splits config between global(account) and group
+
+    key0 = key # might exist in 8.1
+    key = key.replace('-', '_') # convert cli keys to actual
 
     if value is None:
-      # get and show value for key
+      # print value for key
       if (8,3) <= ver and key in GROUP_CONFIG_KEYS:
-        group = munged_group_name(options.group, snapshot)
+        # snapshot.groups.{group}.config
         conf = snapshot.get('groups',{}).get(group,{}).get("config",{})
         print(json.dumps(conf.get(key)))
       else:
-        print(json.dumps(snapshot.get('config', {}).get(key)))
+        # try getting key, no matter what it is
+        conf = snapshot.get('config', {})
+        print(json.dumps(conf.get(key, conf.get(key0))))
       return
 
     if 'cpus' == key:
@@ -414,18 +423,23 @@ async def config(uri, key, value):
       # available_cpus = maxcpus - total_group_cpus
       # if value > (available_cpus - current_group_cpus)
       # this is simpler if only have one group (the default group)
+      # no need to calc available_cpus if new value is 0
 
     if (8,3) <= ver:
-      if haveAcct and key in GLOBAL_CONFIG_KEYS:
-        raise Exception(f'error: cannot config "{key}": owned by account')
+      if key in DEPRECATED_CONFIG_KEYS:
+        raise Exception(f'error: key "{key}" is deprecated in fah 8.3')
+      if not key in VALID_CONFIG_SET_KEYS:
+        raise Exception(f'error: key "{key}" is not supported in fah 8.3')
       if key in GROUP_CONFIG_KEYS:
         raise Exception(f'error: group config is not supported for fah 8.3')
-      if not key in VALID_CONFIG_SET_KEYS:
-        raise Exception(f'error: config key {key} is not supported for fah 8.3')
+      if haveAcct and key in GLOBAL_CONFIG_KEYS:
+        eprint(f'warning: machine is linked to an account')
+        eprint(f'warning: "{key}" "{value}" may be overwritten by account')
+      eprint(f'warning: config may not work as expected with fah 8.3')
+      group = munged_group_name(options.group, snapshot)
 
-    if (8,3) <= ver:
-      eprint(f'warning: config may not work as expected on fah 8.3')
-
+    # TODO: don't send if value == current_value
+    # TODO: create appropriate 8.3 config.groups dict with all current groups
     conf = {key: value}
     t = datetime.datetime.utcnow().isoformat() + 'Z'
     msg = {"cmd":"config", "time":t, "config":conf}
@@ -517,7 +531,6 @@ if __name__ == '__main__':
     asyncio.run(main())
   except KeyboardInterrupt:
     print('\n')
-    pass
   except Exception as e:
     eprint(e)
     exit(1)
