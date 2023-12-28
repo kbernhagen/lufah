@@ -22,7 +22,7 @@ Little Utility for FAH v8
 positional arguments:
   peer           [host][:port][/group] Use "." for localhost
   command
-    status
+    status       default command if none is specified
     pause
     unpause      alias for fold
     fold
@@ -42,19 +42,22 @@ Examples
 
 lufah . finish
 lufah other.local/rg1 status
-lufah /my-p-cores config priority normal
+lufah /mygpu1 config cpus 0
 
 Notes
 
-All commands except config are supported for fah v8.3.
-Command config may not behave as expected for fah v8.3.
-Command config is not supported with groups for fah v8.3.
-Group names must conform to v8.1 restrictions:
+All commands except setting group config are supported for fah 8.3.
+Command config may not behave as expected for fah 8.3.
+Command config is not supported with groups for fah 8.3.
+
+Group names should preferably conform to fah 8.1 restrictions:
   begins "/", has only letters, numbers, period, underscore, hyphen
+Group names with spaces and special chars may work with 8.3. This is untested.
 Group "/" is taken to mean the default group, which is "".
-For a group actually named "/" on v8.3, use "//".
+For a group actually named "/" on 8.3, use "//".
+
 An error may not be shown if the initial connection times out.
-If group does not exist, script may hang until silent timeout.
+If group does not exist on 8.1, this script may hang until silent timeout.
 Config priority does not seem to work. Cores are probably setting priority.
 Commands start and stop are macOS-only.
 ```
