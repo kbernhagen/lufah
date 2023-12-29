@@ -128,7 +128,7 @@ def validate(options):
   host = host.strip()
   if host in ['.', 'localhost']: host = '127.0.0.1'
 
-  if not options.command: options.command = 'status'
+  if options.command in [None, '']: options.command = 'status'
 
   if options.debug:
     print(f'   peer: "{options.peer}"')
@@ -541,15 +541,12 @@ async def main():
     check_call(cmd)
     return
 
-  cmd = options.command
-  if cmd in [None, '']: options.command = 'status'
-
   if not options.command in commands + HIDDEN_COMMANDS:
     raise Exception(f'error: unknown command: {options.command}')
 
-  func = COMMANDS_DISPATCH.get(cmd)
+  func = COMMANDS_DISPATCH.get(options.command)
   if func is None:
-    raise Exception(f'error: command {cmd} is not implemented')
+    raise Exception(f'error: command {options.command} is not implemented')
 
   if options.command == 'log':
     try:
