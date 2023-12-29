@@ -548,14 +548,10 @@ async def main():
   if func is None:
     raise Exception(f'error: command {options.command} is not implemented')
 
-  if options.command == 'log':
-    try:
-      await func(options)
-    except ConnectionClosed:
-      if options.verbose: print('connection closed')
-
-  else:
+  try:
     await func(options)
+  except ConnectionClosed:
+    if options.verbose: print('connection closed')
 
 
 if __name__ == '__main__':
