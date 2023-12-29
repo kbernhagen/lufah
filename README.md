@@ -29,6 +29,7 @@ positional arguments:
     finish
     log          show log; use control-c to exit
     config       get or set config values
+    groups       show resource group names
     start        start local client service; peer must be "."
     stop         stop local client service; peer must be "."
 
@@ -46,9 +47,8 @@ lufah /mygpu1 config cpus 0
 
 Notes
 
-All commands except setting group config are supported for fah 8.3.
+All commands except `/group config key value` are supported for fah 8.3.
 Command config may not behave as expected for fah 8.3.
-Command config is not supported with groups for fah 8.3.
 
 Group names should preferably conform to fah 8.1 restrictions:
   begins "/", has only letters, numbers, period, underscore, hyphen

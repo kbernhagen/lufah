@@ -11,16 +11,16 @@ from websockets import connect # pip3 install websockets
 from websockets.exceptions import *
 
 program = os.path.basename(sys.argv[0])
-version = '0.1.7'
+version = '0.1.8'
 
 # TODO:
 #   lufah . get <keypath> # show json for snapshot.keypath
 #   lufah . groups # show json array of names
 #   lufah . create-group <name> # by sending pause to nonexistent group
 #   lufah . delete-group <name> # refuse if group has running WU?
-HIDDEN_COMMANDS = ['x'] # simple experimental stuff
+HIDDEN_COMMANDS = ['x', 'fake'] # simple experimental stuff
 # allowed cli commands; all visible
-commands = 'status pause unpause fold finish log config'.split()
+commands = 'status pause unpause fold finish log config groups'.split()
 if sys.platform == 'darwin': commands += ['start', 'stop']
 
 commandsHelp = dict(
@@ -33,6 +33,7 @@ commandsHelp = dict(
   config = 'get or set config values',
   start = 'start local client service; peer must be "."',
   stop = 'stop local client service; peer must be "."',
+  groups = 'show resource group names',
 )
 
 # fah 8.3 config keys
@@ -114,7 +115,7 @@ validKeysValues = {
 validKeys = validKeysValues.keys()
 
 
-def validate():
+def validate(options):
   if options.debug: options.verbose = True
   # do not strip right; 8.3 group names might not be stripped
   # create-group should strip what is specified, as web control does
@@ -217,7 +218,6 @@ def validate():
 
 
 def parse_args():
-  global options
   description = 'Little Utility for FAH v8'
   epilog = f'''
 Examples
@@ -228,9 +228,8 @@ Examples
 
 Notes
 
-All commands except setting group config are supported for fah 8.3.
+All commands except `/group config key value` are supported for fah 8.3.
 Command config may not behave as expected for fah 8.3.
-Command config is not supported with groups for fah 8.3.
 
 Group names should preferably conform to fah 8.1 restrictions:
   begins "/", has only letters, numbers, period, underscore, hyphen
@@ -261,8 +260,7 @@ Config priority does not seem to work. Cores are probably setting priority.
     help = '[host][:port][/group]  Use "." for localhost')
 
   subparsers = parser.add_subparsers(dest='command', metavar = 'command')
-  for cmd in HIDDEN_COMMANDS:
-    subparsers.add_parser(cmd)
+
   for cmd in commands:
     help = commandsHelp.get(cmd)
     par = subparsers.add_parser(cmd, description=help, help=help)
@@ -272,8 +270,12 @@ Config priority does not seem to work. Cores are probably setting priority.
       par.add_argument('value', nargs='?',
         help = 'a valid config value for given key')
 
+  for cmd in HIDDEN_COMMANDS:
+    subparsers.add_parser(cmd)
+
   options = parser.parse_args()
-  validate()
+  validate(options)
+  return options
 
 
 CLIENTS = {}
@@ -311,14 +313,14 @@ class FahClient:
     await self._conn.__aexit__(*args, **kwargs)
 
 
-async def status(uri):
-  if options.verbose: print(f'opening {uri}')
-  async with connect(uri) as websocket:
+async def status(options):
+  if options.verbose: print(f'opening {options.uri}')
+  async with connect(options.uri) as websocket:
     r = await websocket.recv()
     print(r)
 
 
-def munged_group_name(group, snapshot):
+def munged_group_name(options, group, snapshot):
   # return a group name that exists, else throw
   # assume v8.3
   # NOTE: must have connected to have snapshot
@@ -346,7 +348,9 @@ def value_for_key_path(adict, kp):
   return None
 
 
-async def command(uri, cmd):
+async def command(options):
+  uri = options.uri
+  cmd = options.command
   if not cmd in SIMPLE_CLIENT_COMMANDS:
     raise Exception(f'unknown client command: {cmd}')
   if options.verbose: print(f'opening {uri}')
@@ -370,7 +374,7 @@ async def command(uri, cmd):
       # if group is '', cmd applies to all groups (no group)
       # must test before munge to distinguish no group from default group
       if options.group:
-        msg["group"] = munged_group_name(options.group, snapshot)
+        msg["group"] = munged_group_name(options, options.group, snapshot)
     if options.debug:
       print(f'WOULD BE sending: {json.dumps(msg)}')
       return
@@ -379,7 +383,10 @@ async def command(uri, cmd):
 
 
 # TODO: refactor into config_get(), config_set(), get_config(snapshot,group)
-async def config(uri, key, value):
+async def config(options):
+  uri = options.uri
+  key = options.key
+  value = options.value
   if options.verbose: print(f'opening {uri}')
   async with connect(uri) as websocket:
     r = await websocket.recv()
@@ -395,7 +402,7 @@ async def config(uri, key, value):
     # just need to be mindful of possible config.available_cpus
 
     if (8,3) <= ver:
-      group = munged_group_name(options.group, snapshot)
+      group = munged_group_name(options, options.group, snapshot)
     else:
       group = options.group
 
@@ -439,7 +446,7 @@ async def config(uri, key, value):
         eprint(f'warning: machine is linked to an account')
         eprint(f'warning: "{key}" "{value}" may be overwritten by account')
       eprint(f'warning: config may not work as expected with fah 8.3')
-      group = munged_group_name(options.group, snapshot)
+      group = munged_group_name(options, options.group, snapshot)
 
     # TODO: don't send if value == current_value
     # TODO: create appropriate 8.3 config.groups dict with all current groups
@@ -453,7 +460,8 @@ async def config(uri, key, value):
     await websocket.send(json.dumps(msg))
 
 
-async def log(uri):
+async def log(options):
+  uri = options.uri
   if options.verbose: print(f'opening {uri}')
   # ping_interval=None to prevent timeout:
   # sent 1011 (unexpected error) keepalive ping timeout; no close frame received
@@ -478,7 +486,7 @@ async def log(uri):
           print(v)
 
 
-async def experimental():
+async def experimental(options):
   # seems to work
   # ~1 sec delay if remote host ends with '.local'
   client = FahClient(options.host, options.port, options.group)
@@ -490,8 +498,35 @@ async def experimental():
   await client.close()
 
 
+async def show_groups(options):
+  client = FahClient(options.host, options.port, options.group)
+  await client.connect()
+  groups = list(client.data.get('groups', {}).keys()) # [] on < 8.3
+  if options.debug: print(f'groups {groups}')
+  if not groups:
+    peers = client.data.get('peers', [])
+    if options.debug: print(f'peers {peers}')
+    groups = [s for s in peers if s.startswith("/")]
+    if options.debug: print(f'groups {groups}')
+  print(json.dumps(groups))
+  await client.close()
+
+
+COMMANDS_DISPATCH = {
+  "status"  : status,
+  "pause"   : command,
+  "unpause" : command,
+  "fold"    : command,
+  "finish"  : command,
+  "log"     : log,
+  "config"  : config,
+  "groups"  : show_groups,
+  "x"       : experimental,
+}
+
+
 async def main():
-  parse_args()
+  options = parse_args()
 
   if sys.platform == 'darwin' and options.command in ['start', 'stop']:
     if options.peer != '.':
@@ -506,27 +541,24 @@ async def main():
     check_call(cmd)
     return
 
-  if options.command == 'x':
-    await experimental()
+  cmd = options.command
+  if cmd in [None, '']: options.command = 'status'
 
-  elif options.command in [None, '', 'status']:
-    await status(options.uri)
+  if not options.command in commands + HIDDEN_COMMANDS:
+    raise Exception(f'error: unknown command: {options.command}')
 
-  elif options.command in SIMPLE_CLIENT_COMMANDS:
-    await command(options.uri, options.command)
+  func = COMMANDS_DISPATCH.get(cmd)
+  if func is None:
+    raise Exception(f'error: command {cmd} is not implemented')
 
-  elif options.command in ['config']:
-    await config(options.uri, options.key, options.value)
-
-  elif options.command in ['log']:
+  if options.command == 'log':
     try:
-      await log(options.uri)
+      await func(options)
     except ConnectionClosed:
       if options.verbose: print('connection closed')
-      pass
 
   else:
-    raise Exception(f'unknown command: {options.command}')
+    await func(options)
 
 
 if __name__ == '__main__':
