@@ -11,19 +11,18 @@ from websockets import connect # pip3 install websockets
 from websockets.exceptions import *
 
 program = os.path.basename(sys.argv[0])
-version = '0.1.8'
+version = '0.1.9'
 
 # TODO:
 #   lufah . get <keypath> # show json for snapshot.keypath
-#   lufah . groups # show json array of names
 #   lufah . create-group <name> # by sending pause to nonexistent group
 #   lufah . delete-group <name> # refuse if group has running WU?
 HIDDEN_COMMANDS = ['x', 'fake'] # simple experimental stuff
 # allowed cli commands; all visible
-commands = 'status pause unpause fold finish log config groups'.split()
-if sys.platform == 'darwin': commands += ['start', 'stop']
+COMMANDS = 'status pause unpause fold finish log config groups watch'.split()
+if sys.platform == 'darwin': COMMANDS += ['start', 'stop']
 
-commandsHelp = dict(
+COMMANDS_HELP = dict(
   status = 'default command if none is specified',
   pause = '',
   unpause = 'alias for fold',
@@ -34,6 +33,7 @@ commandsHelp = dict(
   start = 'start local client service; peer must be "."',
   stop = 'stop local client service; peer must be "."',
   groups = 'show resource group names',
+  watch = 'show incoming messages; use control-c to exit',
 )
 
 # fah 8.3 config keys
@@ -63,7 +63,7 @@ VALID_CONFIG_GET_KEYS = VALID_CONFIG_SET_KEYS + READ_ONLY_CONFIG_KEYS
 # removed in 8.3; there may be others
 DEPRECATED_CONFIG_KEYS = ["fold_anon", "peers", "checkpoint", "priority"]
 
-# as sent to client, not cli commands
+# both as sent to client, and cli command
 SIMPLE_CLIENT_COMMANDS = ['pause', 'fold', 'unpause', 'finish']
 
 
@@ -88,7 +88,7 @@ validKeysValues = {
   "team": {"default": 0, "type": int, "values": range(0, 0x7FFFFFFF)},
   "passkey": {"default": '', "type": str.lower, "re": r'^[0-9a-fA-F]{32}$',
     "help": 'passkey must be 32 hexadecimal characters'},
-  #"beta": {"type": bool_from_string}, # don't encourage use of this
+  "beta": {"type": bool_from_string},
   # https://api.foldingathome.org/project/cause
   "cause": {"default": 'any', "type": str.lower, "values": [
       "any", "alzheimers", "cancer", "huntingtons",
@@ -124,11 +124,22 @@ def validate(options):
   r = urlparse('//' + options.peer)
   host = r.hostname or '127.0.0.1' # note r.hostname can be None
   port = r.port or 7396
-  group = r.path or ''
+  group = r.path # expect '' or '/*'
   host = host.strip()
   if host in ['.', 'localhost']: host = '127.0.0.1'
 
   if options.command in [None, '']: options.command = 'status'
+
+  # validate and munge group
+  # for v8.3, allow "//" prefix, spaces, special chars
+  # None is no group (aka all groups)
+  # '/'  will be '' (default group)
+  # '//' will be '/'
+  if group == '': group = None
+  if group is not None:
+    if re.match(r'^\/[\w.-]+$', group):
+      options.legacyGroupMatch = True # not necessarily connecting to 8.1
+    if group.startswith("/"): group = group[1:] # strip "/"; can now be ''
 
   if options.debug:
     print(f'   peer: "{options.peer}"')
@@ -137,28 +148,26 @@ def validate(options):
     print(f'  group: "{group}"')
     print(f'command: {options.command}')
 
-  # validate group ^\/[\w.-]*$
-  # for v8.3, allow "//" prefix, spaces, special chars
-  #   '' is no group (all groups)
-  #   '/' is default group (actually named '')
-  #   '//' is group '/'
-  #   anything else tried as-is else without leading /
-  if group == '' or re.match(r'^\/[\w.-]*$', group):
-    options.legacyGroupMatch = True
-
   options.host = host
   options.port = port
   options.group = group
+
   if r.username and r.password: host = f'{r.username}:{r.password}@{host}'
   elif r.username: host = f'{r.username}@{host}'
+
   # TODO: validate host, port; maybe disallow numeric IPv6 addresses
+
+  # FIXME: do not add group to uri for newer commands, even if legacy match
   if options.legacyGroupMatch:
-    options.uri = f'ws://{host}:{port}/api/websocket{group}'
+    options.uri = f'ws://{host}:{port}/api/websocket/{group}'
   else:
     # this is what v8.3 expects, but currently appending /group seems ok
     # when v8.1 support is dropped, just use this instead
     # less restrictive group names are not url friendly
     options.uri = f'ws://{host}:{port}/api/websocket'
+
+  if options.debug:
+    print(f'    uri: "{options.uri}"')
 
   # validate config key value
   if options.command in ['config']:
@@ -218,6 +227,7 @@ def validate(options):
 
 
 def parse_args():
+  global options
   description = 'Little Utility for FAH v8'
   epilog = f'''
 Examples
@@ -261,8 +271,8 @@ Config priority does not seem to work. Cores are probably setting priority.
 
   subparsers = parser.add_subparsers(dest='command', metavar = 'command')
 
-  for cmd in commands:
-    help = commandsHelp.get(cmd)
+  for cmd in COMMANDS:
+    help = COMMANDS_HELP.get(cmd)
     par = subparsers.add_parser(cmd, description=help, help=help)
     if cmd == 'config':
       # TODO: add subparser for each valid config key
@@ -281,63 +291,107 @@ Config priority does not seem to work. Cores are probably setting priority.
 CLIENTS = {}
 
 class FahClient:
+  # FIXME: not tested with fah 8.1 groups
   def __init__(self, host='127.0.0.1', port=7396, group=None):
     self._name = f'{host}:{port}'
     self._uri = f'ws://{host}:{port}/api/websocket'
+    self._group = group # is usually None
+    if group and re.match(r'^\/?[\w.-]*$', group):
+      # might connect to fah 8.1
+      if not group.startswith('/'): self._uri += '/'
+      self._uri += group
     self._conn = connect(self._uri)
     self._ws = None
     self.data = {} # snapshot
     self._version = (0,0,0) # data.info.version as tuple
+
   def __del__(self):
     #print("Destructor called for", type(self).__name__, self._name)
     pass
+
   def version(self): return self._version
+
+  def groups(self):
+    groups = list(self.data.get('groups', {}).keys())
+    if not groups:
+      peers = self.data.get('peers', [])
+      groups = [s for s in peers if s.startswith("/")]
+    return groups
+
   async def connect(self):
-    # FIXME: check if connected first
-    if not self._ws: self._ws = await self._conn.__aenter__()
+    if self._ws is not None and self._ws.open: return
+    if not self._ws:
+      if options.verbose: print(f'Opening {self._uri}')
+      try:
+        self._ws = await self._conn.__aenter__()
+      except Exception as e:
+        eprint(f"Failed to connect to {self._uri}")
+        self.data = {}
+        self._version = (0,0,0)
+        raise e
+      else:
+        if options.verbose: print(f"Connected to {self._uri}")
     r = await self._ws.recv()
     snapshot = json.loads(r)
     v = snapshot.get("info", {}).get("version", "0")
     self._version = tuple([int(x) for x in v.split('.')])
     self.data.update(snapshot)
-    pass
+
   async def close(self):
-    await self._ws.close()
+    if self._ws is not None:
+      await self._ws.close()
     self._ws = None
-  def update(self, data): # data: json array or dict
+
+  def update(self, data): # data: json array or dict or string
     if isinstance(v, (dict)):
+      # currently, this should not happen
       self.data.update(data)
     elif isinstance(v, (list)):
       pass # self._process_update_list(data)
+    # else if string, ignore "ping"
+
   async def __aexit__(self, *args, **kwargs):
     await self._conn.__aexit__(*args, **kwargs)
 
 
 async def status(options):
-  if options.verbose: print(f'opening {options.uri}')
+  if options.verbose: print(f'Opening {options.uri}')
   async with connect(options.uri) as websocket:
     r = await websocket.recv()
     print(r)
 
 
 def munged_group_name(options, group, snapshot):
-  # return a group name that exists, else throw
-  # assume v8.3
+  # returns group name that exists, None, or throws
+  # assume v8.3; old group names may persist from upgrade
   # NOTE: must have connected to have snapshot
-  # pre-munging would be simpler if require '//name' for actual '/name'
+  # group may be None
+  # expect always having first leading '/' removed from cli argument
+  # expect user specified '//name' for actual '/name' (already stripped)
+  if group is None: return None # no group specified
+  if snapshot is None: raise Exception(f'error: snapshot is None')
+  orig_group = group
+  # get array of actual group names else []
   groups = list(snapshot.get('groups', {}).keys())
-  if group is None: raise Exception(f'error: group is None')
-  if options.verbose: print(f'groups: {groups}')
-  if group == '/': group = '' # default group
-  elif group == '//': group = '/' # literal group name '/'
-  elif group.startswith('//'): group = group[1:]
-  elif group.startswith('/'):
-    group0 = group[1:] # without leading '/'
+  if not groups:
+    # for 8.1
+    peers = self.data.get('peers', [])
+    groups = [s for s in peers if s.startswith("/")]
+  if len(group): # don't conflate '' with '/'; both can legit exist
+    # check 'groupname' and '/groupname'
+    # if both exist, throw
+    # '' is always the default group and not checked here
+    group0 = '/' + group
+    if group0 in groups and group in groups:
+      raise Exception(f'error: both "{group}" and "{group0}" exist')
     if group0 in groups and not group in groups:
       group = group0
   if not group in groups:
     raise Exception(f'error: no "{group}" in groups {groups}')
-  if options.debug: print(f'munged group: "{group}"')
+  if options.debug:
+    print(f'groups: {groups}')
+    print(f'original group: "{orig_group}"')
+    print(f'munged group: "{group}"')
   return group
 
 
@@ -374,7 +428,9 @@ async def command(options):
       # if group is '', cmd applies to all groups (no group)
       # must test before munge to distinguish no group from default group
       if options.group:
-        msg["group"] = munged_group_name(options, options.group, snapshot)
+        group = munged_group_name(options, options.group, snapshot)
+        if group is not None:
+          msg["group"] = group
     if options.debug:
       print(f'WOULD BE sending: {json.dumps(msg)}')
       return
@@ -413,7 +469,7 @@ async def config(options):
 
     if value is None:
       # print value for key
-      if (8,3) <= ver and key in GROUP_CONFIG_KEYS:
+      if (8,3) <= ver and key in GROUP_CONFIG_KEYS and group is not None:
         # snapshot.groups.{group}.config
         conf = snapshot.get('groups',{}).get(group,{}).get("config",{})
         print(json.dumps(conf.get(key)))
@@ -446,7 +502,6 @@ async def config(options):
         eprint(f'warning: machine is linked to an account')
         eprint(f'warning: "{key}" "{value}" may be overwritten by account')
       eprint(f'warning: config may not work as expected with fah 8.3')
-      group = munged_group_name(options, options.group, snapshot)
 
     # TODO: don't send if value == current_value
     # TODO: create appropriate 8.3 config.groups dict with all current groups
@@ -501,15 +556,25 @@ async def experimental(options):
 async def show_groups(options):
   client = FahClient(options.host, options.port, options.group)
   await client.connect()
-  groups = list(client.data.get('groups', {}).keys()) # [] on < 8.3
-  if options.debug: print(f'groups {groups}')
-  if not groups:
-    peers = client.data.get('peers', [])
-    if options.debug: print(f'peers {peers}')
-    groups = [s for s in peers if s.startswith("/")]
-    if options.debug: print(f'groups {groups}')
-  print(json.dumps(groups))
+  print(json.dumps(client.groups()))
   await client.close()
+
+
+async def watch(options):
+  client = FahClient(options.host, options.port, options.group)
+  await client.connect()
+  try:
+    print(json.dumps(client.data, indent=2))
+    async for message in client._ws:
+      msg = json.loads(message)
+      if isinstance(msg, (list, dict)):
+        print(json.dumps(msg))
+      elif isinstance(msg, str):
+        print(json.dumps(msg))
+      else:
+        print(message.hex())
+  finally:
+    await client.close()
 
 
 COMMANDS_DISPATCH = {
@@ -522,6 +587,7 @@ COMMANDS_DISPATCH = {
   "config"  : config,
   "groups"  : show_groups,
   "x"       : experimental,
+  "watch"   : watch,
 }
 
 
@@ -541,7 +607,7 @@ async def main():
     check_call(cmd)
     return
 
-  if not options.command in commands + HIDDEN_COMMANDS:
+  if not options.command in COMMANDS + HIDDEN_COMMANDS:
     raise Exception(f'error: unknown command: {options.command}')
 
   func = COMMANDS_DISPATCH.get(options.command)
@@ -551,7 +617,7 @@ async def main():
   try:
     await func(options)
   except ConnectionClosed:
-    if options.verbose: print('connection closed')
+    if options.verbose: eprint('Connection closed')
 
 
 if __name__ == '__main__':

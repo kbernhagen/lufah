@@ -9,7 +9,7 @@ work on macOS, Linux, and Windows.
 ## Requirements
 
 - python 3.8 or later
-- pip3 install websockets
+- pip3 install websockets --user
 
 
 ## Usage
@@ -30,6 +30,7 @@ positional arguments:
     log          show log; use control-c to exit
     config       get or set config values
     groups       show resource group names
+    watch        show incoming messages; use control-c to exit
     start        start local client service; peer must be "."
     stop         stop local client service; peer must be "."
 
@@ -52,9 +53,9 @@ Command config may not behave as expected for fah 8.3.
 
 Group names should preferably conform to fah 8.1 restrictions:
   begins "/", has only letters, numbers, period, underscore, hyphen
-Group names with spaces and special chars may work with 8.3. This is untested.
-Group "/" is taken to mean the default group, which is "".
-For a group actually named "/" on 8.3, use "//".
+For 8.3, group names can contain spaces and special chars.
+Group "/" is taken to mean the default group, which is actually named "".
+For a group named "/" on 8.3, use "//".
 
 An error may not be shown if the initial connection times out.
 If group does not exist on 8.1, this script may hang until silent timeout.
