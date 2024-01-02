@@ -252,11 +252,12 @@ Notes
 All commands except `/group config key value` are supported for fah 8.3.
 Command config may not behave as expected for fah 8.3.
 
-Group names should preferably conform to fah 8.1 restrictions:
-  begins "/", has only letters, numbers, period, underscore, hyphen
-Group names with spaces and special chars may work with 8.3. This is untested.
+Group names for fah 8.1 must:
+  begin "/", have only letters, numbers, period, underscore, hyphen
+Group names on 8.3 can have spaces and special chars.
+Web Control 8.3 trims leading and trailing white space.
 Group "/" is taken to mean the default group, which is "".
-For a group actually named "/" on 8.3, use "//".
+For a group actually named "/", use "//".
 
 An error may not be shown if the initial connection times out.
 If group does not exist on 8.1, this script may hang until silent timeout.
