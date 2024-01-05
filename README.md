@@ -14,8 +14,13 @@ work on macOS, Linux, and Windows.
 
 ## Usage
 
+Note that lufah uses unencrypted, direct websocket connections.
+This is what Web Control uses to connect to the local client.
+This has security implications if you enable direct remote access on a client.
+See [HOWTO: Allow v8 Client Remote Control](https://foldingforum.org/viewtopic.php?t=39050)
+
 ```
-usage: lufah.py [-h] [-v] [-d] [--version] peer command ...
+usage: lufah [-h] [-v] [-d] [--version] peer command ...
 
 Little Utility for FAH v8
 
@@ -48,7 +53,7 @@ lufah /mygpu1 config cpus 0
 
 Notes
 
-All commands except `/group config key value` are supported for fah 8.3.
+All commands except "/group config key value" are supported for fah 8.3.
 Command config may not behave as expected for fah 8.3.
 
 Group names for fah 8.1 must:
@@ -67,4 +72,9 @@ Commands start and stop are macOS-only.
 On Windows, usage resembles
 ```
 python .\somewhere\lufah.py . pause
+```
+If you put `lufah.py` and `lufah.bat` together in a directory
+in your command `PATH`, you can use
+```
+lufah . pause
 ```

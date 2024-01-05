@@ -1,18 +1,33 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+lufah: Little Utility for FAH v8
+"""
+
+__version__ = '0.2.0'
+
+__all__ = ['FahClient']
+__license__ = 'Unlicense'
+
 import os
 import sys
 import json
 import asyncio
 import socket
-from urllib.parse import urlparse
 import argparse
 import re
 import datetime
-from websockets import connect # pip3 install websockets
+import errno
+from urllib.parse import urlparse
+from urllib.request import urlopen
+
+from websockets import connect # pip3 install websockets --user
 from websockets.exceptions import *
 
-program = os.path.basename(sys.argv[0])
-version = '0.1.10'
+PROGRAM = os.path.basename(sys.argv[0])
+if PROGRAM.endswith(".py"):
+  PROGRAM = PROGRAM[:-3]
 
 # TODO:
 #   lufah . get <keypath> # show json for snapshot.keypath
@@ -68,11 +83,12 @@ DEPRECATED_CONFIG_KEYS = ["fold_anon", "peers", "checkpoint", "priority"]
 # both as sent to client, and cli command
 SIMPLE_CLIENT_COMMANDS = ['pause', 'fold', 'finish']
 
-CLIENTS = {}
+
+_CLIENTS = {}
 
 
 def eprint(*args, **kwargs):
-    print(*args, file=sys.stderr, **kwargs)
+  print(*args, file=sys.stderr, **kwargs)
 
 
 def bool_from_string(value):
@@ -92,7 +108,7 @@ def value_for_key_path(adict, kp):
 
 
 # allowed config keys
-validKeysValues = {
+VALID_KEYS_VALUES = {
   "fold-anon": {"type": bool_from_string},
   "user": {"default":'Anonymous', "type":str.strip, "re":r'^[^\t\n\r]{1,100}$',
     "help": 'If you are using unusual chars, please use Web Control.'},
@@ -124,94 +140,73 @@ validKeysValues = {
 # user email
 
 
+def _fetch_json(url):
+  data = None
+  # TODO: handle file:...
+  response = urlopen(url)
+  if response.getcode() == 200:
+    data = json.loads(response.read().decode('utf-8'))
+  return data
+
+
+def _fetch_causes(options, **kwargs):
+  data = _fetch_json('https://api.foldingathome.org/project/cause')
+  if options.verbose: print('causes:', json.dumps(data, indent=2))
+  return data
+
+
 def validate(options):
   if options.debug: options.verbose = True
-  # do not strip right; 8.3 group names might not be stripped
-  # create-group should strip what is specified, as web control does
-  options.peer = options.peer.lstrip()
+
+  options.peer = options.peer.lstrip() # ONLY left strip
   if not options.peer: raise Exception(f'error: no peer specified')
-  r = urlparse('//' + options.peer)
-  host = r.hostname or '127.0.0.1' # note r.hostname can be None
-  port = r.port or 7396
-  group = r.path # expect '' or '/*'
-  host = host.strip()
-  if host in ['.', 'localhost']: host = '127.0.0.1'
+  # true validation of peer is done by _uri_and_group_for_peer()
+  # TODO: accept file:~/peers.json containing {"peers":[".","host2","host3"]}
+
+  if options.debug:
+    print(f'   peer: {repr(options.peer)}')
+    print(f'command: {repr(options.command)}')
 
   if options.command in [None, '']: options.command = 'status'
   elif options.command == 'unpause': options.command = 'fold'
 
-  # validate and munge group
-  # for v8.3, allow "//" prefix, spaces, special chars
-  # None or '' is no group (aka all groups)
-  # '/'  will be '' (default group)
-  # '//' will be '/'
-  # '//*' will be '/*'
-  # 8.1 group name '/' requires using '//'
-  if group in [None, '']: group = None # no group
-  elif group == '/': group = '' # default group
-  else:
-    if re.match(r'^\/[\w.-]+$', group):
-      options.legacyGroupMatch = True # but not necessarily connecting to 8.1
-    if group.startswith("/"): group = group[1:] # strip "/"; can now be ''
-
-  options.host = host
-  options.port = port
-  options.group = group
-
-  if r.username and r.password: host = f'{r.username}:{r.password}@{host}'
-  elif r.username: host = f'{r.username}@{host}'
-
-  # TODO: validate host, port; maybe disallow numeric IPv6 addresses
-
-  # FIXME: do not add group to uri for newer commands, even if legacy match
-  if options.legacyGroupMatch:
-    options.uri = f'ws://{host}:{port}/api/websocket/{group}'
-  else:
-    # this is what v8.3 expects, but currently appending /group seems ok
-    # when v8.1 support is dropped, just use this instead
-    # less restrictive group names are not url friendly
-    options.uri = f'ws://{host}:{port}/api/websocket'
-
   if options.debug:
-    print(f'\n   peer: "{options.peer}"')
-    print(f'   host: "{host}"')
-    print(f'   port: {port}')
-    print(f'  group: "{group}"')
-    print(f'command: {options.command}')
-    print(f'    uri: "{options.uri}"')
+    print(f'command: {repr(options.command)}')
 
   # validate config key value
   if options.command in ['config']:
     key = options.key
     value = options.value
-    keys = validKeysValues.keys()
-    info = validKeysValues.get(key, {})
+    keys = VALID_KEYS_VALUES.keys()
+    info = VALID_KEYS_VALUES.get(key, {})
     values = info.get('values')
     regex = info.get('re')
     conv = info.get('type')
     default = info.get('default')
 
     if options.debug:
-      print(f'\nkey: {key} value: {value}')
-      print(f'valid keys: {" ".join(keys)}')
+      print(f'         key: {key}')
+      print(f'       value: {value}')
+      print(f'  valid keys: {" ".join(keys)}')
       print(f'valid values: {values}')
-      print(f'default {default}')
-      print(f'regex {regex}')
-      print(f'type convert {conv}')
+      print(f'     default: {default}')
+      print(f'       regex: {regex}')
+      print(f'type convert: {conv}')
 
     if not key in keys:
       k = ' '.join(keys)
       raise Exception(f'unsupported config key: {key}\nknown keys: {k}')
 
     if value is None: return
-    # else validate value
+
+    # validate value
 
     if default is not None and value == '':
       options.value = default
       return
 
     value0 = value
-    if conv is not None: # assume callable
+    if conv is not None and callable(conv):
       options.value = value = conv(value)
 
     if conv == bool_from_string: return
@@ -243,13 +238,13 @@ def parse_args():
   epilog = f'''
 Examples
 
-{program} . finish
-{program} other.local/rg1 status
-{program} /mygpu1 config cpus 0
+{PROGRAM} . finish
+{PROGRAM} other.local/rg1 status
+{PROGRAM} /mygpu1 config cpus 0
 
 Notes
 
-All commands except `/group config key value` are supported for fah 8.3.
+All commands except "/group config key value" are supported for fah 8.3.
 Command config may not behave as expected for fah 8.3.
 
 Group names for fah 8.1 must:
@@ -267,16 +262,21 @@ Config priority does not seem to work. Cores are probably setting priority.
   if sys.platform == 'darwin':
     epilog += 'Commands start and stop are macOS-only.'
 
-  parser = argparse.ArgumentParser(description=description, epilog=epilog,
+  if len(sys.argv) == 2 and sys.argv[1] == 'help':
+    sys.argv[1] = '-h'
+
+  parser = argparse.ArgumentParser(
+    prog=PROGRAM,
+    description=description,
+    epilog=epilog,
     formatter_class=argparse.RawDescriptionHelpFormatter)
 
   parser.set_defaults(key=None, value=None) # do not remove this
-  parser.set_defaults(legacyGroupMatch=False)
-  parser.set_defaults(host='127.0.0.1', port=7396, group='', uri='')
+  parser.set_defaults(peer='') # in case peer is not required in future
 
   parser.add_argument('-v', '--verbose', action='store_true')
   parser.add_argument('-d', '--debug', action='store_true')
-  parser.add_argument('--version', action='version', version=version)
+  parser.add_argument('--version', action='version', version=__version__)
 
   parser.add_argument('peer',
     help = '[host][:port][/group]  Use "." for localhost')
@@ -288,7 +288,7 @@ Config priority does not seem to work. Cores are probably setting priority.
     par = subparsers.add_parser(cmd, description=help, help=help)
     if cmd == 'config':
       # TODO: add subparser for each valid config key
-      par.add_argument('key', help = ' '.join(validKeysValues.keys()))
+      par.add_argument('key', help = ' '.join(VALID_KEYS_VALUES.keys()))
       par.add_argument('value', nargs='?',
         help = 'a valid config value for given key')
 
@@ -298,6 +298,79 @@ Config priority does not seem to work. Cores are probably setting priority.
   options = parser.parse_args()
   validate(options)
   return options
+
+
+def _uri_and_group_for_peer(peer):
+  # do not strip right; 8.3 group names might not be stripped
+  # create-group should strip what is specified, as web control does
+  peer = peer.lstrip()
+  if peer in [None, '']: return (None, None)
+
+  uri = peer
+  if peer.startswith(':'):
+    uri = 'ws://.' + peer
+  elif peer.startswith('/'):
+    uri = 'ws://.' + peer
+  if urlparse(uri).scheme == '':
+    uri = 'ws://' + peer
+
+  u = urlparse(uri)
+
+  if not u.scheme in ['ws', 'wss']:
+    eprint(f'error: scheme {u.scheme} is not supported for peer {repr(peer)}')
+    return (None, None)
+
+  userpass = ''
+  user = u.username
+  password = u.password
+  if user and password: userpass = f'{user}:{password}@'
+
+  host = u.hostname # can be None
+  if host: host = host.strip()
+  if host in [None, '', '.', 'localhost', 'localhost.']:
+    host = '127.0.0.1'
+  else:
+    # TODO: validate host regex; maybe disallow numeric IPv6 addresses
+    # try to munge a resolvable host name
+    # remote in vm is on another subnet; need host.local resolved to ipv4
+    if host.endswith('.local'): host = host[:-6]
+    if not '.' in host:
+      try:
+        socket.gethostbyname(host)
+      except socket.gaierror as e:
+        # cannot resolve, try again with '.local', if so use ipv4 addr
+        # this will be slow if host does not exist
+        # note: we do not catch exception
+        # may cause lufah to always use ipv4 running on Windows w 'host.local'
+        try:
+          host = socket.gethostbyname(host + '.local')
+        except socket.gaierror as e:
+          m = f'Unable to resolve {repr(host)} or {repr(host + ".local")}'
+          raise Exception(m)
+        except:
+          raise
+
+  port = u.port or 7396
+
+  uri = f'{u.scheme}://{userpass}{host}:{port}/api/websocket'
+
+  # validate and munge group, possibly modify uri for 8.1
+  # for v8.3, allow "//" prefix, spaces, special chars
+  # None or '' is no group (aka all groups)
+  # '/'  will be '' (default group)
+  # '//' will be '/'
+  # '//*' will be '/*'
+  # 8.1 group name '/' requires using '//'
+  group = u.path
+  if group in [None, '']: group = None # no group
+  elif group == '/': group = '' # default group
+  elif group.startswith("/"): group = group[1:] # strip "/"; can now be ''
+  if group and re.match(r'^\/?[\w.-]*$', group):
+    # might be connecting to fah 8.1, so append /group
+    if not group.startswith('/'): uri += '/'
+    uri += group
+
+  return (uri, group)
 
 
 def munged_group_name(options, group, snapshot):
@@ -328,52 +401,34 @@ def munged_group_name(options, group, snapshot):
   if not group in groups:
     raise Exception(f'error: no "{group}" in groups {groups}')
   if options.debug:
-    print(f'groups: {groups}')
-    print(f'original group: "{orig_group}"')
-    print(f'munged group: "{group}"')
+    print(f'        groups: {groups}')
+    print(f'original group: {repr(orig_group)}"')
+    print(f'  munged group: {repr(group)}')
   return group
 
 
 class FahClient:
-  # FIXME: not tested with fah 8.1 groups
-  def __init__(self, host='127.0.0.1', port=7396, group=None, name=None):
-    self._host = host
-    self._port = port
-    self._name = name if name else f'{host}:{port}'
-    self._group = group  # group is usually None
+
+  def __init__(self, peer, name=None):
+    self._name = None # if exception, __del__ needs _name to exist
+    self._ws = None
     self.data = {} # snapshot
-    self._version = (0,0,0) # data.info.version as tuple
-    self._build_uri()
+    self._version = (0,0,0) # data.info.version as tuple after connect
+    # peer is a pseuso-uri that needs munging
+    # NOTE: this may raise
+    self._uri, self._group = _uri_and_group_for_peer(peer)
+    self._name = name if name else self._uri
+    # NOTE: this does not actually connect yet
+    self._conn = connect(self._uri, ping_interval=None)
+    # TODO: once connected, there is data.info.id, which is a better index
+    _CLIENTS[self._name] = self
     if options.debug:
-      print(f'   name: "{self._name}"')
+      print(f'Created FahClient: {repr(self._name)}')
 
   def __del__(self):
-    #print("Destructor called for", type(self).__name__, self._name)
-    pass
-
-  def _build_uri(self):
-    self._ws = None
-    # try to munge a resolvable host name
-    # remote in vm is on another subnet; need host.local resolved to ipv4
-    host = self._host
-    if host and host.endswith('.local'): host = host[:-6]
-    if host and not '.' in host:
-      try:
-        socket.gethostbyname(host)
-      except socket.gaierror as e:
-        # cannot resolve, try again with '.local', if so use ipv4 addr
-        # this will be slow if host does not exist
-        # note: we do not catch exception
-        # may cause lufah to always use ipv4 running on Windows w 'host.local'
-        ip = socket.gethostbyname(host + '.local')
-        host = ip
-    self._uri = f'ws://{host}:{self._port}/api/websocket'
-    group = self._group # is usually None
-    if group and re.match(r'^\/?[\w.-]*$', group):
-      # might be connecting to fah 8.1
-      if not group.startswith('/'): self._uri += '/'
-      self._uri += group
-    self._conn = connect(self._uri, ping_interval=None)
+    if options.debug:
+      print("Destructor called for", type(self).__name__, self._name)
+    if self._name in _CLIENTS: del _CLIENTS[self._name]
 
   def version(self): return self._version
 
@@ -384,17 +439,16 @@ class FahClient:
       groups = [s for s in peers if s.startswith("/")]
     return groups
 
-  async def connect(self):
+  async def connect(self, *args, **kwargs):
     if self._ws is not None and self._ws.open: return
     if not self._ws:
       if options.verbose: print(f'Opening {self._uri}')
       try:
-        self._ws = await self._conn.__aenter__()
+        self._ws = await self._conn.__aenter__(*args, **kwargs)
       except Exception as e:
-        eprint(f"Failed to connect to {self._uri}")
         self.data = {}
         self._version = (0,0,0)
-        raise e
+        raise Exception(f"Failed to connect to {self._uri}")
       else:
         if options.verbose: print(f"Connected to {self._uri}")
     r = await self._ws.recv()
@@ -444,8 +498,14 @@ class FahClient:
   async def sendGlobalConfig(self, config): pass
   async def sendGroupConfig(self, group, config):pass
 
+  async def __aenter__(self, *args, **kwargs):
+    if options.debug: print('entering async context')
+    await self.connect(*args, **kwargs)
+
   async def __aexit__(self, *args, **kwargs):
+    if options.debug: print('exiting async context')
     await self._conn.__aexit__(*args, **kwargs)
+    self._ws = None
 
 
 async def status(options, client):
@@ -463,8 +523,8 @@ async def command(options, client):
   else:
     msg = {"state": cmd, "cmd": "state"}
     # NOTE: group would be created if it doesn't exist
-    if options.group is not None:
-      group = munged_group_name(options, options.group, client.data)
+    if client._group is not None:
+      group = munged_group_name(options, client._group, client.data)
       if group is not None:
         msg["group"] = group
   await client.send(msg)
@@ -485,9 +545,9 @@ async def config(options, client):
     # just need to be mindful of possible config.available_cpus
 
     if (8,3) <= ver:
-      group = munged_group_name(options, options.group, client.data)
+      group = munged_group_name(options, client._group, client.data)
     else:
-      group = options.group
+      group = client._group
 
     # v8.3 splits config between global(account) and group
 
@@ -554,16 +614,21 @@ async def log(options, client):
         for line in v: print(line)
       else:
         print(v)
+      sys.stdout.flush()
 
 
 async def experimental(options, **kwargs):
   # ~1 sec delay if remote host ends with '.local'
-  client = FahClient(options.host, options.port, options.group)
+  client = FahClient(options.peer)
   await client.connect()
   print(json.dumps(client.data, indent=2))
   # ~10 sec delay exiting if don't close first; no async context manager?
   # destructor is called immediately
   await client.close()
+
+
+async def xpeer(options, **kwargs):
+  print('_uri_and_group_for_peer: ', _uri_and_group_for_peer(options.peer))
 
 
 async def show_groups(options, client):
@@ -580,6 +645,7 @@ async def watch(options, client):
       print(json.dumps(msg))
     elif isinstance(msg, bytes):
       print(message.hex())
+    sys.stdout.flush()
 
 
 def start_or_stop_local_sevice(options, **kwargs):
@@ -605,14 +671,14 @@ COMMANDS_DISPATCH = {
   "log"     : log,
   "config"  : config,
   "groups"  : show_groups,
-  "x"       : experimental,
+  "x"       : xpeer,
   "watch"   : watch,
   "start"   : start_or_stop_local_sevice,
   "stop"    : start_or_stop_local_sevice,
 }
 
 
-async def main():
+async def main_async():
   options = parse_args()
 
   if not options.command in COMMANDS + HIDDEN_COMMANDS:
@@ -625,7 +691,7 @@ async def main():
   if options.command in NO_CLIENT_COMMANDS:
     client = None
   else:
-    client = FahClient(options.host, options.port, options.group)
+    client = FahClient(options.peer)
     await client.connect()
 
   try:
@@ -639,11 +705,30 @@ async def main():
     if client is not None: await client.close()
 
 
-if __name__ == '__main__':
+def main():
   try:
-    asyncio.run(main())
-  except KeyboardInterrupt:
+    asyncio.run(main_async())
+  except (KeyboardInterrupt, EOFError):
     print('\n')
+  except BrokenPipeError:
+    # Python flushes standard streams on exit; redirect remaining output
+    # to devnull to avoid another BrokenPipeError at shutdown
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(devnull, sys.stdout.fileno())
+  except IOError as e:
+    if e.errno != errno.EPIPE:
+      eprint(e)
+      sys.exit(1)
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(devnull, sys.stdout.fileno())
+  except OSError as e:
+    # Windows may raise this
+    if e.errno != 22:
+      eprint(e)
+      sys.exit(1)
   except Exception as e:
     eprint(e)
-    exit(1)
+    sys.exit(1)
+
+if __name__ == '__main__':
+  main()
