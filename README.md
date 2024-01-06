@@ -28,13 +28,14 @@ positional arguments:
   peer           [host][:port][/group] Use "." for localhost
   command
     status       show json snapshot of client state
-    pause
-    unpause      alias for fold
+    units        show table of all units by group
     fold
     finish
-    log          show log; use control-c to exit
+    pause
+    unpause      alias for fold
     config       get or set config values
-    groups       show resource group names
+    groups       show json array of resource group names
+    log          show log; use control-c to exit
     watch        show incoming messages; use control-c to exit
     start        start local client service; peer must be "."
     stop         stop local client service; peer must be "."
@@ -77,4 +78,30 @@ If you put `lufah.py` and `lufah.bat` together in a directory
 in your command `PATH`, you can use
 ```
 lufah . pause
+```
+
+## Tricks
+
+On macOS (and probably Linux), if you have [Homebrew](https://brew.sh/) installed, you can install `watch` to have an inefficient top-like units display:
+
+```
+brew install watch
+
+watch -d -n 10 lufah $(hostname) units
+```
+
+## Example Output
+
+```
+lufah frotz.local units
+```
+```
+--------------------------------------------------------------------
+Project  CPUs  GPUs  Status     Progress  PPD       ETA
+--------------------------------------------------------------------
+frotz/
+19230    8     0     Running     0.129    143845    5 hours 33 mins
+frotz//two
+18419    8     0     Finishing   0.965    170848    45 mins 34 secs
+frotz//tree
 ```

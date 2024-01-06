@@ -5,7 +5,7 @@
 lufah: Little Utility for FAH v8
 """
 
-__version__ = '0.2.0'
+__version__ = '0.2.1'
 
 __all__ = ['FahClient']
 __license__ = 'Unlicense'
@@ -36,7 +36,18 @@ if PROGRAM.endswith(".py"):
 HIDDEN_COMMANDS = ['x', 'fake'] # simple experimental stuff
 NO_CLIENT_COMMANDS = ['start', 'stop', 'x']
 # allowed cli commands; all visible
-COMMANDS = 'status pause unpause fold finish log config groups watch'.split()
+COMMANDS = [
+  'status',
+  'units',
+  'fold',
+  'finish',
+  'pause',
+  'unpause',
+  'config',
+  'groups',
+  'log',
+  'watch',
+]
 if sys.platform == 'darwin': COMMANDS += ['start', 'stop']
 
 COMMANDS_HELP = dict(
@@ -49,8 +60,9 @@ COMMANDS_HELP = dict(
   config = 'get or set config values',
   start = 'start local client service; peer must be "."',
   stop = 'stop local client service; peer must be "."',
-  groups = 'show resource group names',
+  groups = 'show json array of resource group names',
   watch = 'show incoming messages; use control-c to exit',
+  units = 'show table of all units by group',
 )
 
 # fah 8.3 config keys
@@ -648,6 +660,94 @@ async def watch(options, client):
     sys.stdout.flush()
 
 
+def print_units_header():
+  empty = ''
+  print(f'{empty:-<68}')
+  print('Project  CPUs  GPUs  Status     Progress  PPD       ETA')
+  print(f'{empty:-<68}')
+
+
+def print_unit(client, unit):
+  if unit is None: return
+  # TODO: unit dataclass
+  assignment = unit.get("assignment", {})
+  project = assignment.get("project", '')
+
+  # TODO: get unit group is finishing else global conf finish if < 8.3
+  # FIXME: make unit.state translate dict for CORE,UPLOAD,...
+  state = unit.get("state", '--') # does not show finishing
+  if state == 'RUN': # might be Finishing
+    if client.version() < (8,3):
+      paused = client.data.get('config',{}).get('paused', False)
+      finish = client.data.get('config',{}).get('finish', False)
+    else:
+      group = unit.get('group', None)
+      if group is not None:
+        gconfig = client.data.get('groups',{}).get(group,{}).get('config',{})
+        paused = gconfig.get('paused', False)
+        finish = gconfig.get('finish', False)
+      else:
+        paused = True
+        finish = False
+    if paused:
+      state = 'Paused'
+    else:
+      if finish: state = 'Finishing'
+      else: state = 'Running'
+
+  cpus = unit.get("cpus", 0)
+  gpus = len(unit.get("gpus", []))
+  progress = unit.get("progress", 0)
+  ppd = unit.get("ppd", 0)
+  eta = unit.get("eta", '')
+  print(f'{project:<7}  {cpus:<4}  {gpus:<4}  {state:<9}  {progress:^8}  {ppd:<8}  {eta}')
+
+
+def units_for_group(client, group):
+  if client is None:
+    # assert ?
+    raise Exception('error: units_for_group(client, group): client is None')
+  all_units = client.data.get('units', [])
+  if group is None or client.version() < (8,3):
+    units = all_units
+  else:
+    units = []
+    for unit in all_units:
+      g = unit.get('group')
+      if g is not None and g == group:
+        units.append(unit)
+  return units
+
+
+async def print_units(options, **kwargs):
+  if _CLIENTS:
+    print_units_header()
+  for client in _CLIENTS.values():
+    r = urlparse(client._name)
+    short_name = f'{r.hostname}'
+    if r.port and r.port != 7396: short_name += f':{r.port}'
+    if r.path and r.path.startswith('/api/websocket'):
+      short_name += r.path[len('/api/websocket'):]
+    groups = client.groups()
+    if not groups:
+      print(short_name)
+      units = units_for_group(client, None)
+      if not units:
+        #print(f' no units')
+        continue
+      for unit in units:
+        print_unit(client, unit)
+    else:
+      for group in groups:
+        print(f'{short_name}/{group}')
+        units = units_for_group(client, group)
+        if not units:
+          #print(f' no units')
+          continue
+        for unit in units:
+          print_unit(client, unit)
+
+
 def start_or_stop_local_sevice(options, **kwargs):
   if sys.platform == 'darwin' and options.command in ['start', 'stop']:
     if options.peer != '.':
@@ -675,6 +775,7 @@ COMMANDS_DISPATCH = {
   "watch"   : watch,
   "start"   : start_or_stop_local_sevice,
   "stop"    : start_or_stop_local_sevice,
+  "units"   : print_units,
 }
 
 
@@ -694,6 +795,14 @@ async def main_async():
     client = FahClient(options.peer)
     await client.connect()
 
+  # TESTING
+  peers = []
+  if options.command == 'units':
+    for peer in peers:
+      c = FahClient(peer)
+      if c is not None:
+        await c.connect()
+
   try:
     if asyncio.iscoroutinefunction(func):
         await func(options, client=client)
@@ -702,7 +811,10 @@ async def main_async():
   except ConnectionClosed:
     if options.verbose: eprint('Connection closed')
   finally:
-    if client is not None: await client.close()
+    for c in _CLIENTS.values():
+      try:
+        await c.close()
+      except: pass
 
 
 def main():
