@@ -5,7 +5,7 @@
 lufah: Little Utility for FAH v8
 """
 
-__version__ = '0.2.1'
+__version__ = '0.3.0'
 
 __all__ = ['FahClient']
 __license__ = 'Unlicense'
@@ -19,6 +19,7 @@ import argparse
 import re
 import datetime
 import errno
+import math
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
@@ -30,11 +31,28 @@ if PROGRAM.endswith(".py"):
   PROGRAM = PROGRAM[:-3]
 
 # TODO:
-#   lufah . get <keypath> # show json for snapshot.keypath
-#   lufah . create-group <name> # by sending pause to nonexistent group
-#   lufah . delete-group <name> # refuse if group has running WU?
-HIDDEN_COMMANDS = ['x', 'fake'] # simple experimental stuff
+# lufah . info
+# lufah . get <keypath> # show json for snapshot.keypath
+# lufah . create-group <name> # by sending pause to nonexistent group
+# lufah . delete-group <name> # refuse if running WU, unless --force
+# lufah host1,host2,host3 units
+# lufah file:~/peers.json units
+#   { "peers": ["peer1", "peer2", ...] }
+
+
+# FIXME: default is not restricted
+# suggest only allow status, units, log, watch
+DEFAULT_COMMAND = 'units'
+
+HIDDEN_COMMANDS = ['x', 'fake'] # experimental stuff
 NO_CLIENT_COMMANDS = ['start', 'stop', 'x']
+
+# both as sent to client, and cli command
+SIMPLE_CLIENT_COMMANDS = ['fold', 'finish', 'pause']
+
+# TODO: multi peer support
+MULTI_PEER_COMMANDS = ['units'] #, 'fold', 'finish', 'pause']
+
 # allowed cli commands; all visible
 COMMANDS = [
   'status',
@@ -50,10 +68,14 @@ COMMANDS = [
 ]
 if sys.platform == 'darwin': COMMANDS += ['start', 'stop']
 
+COMMAND_ALIASES = {
+  # alias : actual
+  'unpause' : 'fold',
+}
+
 COMMANDS_HELP = dict(
   status = 'show json snapshot of client state',
   pause = '',
-  unpause = 'alias for fold',
   fold = '',
   finish = '',
   log = 'show log; use control-c to exit',
@@ -92,8 +114,19 @@ VALID_CONFIG_GET_KEYS = VALID_CONFIG_SET_KEYS + READ_ONLY_CONFIG_KEYS
 # removed in 8.3
 DEPRECATED_CONFIG_KEYS = ["fold_anon", "peers", "checkpoint", "priority"]
 
-# both as sent to client, and cli command
-SIMPLE_CLIENT_COMMANDS = ['pause', 'fold', 'finish']
+# From Web Control
+# some of these are synthetic (not actual unit.state)
+STATUS_STRINGS = {
+  'ASSIGN':   'Requesting work',
+  'DOWNLOAD': 'Downloading work',
+  'CORE':     'Downloading core',
+  'RUN':      'Running',
+  'FINISH':   'Finishing',
+  'UPLOAD':   'Uploading',
+  'CLEAN':    'Cleaning up',
+  'WAIT':     'Waiting',
+  'PAUSE':    'Paused'
+}
 
 
 _CLIENTS = {}
@@ -174,13 +207,16 @@ def validate(options):
   if not options.peer: raise Exception(f'error: no peer specified')
   # true validation of peer is done by _uri_and_group_for_peer()
   # TODO: accept file:~/peers.json containing {"peers":[".","host2","host3"]}
+  #   set options.peers; set options.peer = None
 
   if options.debug:
     print(f'   peer: {repr(options.peer)}')
     print(f'command: {repr(options.command)}')
 
-  if options.command in [None, '']: options.command = 'status'
-  elif options.command == 'unpause': options.command = 'fold'
+  if options.command in [None, '']:
+    options.command = DEFAULT_COMMAND
+  else:
+    options.command = COMMAND_ALIASES.get(options.command, options.command)
 
   if options.debug:
     print(f'command: {repr(options.command)}')
@@ -250,11 +286,15 @@ def parse_args():
   epilog = f'''
 Examples
 
-{PROGRAM} . finish
+{PROGRAM} . units
+{PROGRAM} /rg2 finish
 {PROGRAM} other.local/rg1 status
 {PROGRAM} /mygpu1 config cpus 0
+{PROGRAM} . config -h
 
 Notes
+
+If not given, the default command is {DEFAULT_COMMAND!r}.
 
 All commands except "/group config key value" are supported for fah 8.3.
 Command config may not behave as expected for fah 8.3.
@@ -262,9 +302,9 @@ Command config may not behave as expected for fah 8.3.
 Group names for fah 8.1 must:
   begin "/", have only letters, numbers, period, underscore, hyphen
 Group names on 8.3 can have spaces and special chars.
-Web Control 8.3 trims leading and trailing white space.
+Web Control 8.3 trims leading and trailing white space when creating groups.
 Group "/" is taken to mean the default group, which is "".
-For a group actually named "/", use "//".
+For a group name actually starting with "/", use prefix "//".
 
 An error may not be shown if the initial connection times out.
 If group does not exist on 8.1, this script may hang until silent timeout.
@@ -283,31 +323,45 @@ Config priority does not seem to work. Cores are probably setting priority.
     epilog=epilog,
     formatter_class=argparse.RawDescriptionHelpFormatter)
 
+  parser.set_defaults(argparser=None)
   parser.set_defaults(key=None, value=None) # do not remove this
   parser.set_defaults(peer='') # in case peer is not required in future
+  parser.set_defaults(peers=[])
+  parser.set_defaults(command=None)
 
   parser.add_argument('-v', '--verbose', action='store_true')
   parser.add_argument('-d', '--debug', action='store_true')
   parser.add_argument('--version', action='version', version=__version__)
 
-  parser.add_argument('peer',
-    help = '[host][:port][/group]  Use "." for localhost')
+  help1 = '[host][:port][/group]  Use "." for localhost'
+  help2 = '''\
+[host][:port][/group]
+Use "." for localhost.
+For command "units", it can be a comma-separated list of hosts:
+host[:port],host[:port],...
+'''
+  parser.add_argument('peer', metavar='<peer>', help = help1)
 
-  subparsers = parser.add_subparsers(dest='command', metavar = 'command')
+  subparsers = parser.add_subparsers(dest='command', metavar='<command>')
 
   for cmd in COMMANDS:
-    help = COMMANDS_HELP.get(cmd)
+    default_help = ''
+    if cmd in COMMAND_ALIASES:
+      default_help = 'alias for ' + COMMAND_ALIASES.get(cmd)
+    help = COMMANDS_HELP.get(cmd, default_help)
     par = subparsers.add_parser(cmd, description=help, help=help)
     if cmd == 'config':
       # TODO: add subparser for each valid config key
-      par.add_argument('key', help = ' '.join(VALID_KEYS_VALUES.keys()))
-      par.add_argument('value', nargs='?',
+      par.add_argument('key', metavar='<key>',
+        help = ' '.join(VALID_KEYS_VALUES.keys()))
+      par.add_argument('value', nargs='?', metavar='<value>',
         help = 'a valid config value for given key')
 
   for cmd in HIDDEN_COMMANDS:
     subparsers.add_parser(cmd)
 
   options = parser.parse_args()
+  options.argparser = parser
   validate(options)
   return options
 
@@ -662,21 +716,18 @@ async def watch(options, client):
 
 def print_units_header():
   empty = ''
-  print(f'{empty:-<68}')
-  print('Project  CPUs  GPUs  Status     Progress  PPD       ETA')
-  print(f'{empty:-<68}')
+  print(f'{empty:-<73}')
+  print('Project  CPUs  GPUs  Status          Progress  PPD       ETA')
+  print(f'{empty:-<73}')
 
 
-def print_unit(client, unit):
-  if unit is None: return
-  # TODO: unit dataclass
-  assignment = unit.get("assignment", {})
-  project = assignment.get("project", '')
-
-  # TODO: get unit group is finishing else global conf finish if < 8.3
-  # FIXME: make unit.state translate dict for CORE,UPLOAD,...
-  state = unit.get("state", '--') # does not show finishing
-  if state == 'RUN': # might be Finishing
+def status_for_unit(client, unit):
+  state = unit.get("state", '--') # is never FINISH
+  # FIXME: waiting is web control unitview.waiting
+  #if unit.get('waiting'): return STATUS_STRINGS.get('WAIT', state)
+  if unit.get('pause_reason'):
+    return STATUS_STRINGS.get('PAUSE', state)
+  if state == 'RUN':
     if client.version() < (8,3):
       paused = client.data.get('config',{}).get('paused', False)
       finish = client.data.get('config',{}).get('finish', False)
@@ -689,18 +740,27 @@ def print_unit(client, unit):
       else:
         paused = True
         finish = False
-    if paused:
-      state = 'Paused'
-    else:
-      if finish: state = 'Finishing'
-      else: state = 'Running'
+    if paused: state = 'PAUSE'
+    elif finish: state = 'FINISH'
+  return STATUS_STRINGS.get(state, state)
 
+
+def print_unit(client, unit):
+  if unit is None: return
+  # TODO: unit dataclass
+  assignment = unit.get("assignment", {})
+  project = assignment.get("project", '')
+  state = status_for_unit(client, unit)
   cpus = unit.get("cpus", 0)
   gpus = len(unit.get("gpus", []))
   progress = unit.get("progress", 0)
+  progress = math.floor(progress * 1000) / 10.0
+  progress = str(progress) + '%'
   ppd = unit.get("ppd", 0)
   eta = unit.get("eta", '')
-  print(f'{project:<7}  {cpus:<4}  {gpus:<4}  {state:<9}  {progress:^8}  {ppd:<8}  {eta}')
+  print(
+    f'{project:<7}  {cpus:<4}  {gpus:<4}  {state:<16}{progress:^8}'
+    f'  {ppd:<8}  {eta}')
 
 
 def units_for_group(client, group):
