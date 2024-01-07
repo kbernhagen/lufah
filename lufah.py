@@ -5,7 +5,7 @@
 lufah: Little Utility for FAH v8
 """
 
-__version__ = '0.3.0'
+__version__ = '0.3.1'
 
 __all__ = ['FahClient']
 __license__ = 'Unlicense'
@@ -31,7 +31,6 @@ if PROGRAM.endswith(".py"):
   PROGRAM = PROGRAM[:-3]
 
 # TODO:
-# lufah . info
 # lufah . get <keypath> # show json for snapshot.keypath
 # lufah . create-group <name> # by sending pause to nonexistent group
 # lufah . delete-group <name> # refuse if running WU, unless --force
@@ -63,6 +62,7 @@ COMMANDS = [
   'unpause',
   'config',
   'groups',
+  'info',
   'log',
   'watch',
 ]
@@ -85,6 +85,7 @@ COMMANDS_HELP = dict(
   groups = 'show json array of resource group names',
   watch = 'show incoming messages; use control-c to exit',
   units = 'show table of all units by group',
+  info = 'show peer host and client info',
 )
 
 # fah 8.3 config keys
@@ -808,6 +809,22 @@ async def print_units(options, **kwargs):
           print_unit(client, unit)
 
 
+def print_info(options, client):
+  if client is None: return
+  info = client.data.get('info',{})
+  clientver = info.get('version','')
+  os = info.get('os','')
+  osver = info.get('os_version','')
+  cpu = info.get('cpu','')
+  brand = info.get('cpu_brand','')
+  cores = info.get('cpus',0)
+  host = info.get('hostname','')
+  print(f'  Host: {host}')
+  print(f'Client: {clientver}')
+  print(f'    OS: {os} {osver}')
+  print(f'   CPU: {cores} cores, {cpu}, "{brand}"')
+
+
 def start_or_stop_local_sevice(options, **kwargs):
   if sys.platform == 'darwin' and options.command in ['start', 'stop']:
     if options.peer != '.':
@@ -836,6 +853,7 @@ COMMANDS_DISPATCH = {
   "start"   : start_or_stop_local_sevice,
   "stop"    : start_or_stop_local_sevice,
   "units"   : print_units,
+  "info"    : print_info,
 }
 
 
