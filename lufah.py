@@ -8,7 +8,7 @@ lufah: Little Utility for FAH v8
 __version__ = '0.3.2'
 
 __all__ = ['FahClient']
-__license__ = 'Unlicense'
+__license__ = 'MIT'
 
 import os
 import sys
