@@ -25,7 +25,9 @@ usage: lufah [-h] [-v] [-d] [--version] <peer> <command> ...
 Little Utility for FAH v8
 
 positional arguments:
-  <peer>         [host][:port][/group] Use "." for localhost
+  <peer>         [host][:port][/group] Use "." for localhost. For commands
+                 "units" and "info", it can be a comma-separated list of
+                 hosts: host[:port],host[:port],...
   <command>
     status       show json snapshot of client state
     units        show table of all units by group
@@ -54,6 +56,8 @@ lufah /rg2 finish
 lufah other.local/rg1 status
 lufah /mygpu1 config cpus 0
 lufah . config -h
+lufah host1,host2,host3 units
+lufah host1,host2,host3 info
 
 Notes
 
@@ -87,7 +91,8 @@ lufah . pause
 
 ## Tricks
 
-On macOS, if you have [Homebrew](https://brew.sh/) installed, you can install `watch` to have an inefficient top-like units display.
+On macOS, if you have [Homebrew](https://brew.sh/) installed,
+you can install `watch` to have an inefficient top-like units display.
 On Linux, you probably already have `watch` installed.
 
 ```

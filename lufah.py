@@ -5,7 +5,7 @@
 lufah: Little Utility for FAH v8
 """
 
-__version__ = '0.3.1'
+__version__ = '0.3.2'
 
 __all__ = ['FahClient']
 __license__ = 'Unlicense'
@@ -34,7 +34,6 @@ if PROGRAM.endswith(".py"):
 # lufah . get <keypath> # show json for snapshot.keypath
 # lufah . create-group <name> # by sending pause to nonexistent group
 # lufah . delete-group <name> # refuse if running WU, unless --force
-# lufah host1,host2,host3 units
 # lufah file:~/peers.json units
 #   { "peers": ["peer1", "peer2", ...] }
 
@@ -50,7 +49,7 @@ NO_CLIENT_COMMANDS = ['start', 'stop', 'x']
 SIMPLE_CLIENT_COMMANDS = ['fold', 'finish', 'pause']
 
 # TODO: multi peer support
-MULTI_PEER_COMMANDS = ['units'] #, 'fold', 'finish', 'pause']
+MULTI_PEER_COMMANDS = ['units', 'info'] #, 'fold', 'finish', 'pause']
 
 # allowed cli commands; all visible
 COMMANDS = [
@@ -222,6 +221,21 @@ def validate(options):
   if options.debug:
     print(f'command: {repr(options.command)}')
 
+  if options.command in MULTI_PEER_COMMANDS:
+    options.peers = []
+    if ',' in options.peer and not '/' in options.peer:
+      # assume comma separated list of peers
+      peers = options.peer.split(',')
+      for peer in peers:
+        peer = peer.strip()
+        if peer:
+          options.peers.append(peer)
+      if options.debug:
+        print(f'  peers: {options.peers!r}')
+    else:
+      options.peers = [options.peer]
+    options.peer = None
+
   # validate config key value
   if options.command in ['config']:
     key = options.key
@@ -292,6 +306,8 @@ Examples
 {PROGRAM} other.local/rg1 status
 {PROGRAM} /mygpu1 config cpus 0
 {PROGRAM} . config -h
+{PROGRAM} host1,host2,host3 units
+{PROGRAM} host1,host2,host3 info
 
 Notes
 
@@ -338,10 +354,10 @@ Config priority does not seem to work. Cores are probably setting priority.
   help2 = '''\
 [host][:port][/group]
 Use "." for localhost.
-For command "units", it can be a comma-separated list of hosts:
+For commands "units" and "info", it can be a comma-separated list of hosts:
 host[:port],host[:port],...
 '''
-  parser.add_argument('peer', metavar='<peer>', help = help1)
+  parser.add_argument('peer', metavar='<peer>', help = help2)
 
   subparsers = parser.add_subparsers(dest='command', metavar='<command>')
 
@@ -370,7 +386,7 @@ host[:port],host[:port],...
 def _uri_and_group_for_peer(peer):
   # do not strip right; 8.3 group names might not be stripped
   # create-group should strip what is specified, as web control does
-  peer = peer.lstrip()
+  if peer: peer = peer.lstrip()
   if peer in [None, '']: return (None, None)
 
   uri = peer
@@ -400,6 +416,7 @@ def _uri_and_group_for_peer(peer):
     # TODO: validate host regex; maybe disallow numeric IPv6 addresses
     # try to munge a resolvable host name
     # remote in vm is on another subnet; need host.local resolved to ipv4
+    if host.endswith('.'): host = host[:-1]
     if host.endswith('.local'): host = host[:-6]
     if not '.' in host:
       try:
@@ -780,18 +797,28 @@ def units_for_group(client, group):
   return units
 
 
+def client_machine_name(client):
+  if client is None: return ''
+  return client.data.get('info',{}).get('hostname','')
+
+
+def clients_sorted_by_machine_name():
+  return sorted(list(_CLIENTS.values()), key=client_machine_name)
+
+
 async def print_units(options, **kwargs):
   if _CLIENTS:
     print_units_header()
-  for client in _CLIENTS.values():
+  for client in clients_sorted_by_machine_name():
     r = urlparse(client._name)
-    short_name = f'{r.hostname}'
-    if r.port and r.port != 7396: short_name += f':{r.port}'
+    name = client_machine_name(client)
+    if not name: name = r.hostname
+    if r.port and r.port != 7396: name += f':{r.port}'
     if r.path and r.path.startswith('/api/websocket'):
-      short_name += r.path[len('/api/websocket'):]
+      name += r.path[len('/api/websocket'):]
     groups = client.groups()
     if not groups:
-      print(short_name)
+      print(name)
       units = units_for_group(client, None)
       if not units:
         #print(f' no units')
@@ -800,7 +827,7 @@ async def print_units(options, **kwargs):
         print_unit(client, unit)
     else:
       for group in groups:
-        print(f'{short_name}/{group}')
+        print(f'{name}/{group}')
         units = units_for_group(client, group)
         if not units:
           #print(f' no units')
@@ -823,6 +850,15 @@ def print_info(options, client):
   print(f'Client: {clientver}')
   print(f'    OS: {os} {osver}')
   print(f'   CPU: {cores} cores, {cpu}, "{brand}"')
+
+
+def print_info_multi(options, **kwargs):
+  clients = clients_sorted_by_machine_name()
+  multi = len(clients) > 1
+  if multi: print()
+  for client in clients:
+    print_info(options, client)
+    if multi: print()
 
 
 def start_or_stop_local_sevice(options, **kwargs):
@@ -853,7 +889,7 @@ COMMANDS_DISPATCH = {
   "start"   : start_or_stop_local_sevice,
   "stop"    : start_or_stop_local_sevice,
   "units"   : print_units,
-  "info"    : print_info,
+  "info"    : print_info_multi,
 }
 
 
@@ -869,14 +905,14 @@ async def main_async():
 
   if options.command in NO_CLIENT_COMMANDS:
     client = None
+  elif options.command in MULTI_PEER_COMMANDS:
+    client = None
   else:
     client = FahClient(options.peer)
     await client.connect()
 
-  # TESTING
-  peers = []
-  if options.command == 'units':
-    for peer in peers:
+  if options.command in MULTI_PEER_COMMANDS:
+    for peer in options.peers:
       c = FahClient(peer)
       if c is not None:
         await c.connect()
