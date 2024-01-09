@@ -5,10 +5,13 @@
 lufah: Little Utility for FAH v8
 """
 
-__version__ = '0.3.2'
+__version__ = '0.3.3'
 
 __all__ = ['FahClient']
-__license__ = 'MIT'
+
+__license__   = 'MIT'
+__copyright__ = 'Copyright (c) 2024 Kevin Bernhagen'
+__url__       = 'https://github.com/kbernhagen/lufah'
 
 import os
 import sys

@@ -9,8 +9,16 @@ work on macOS, Linux, and Windows.
 ## Requirements
 
 - python 3.8 or later
-- pip3 install websockets --user
 
+
+## Install from source
+
+macOS / Linux / Windows
+```
+git clone https://github.com/kbernhagen/lufah.git
+cd lufah
+make install-user
+```
 
 ## Usage
 
@@ -77,16 +85,6 @@ An error may not be shown if the initial connection times out.
 If group does not exist on 8.1, this script may hang until silent timeout.
 Config priority does not seem to work. Cores are probably setting priority.
 Commands start and stop are macOS-only.
-```
-
-On Windows, usage resembles
-```
-python .\somewhere\lufah.py . pause
-```
-If you put `lufah.py` and `lufah.bat` together in a directory
-in your command `PATH`, you can use
-```
-lufah . pause
 ```
 
 ## Tricks
