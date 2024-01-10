@@ -11,6 +11,12 @@ work on macOS, Linux, and Windows.
 - python 3.8 or later
 
 
+## Install from PyPI
+
+```
+pip install lufah
+```
+
 ## Install from source
 
 macOS / Linux / Windows
