@@ -77,8 +77,7 @@ Notes
 
 If not given, the default command is 'units'.
 
-All commands except "/group config key value" are supported for fah 8.3.
-Command config may not behave as expected for fah 8.3.
+In 8.3, /group config cpus <n> is not limited to unused cpus across groups.
 
 Group names for fah 8.1 must:
   begin "/", have only letters, numbers, period, underscore, hyphen

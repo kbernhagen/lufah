@@ -5,7 +5,7 @@
 lufah: Little Utility for FAH v8
 """
 
-__version__ = '0.3.3'
+__version__ = '0.3.4'
 
 __all__ = ['FahClient']
 
@@ -224,20 +224,25 @@ def validate(options):
   if options.debug:
     print(f'command: {repr(options.command)}')
 
-  if options.command in MULTI_PEER_COMMANDS:
-    options.peers = []
-    if ',' in options.peer and not '/' in options.peer:
-      # assume comma separated list of peers
-      peers = options.peer.split(',')
-      for peer in peers:
-        peer = peer.strip()
-        if peer:
-          options.peers.append(peer)
-      if options.debug:
-        print(f'  peers: {options.peers!r}')
-    else:
-      options.peers = [options.peer]
+  options.peers = []
+  if ',' in options.peer and not '/' in options.peer:
+    # assume comma separated list of peers
+    peers = options.peer.split(',')
+    for peer in peers:
+      peer = peer.strip()
+      if peer:
+        options.peers.append(peer)
+    if options.debug:
+      print(f'  peers: {options.peers!r}')
     options.peer = None
+  else:
+    options.peers = [options.peer]
+
+  if options.peer and re.match(r'^[^/]*,.*/.*$', options.peer):
+    raise Exception(f'error: host cannot have a comma')
+
+  if options.peer is None and not options.command in MULTI_PEER_COMMANDS:
+    raise Exception(f'error: {options.command!r} cannot use multiple peers')
 
   # validate config key value
   if options.command in ['config']:
@@ -316,8 +321,7 @@ Notes
 
 If not given, the default command is {DEFAULT_COMMAND!r}.
 
-All commands except "/group config key value" are supported for fah 8.3.
-Command config may not behave as expected for fah 8.3.
+In 8.3, /group config cpus <n> is not limited to unused cpus across groups.
 
 Group names for fah 8.1 must:
   begin "/", have only letters, numbers, period, underscore, hyphen
@@ -532,16 +536,15 @@ class FahClient:
       if options.verbose: print(f'Opening {self._uri}')
       try:
         self._ws = await self._conn.__aenter__(*args, **kwargs)
+        if options.verbose: print(f"Connected to {self._uri}")
       except Exception as e:
         self.data = {}
         self._version = (0,0,0)
         raise Exception(f"Failed to connect to {self._uri}")
-      else:
-        if options.verbose: print(f"Connected to {self._uri}")
     r = await self._ws.recv()
     snapshot = json.loads(r)
     v = snapshot.get("info", {}).get("version", "0")
-    self._version = tuple([int(x) for x in v.split('.')])
+    self._version = tuple(map(int, v.split('.')))
     self.data.update(snapshot)
 
   async def close(self):
@@ -664,24 +667,28 @@ async def config(options, client):
       # if value > (available_cpus - current_group_cpus)
       # this is simpler if only have one group (the default group)
       # no need to calc available_cpus if new value is 0
+      # NOTE: client will not limit cpus value sent for us
 
     if (8,3) <= ver:
       if key in DEPRECATED_CONFIG_KEYS:
         raise Exception(f'error: key "{key}" is deprecated in fah 8.3')
       if not key in VALID_CONFIG_SET_KEYS:
-        raise Exception(f'error: key "{key}" is not supported in fah 8.3')
-      if key in GROUP_CONFIG_KEYS:
-        raise Exception(f'error: group config is not supported for fah 8.3')
+        raise Exception(f'error: setting "{key}" is not supported in fah 8.3')
       if haveAcct and key in GLOBAL_CONFIG_KEYS:
         eprint(f'warning: machine is linked to an account')
         eprint(f'warning: "{key}" "{value}" may be overwritten by account')
       eprint(f'warning: config may not work as expected with fah 8.3')
 
     # TODO: don't send if value == current_value
-    # TODO: create appropriate 8.3 config.groups dict with all current groups
-    # this is *only* global config with 8.3
     conf = {key: value}
     msg = {"cmd":"config", "config":conf}
+    if (8,3) <= ver and key in GROUP_CONFIG_KEYS:
+      # create appropriate 8.3 config.groups dict with all current groups
+      groupsconf = {}
+      for g in groups:
+        groupsconf[g] = {}
+      groupsconf[group] = conf
+      msg["config"] = {"groups": groupsconf}
     await client.send(msg)
 
 
@@ -922,16 +929,17 @@ async def main_async():
 
   try:
     if asyncio.iscoroutinefunction(func):
-        await func(options, client=client)
+      await func(options, client=client)
     else:
-        func(options, client=client)
+      func(options, client=client)
   except ConnectionClosed:
     if options.verbose: eprint('Connection closed')
   finally:
     for c in _CLIENTS.values():
       try:
         await c.close()
-      except: pass
+      except:
+        pass
 
 
 def main():
