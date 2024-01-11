@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# pylint: disable=fixme,missing-function-docstring
+# pylint: disable=broad-exception-raised,broad-exception-caught,bare-except
+# pylint: disable=too-many-branches,too-many-statements,too-many-lines
+# pylint: disable=global-statement
 
 """
 lufah: Little Utility for FAH v8
@@ -25,9 +29,10 @@ import errno
 import math
 from urllib.parse import urlparse
 from urllib.request import urlopen
+from subprocess import check_call
 
 from websockets import connect # pip3 install websockets --user
-from websockets.exceptions import *
+from websockets.exceptions import ConnectionClosed
 
 PROGRAM = os.path.basename(sys.argv[0])
 if PROGRAM.endswith(".py"):
@@ -68,27 +73,28 @@ COMMANDS = [
   'log',
   'watch',
 ]
-if sys.platform == 'darwin': COMMANDS += ['start', 'stop']
+if sys.platform == 'darwin':
+  COMMANDS += ['start', 'stop']
 
 COMMAND_ALIASES = {
   # alias : actual
   'unpause' : 'fold',
 }
 
-COMMANDS_HELP = dict(
-  status = 'show json snapshot of client state',
-  pause = '',
-  fold = '',
-  finish = '',
-  log = 'show log; use control-c to exit',
-  config = 'get or set config values',
-  start = 'start local client service; peer must be "."',
-  stop = 'stop local client service; peer must be "."',
-  groups = 'show json array of resource group names',
-  watch = 'show incoming messages; use control-c to exit',
-  units = 'show table of all units by group',
-  info = 'show peer host and client info',
-)
+COMMANDS_HELP = {
+  'status' : 'show json snapshot of client state',
+  'pause'  : '',
+  'fold'   : '',
+  'finish' : '',
+  'log'    : 'show log; use control-c to exit',
+  'config' : 'get or set config values',
+  'start'  : 'start local client service; peer must be "."',
+  'stop'   : 'stop local client service; peer must be "."',
+  'groups' : 'show json array of resource group names',
+  'watch'  : 'show incoming messages; use control-c to exit',
+  'units'  : 'show table of all units by group',
+  'info'   : 'show peer host and client info',
+}
 
 # fah 8.3 config keys
 # valid global/group keys are in json files:
@@ -132,6 +138,7 @@ STATUS_STRINGS = {
 }
 
 
+OPTIONS = argparse.Namespace()
 _CLIENTS = {}
 
 
@@ -142,13 +149,12 @@ def eprint(*args, **kwargs):
 def bool_from_string(value):
   if value.lower() in ['true', 'yes', 'on', '1']:
     return True
-  elif value.lower() in ['false', 'no', 'off', '0']:
+  if value.lower() in ['false', 'no', 'off', '0']:
     return False
-  else:
-    raise Exception(f'error: not a bool string: {value}')
+  raise Exception(f'error: not a bool string: {value}')
 
 
-def value_for_key_path(adict, kp):
+def value_for_key_path(): # adict, kp):
   # kp: an array of keys or a dot-separated str of keys
   # like to handle int array indicies in str kp
   # ? import munch/addict/benedict
@@ -190,64 +196,67 @@ VALID_KEYS_VALUES = {
 
 def _fetch_json(url):
   data = None
-  # TODO: handle file:...
-  response = urlopen(url)
-  if response.getcode() == 200:
-    data = json.loads(response.read().decode('utf-8'))
+  # TODO: handle file:peers.json
+  with urlopen(url) as response:
+    if response.getcode() == 200:
+      data = json.loads(response.read().decode('utf-8'))
   return data
 
 
-def _fetch_causes(options, **kwargs):
+def _fetch_causes(**_):
   data = _fetch_json('https://api.foldingathome.org/project/cause')
-  if options.verbose: print('causes:', json.dumps(data, indent=2))
+  if OPTIONS.verbose:
+    print('causes:', json.dumps(data, indent=2))
   return data
 
 
-def validate(options):
-  if options.debug: options.verbose = True
+def validate():
+  if OPTIONS.debug:
+    OPTIONS.verbose = True
 
-  options.peer = options.peer.lstrip() # ONLY left strip
-  if not options.peer: raise Exception(f'error: no peer specified')
+  OPTIONS.peer = OPTIONS.peer.lstrip() # ONLY left strip
+  if not OPTIONS.peer:
+    raise Exception('error: no peer specified')
   # true validation of peer is done by _uri_and_group_for_peer()
   # TODO: accept file:~/peers.json containing {"peers":[".","host2","host3"]}
-  #   set options.peers; set options.peer = None
+  #   set OPTIONS.peers; set OPTIONS.peer = None
 
-  if options.debug:
-    print(f'   peer: {repr(options.peer)}')
-    print(f'command: {repr(options.command)}')
+  if OPTIONS.debug:
+    print(f'   peer: {repr(OPTIONS.peer)}')
+    print(f'command: {repr(OPTIONS.command)}')
 
-  if options.command in [None, '']:
-    options.command = DEFAULT_COMMAND
+  if OPTIONS.command in [None, '']:
+    OPTIONS.command = DEFAULT_COMMAND
   else:
-    options.command = COMMAND_ALIASES.get(options.command, options.command)
+    OPTIONS.command = COMMAND_ALIASES.get(OPTIONS.command, OPTIONS.command)
 
-  if options.debug:
-    print(f'command: {repr(options.command)}')
+  if OPTIONS.debug:
+    print(f'command: {repr(OPTIONS.command)}')
 
-  options.peers = []
-  if ',' in options.peer and not '/' in options.peer:
+  OPTIONS.peers = []
+  if ',' in OPTIONS.peer and not '/' in OPTIONS.peer:
     # assume comma separated list of peers
-    peers = options.peer.split(',')
+    peers = OPTIONS.peer.split(',')
     for peer in peers:
       peer = peer.strip()
       if peer:
-        options.peers.append(peer)
-    if options.debug:
-      print(f'  peers: {options.peers!r}')
-    options.peer = None
+        OPTIONS.peers.append(peer)
+    if OPTIONS.debug:
+      print(f'  peers: {OPTIONS.peers!r}')
+    OPTIONS.peer = None
   else:
-    options.peers = [options.peer]
+    OPTIONS.peers = [OPTIONS.peer]
 
-  if options.peer and re.match(r'^[^/]*,.*/.*$', options.peer):
-    raise Exception(f'error: host cannot have a comma')
+  if OPTIONS.peer and re.match(r'^[^/]*,.*/.*$', OPTIONS.peer):
+    raise Exception('error: host cannot have a comma')
 
-  if options.peer is None and not options.command in MULTI_PEER_COMMANDS:
-    raise Exception(f'error: {options.command!r} cannot use multiple peers')
+  if OPTIONS.peer is None and not OPTIONS.command in MULTI_PEER_COMMANDS:
+    raise Exception(f'error: {OPTIONS.command!r} cannot use multiple peers')
 
   # validate config key value
-  if options.command in ['config']:
-    key = options.key
-    value = options.value
+  if OPTIONS.command in ['config']:
+    key = OPTIONS.key
+    value = OPTIONS.value
     keys = VALID_KEYS_VALUES.keys()
     info = VALID_KEYS_VALUES.get(key, {})
     values = info.get('values')
@@ -255,7 +264,7 @@ def validate(options):
     conv = info.get('type')
     default = info.get('default')
 
-    if options.debug:
+    if OPTIONS.debug:
       print(f'         key: {key}')
       print(f'       value: {value}')
       print(f'  valid keys: {" ".join(keys)}')
@@ -268,43 +277,46 @@ def validate(options):
       k = ' '.join(keys)
       raise Exception(f'unsupported config key: {key}\nknown keys: {k}')
 
-    if value is None: return
+    if value is None:
+      return
 
     # validate value
 
     if default is not None and value == '':
-      options.value = default
+      OPTIONS.value = default
       return
 
     value0 = value
     if conv is not None and callable(conv):
-      options.value = value = conv(value)
+      OPTIONS.value = value = conv(value)
 
-    if conv == bool_from_string: return
+    if conv == bool_from_string:
+      return
 
     if 'user' == key:
       if len(value.encode('utf-8')) > 100:
-        raise Exception(f'error: max user length is 100 bytes')
+        raise Exception('error: max user length is 100 bytes')
       if value != value0:
         eprint('warning: leading/trailing whitespace trimmed from user')
 
     if values:
-      if value in values: return
+      if value in values:
+        return
       m = f'error: invalid value for {key}: {value}\nvalid values: {values}'
       raise Exception(m)
-    elif regex:
+    if regex:
       if not re.match(regex, value):
         m = f'error: invalid {key} value: {value}'
-        help = info.get('help')
-        if help: m += '\n' + help
+        help1 = info.get('help')
+        if help1:
+          m += '\n' + help1
         raise Exception(m)
       return # valid regex match
-    else:
-      raise Exception(f'error: config {key} is read-only')
+    raise Exception(f'error: config {key} is read-only')
 
 
 def parse_args():
-  global options
+  global OPTIONS
   description = 'Little Utility for FAH v8'
   epilog = f'''
 Examples
@@ -357,7 +369,6 @@ Config priority does not seem to work. Cores are probably setting priority.
   parser.add_argument('-d', '--debug', action='store_true')
   parser.add_argument('--version', action='version', version=__version__)
 
-  help1 = '[host][:port][/group]  Use "." for localhost'
   help2 = '''\
 [host][:port][/group]
 Use "." for localhost.
@@ -372,8 +383,8 @@ host[:port],host[:port],...
     default_help = ''
     if cmd in COMMAND_ALIASES:
       default_help = 'alias for ' + COMMAND_ALIASES.get(cmd)
-    help = COMMANDS_HELP.get(cmd, default_help)
-    par = subparsers.add_parser(cmd, description=help, help=help)
+    help1 = COMMANDS_HELP.get(cmd, default_help)
+    par = subparsers.add_parser(cmd, description=help1, help=help1)
     if cmd == 'config':
       # TODO: add subparser for each valid config key
       par.add_argument('key', metavar='<key>',
@@ -384,17 +395,18 @@ host[:port],host[:port],...
   for cmd in HIDDEN_COMMANDS:
     subparsers.add_parser(cmd)
 
-  options = parser.parse_args()
-  options.argparser = parser
-  validate(options)
-  return options
+  OPTIONS = parser.parse_args()
+  OPTIONS.argparser = parser
+  validate()
 
 
 def _uri_and_group_for_peer(peer):
   # do not strip right; 8.3 group names might not be stripped
   # create-group should strip what is specified, as web control does
-  if peer: peer = peer.lstrip()
-  if peer in [None, '']: return (None, None)
+  if peer:
+    peer = peer.lstrip()
+  if peer in [None, '']:
+    return (None, None)
 
   uri = peer
   if peer.startswith(':'):
@@ -413,33 +425,35 @@ def _uri_and_group_for_peer(peer):
   userpass = ''
   user = u.username
   password = u.password
-  if user and password: userpass = f'{user}:{password}@'
+  if user and password:
+    userpass = f'{user}:{password}@'
 
   host = u.hostname # can be None
-  if host: host = host.strip()
+  if host:
+    host = host.strip()
   if host in [None, '', '.', 'localhost', 'localhost.']:
     host = '127.0.0.1'
   else:
     # TODO: validate host regex; maybe disallow numeric IPv6 addresses
     # try to munge a resolvable host name
     # remote in vm is on another subnet; need host.local resolved to ipv4
-    if host.endswith('.'): host = host[:-1]
-    if host.endswith('.local'): host = host[:-6]
+    if host.endswith('.'):
+      host = host[:-1]
+    if host.endswith('.local'):
+      host = host[:-6]
     if not '.' in host:
       try:
         socket.gethostbyname(host)
-      except socket.gaierror as e:
+      except socket.gaierror:
         # cannot resolve, try again with '.local', if so use ipv4 addr
         # this will be slow if host does not exist
         # note: we do not catch exception
         # may cause lufah to always use ipv4 running on Windows w 'host.local'
         try:
           host = socket.gethostbyname(host + '.local')
-        except socket.gaierror as e:
+        except socket.gaierror as e2:
           m = f'Unable to resolve {repr(host)} or {repr(host + ".local")}'
-          raise Exception(m)
-        except:
-          raise
+          raise Exception(m) from e2
 
   port = u.port or 7396
 
@@ -453,32 +467,38 @@ def _uri_and_group_for_peer(peer):
   # '//*' will be '/*'
   # 8.1 group name '/' requires using '//'
   group = u.path
-  if group in [None, '']: group = None # no group
-  elif group == '/': group = '' # default group
-  elif group.startswith("/"): group = group[1:] # strip "/"; can now be ''
+  if group in [None, '']:
+    group = None # no group
+  elif group == '/':
+    group = '' # default group
+  elif group.startswith("/"):
+    group = group[1:] # strip "/"; can now be ''
   if group and re.match(r'^\/?[\w.-]*$', group):
     # might be connecting to fah 8.1, so append /group
-    if not group.startswith('/'): uri += '/'
+    if not group.startswith('/'):
+      uri += '/'
     uri += group
 
   return (uri, group)
 
 
-def munged_group_name(options, group, snapshot):
+def munged_group_name(group, snapshot):
   # returns group name that exists, None, or throws
   # assume v8.3; old group names may persist from upgrade
   # NOTE: must have connected to have snapshot
   # group may be None
   # expect always having first leading '/' removed from cli argument
   # expect user specified '//name' for actual '/name' (already stripped)
-  if group is None: return None # no group specified
-  if snapshot is None: raise Exception(f'error: snapshot is None')
+  if group is None:
+    return None # no group specified
+  if snapshot is None:
+    raise Exception('error: snapshot is None')
   orig_group = group
   # get array of actual group names else []
   groups = list(snapshot.get('groups', {}).keys())
   if not groups:
     # for 8.1
-    peers = self.data.get('peers', [])
+    peers = snapshot.get('peers', [])
     groups = [s for s in peers if s.startswith("/")]
   if len(group): # don't conflate '' with '/'; both can legit exist
     # check 'groupname' and '/groupname'
@@ -491,7 +511,7 @@ def munged_group_name(options, group, snapshot):
       group = group0
   if not group in groups:
     raise Exception(f'error: no "{group}" in groups {groups}')
-  if options.debug:
+  if OPTIONS.debug:
     print(f'        groups: {groups}')
     print(f'original group: {repr(orig_group)}"')
     print(f'  munged group: {repr(group)}')
@@ -499,10 +519,12 @@ def munged_group_name(options, group, snapshot):
 
 
 class FahClient:
+  """Class to manage a remote client connection"""
 
   def __init__(self, peer, name=None):
-    self._name = None # if exception, __del__ needs _name to exist
-    self._ws = None
+    self._name = None # if exception, __del__ needs name to exist
+    self._group = None
+    self.ws = None
     self.data = {} # snapshot
     self._version = (0,0,0) # data.info.version as tuple after connect
     # peer is a pseuso-uri that needs munging
@@ -513,16 +535,28 @@ class FahClient:
     self._conn = connect(self._uri, ping_interval=None)
     # TODO: once connected, there is data.info.id, which is a better index
     _CLIENTS[self._name] = self
-    if options.debug:
+    if OPTIONS.debug:
       print(f'Created FahClient: {repr(self._name)}')
 
   def __del__(self):
-    if options.debug:
-      print("Destructor called for", type(self).__name__, self._name)
-    if self._name in _CLIENTS: del _CLIENTS[self._name]
+    if OPTIONS.debug:
+      print("Destructor called for", type(self).__name__, self.name)
+    if self.name in _CLIENTS:
+      del _CLIENTS[self.name]
 
-  def version(self): return self._version
+  @property
+  def name(self):
+    return self._name
 
+  @property
+  def group(self):
+    return self._group
+
+  @property
+  def version(self):
+    return self._version
+
+  @property
   def groups(self):
     groups = list(self.data.get('groups', {}).keys())
     if not groups:
@@ -530,33 +564,36 @@ class FahClient:
       groups = [s for s in peers if s.startswith("/")]
     return groups
 
-  async def connect(self, *args, **kwargs):
-    if self._ws is not None and self._ws.open: return
-    if not self._ws:
-      if options.verbose: print(f'Opening {self._uri}')
+  async def connect(self):
+    if self.ws is not None and self.ws.open:
+      return
+    if not self.ws:
+      if OPTIONS.verbose:
+        print(f'Opening {self._uri}')
       try:
-        self._ws = await self._conn.__aenter__(*args, **kwargs)
-        if options.verbose: print(f"Connected to {self._uri}")
+        self.ws = await connect(self._uri, ping_interval=None)
+        if OPTIONS.verbose:
+          print(f"Connected to {self._uri}")
       except Exception as e:
         self.data = {}
         self._version = (0,0,0)
-        raise Exception(f"Failed to connect to {self._uri}")
-    r = await self._ws.recv()
+        raise Exception(f"Failed to connect to {self._uri}") from e
+    r = await self.ws.recv()
     snapshot = json.loads(r)
     v = snapshot.get("info", {}).get("version", "0")
     self._version = tuple(map(int, v.split('.')))
     self.data.update(snapshot)
 
   async def close(self):
-    if self._ws is not None:
-      await self._ws.close()
-    self._ws = None
+    if self.ws is not None:
+      await self.ws.close()
+    self.ws = None
 
   def update(self, data): # data: json array or dict or string
-    if isinstance(v, (dict)):
+    if isinstance(data, dict):
       # currently, this should not happen
       self.data.update(data)
-    elif isinstance(v, (list)):
+    elif isinstance(data, list):
       pass # self._process_update_list(data)
     # else if string, ignore "ping"
 
@@ -574,146 +611,139 @@ class FahClient:
     elif isinstance(message, list):
       # currently, would be invalid
       msgstr = json.dumps(message)
-    if options.debug:
+    if OPTIONS.debug:
       print(f'WOULD BE sending: {msgstr}')
       return
-    if options.verbose: print(f'sending: {msgstr}')
+    if OPTIONS.verbose:
+      print(f'sending: {msgstr}')
     if msgstr:
-      await self._ws.send(msgstr)
+      await self.ws.send(msgstr)
 
-  async def sendCommand(self, cmd):
-    if cmd == 'unpause': cmd = 'fold'
+  async def send_command(self, cmd):
+    if cmd == 'unpause':
+      cmd = 'fold'
     # TODO
-    pass
-  async def sendGlobalConfig(self, config): pass
-  async def sendGroupConfig(self, group, config):pass
 
-  async def __aenter__(self, *args, **kwargs):
-    if options.debug: print('entering async context')
-    await self.connect(*args, **kwargs)
-
-  async def __aexit__(self, *args, **kwargs):
-    if options.debug: print('exiting async context')
-    await self._conn.__aexit__(*args, **kwargs)
-    self._ws = None
+  #async def send_global_config(self, config): pass
+  #async def send_group_config(self, group, config):pass
 
 
-async def status(options, client):
-  if not options.debug:
+async def do_status(client):
+  if not OPTIONS.debug:
     print(json.dumps(client.data, indent=2))
 
 
-async def command(options, client):
-  cmd = options.command
+async def do_command(client):
+  cmd = OPTIONS.command
   if not cmd in SIMPLE_CLIENT_COMMANDS:
     raise Exception(f'unknown client command: {cmd}')
-  if client.version() < (8,3):
-    if cmd == 'fold': cmd = 'unpause'
+  if client.version < (8,3):
+    if cmd == 'fold':
+      cmd = 'unpause'
     msg = {"cmd": cmd}
   else:
     msg = {"state": cmd, "cmd": "state"}
     # NOTE: group would be created if it doesn't exist
-    if client._group is not None:
-      group = munged_group_name(options, client._group, client.data)
+    if client.group is not None:
+      group = munged_group_name(client.group, client.data)
       if group is not None:
         msg["group"] = group
   await client.send(msg)
 
 
 # TODO: refactor into config_get(), config_set(), get_config(snapshot,group)
-async def config(options, client):
-  key = options.key
-  value = options.value
-  if True:
-    ver = client.version()
-    haveAcct = 0 < len(client.data.get("info", {}).get("account", ''))
+async def do_config(client):
+  key = OPTIONS.key
+  value = OPTIONS.value
+  ver = client.version
+  have_acct = 0 < len(client.data.get("info", {}).get("account", ''))
 
-    # FIXME: potential race if groups changes before we write
-    # think currently client deletes groups not in group config command
-    groups = client.groups() # [] on < 8.3
-    # we don't care about 8.1 peer groups because everything is in main config
-    # just need to be mindful of possible config.available_cpus
+  # FIXME: potential race if groups changes before we write
+  # think currently client deletes groups not in group config command
+  groups = client.groups # [] on < 8.3
+  # we don't care about 8.1 peer groups because everything is in main config
+  # just need to be mindful of possible config.available_cpus
 
-    if (8,3) <= ver:
-      group = munged_group_name(options, client._group, client.data)
+  if (8,3) <= ver:
+    group = munged_group_name(client.group, client.data)
+  else:
+    group = client.group
+
+  # v8.3 splits config between global(account) and group
+
+  key0 = key # might exist in 8.1
+  key = key.replace('-', '_') # convert cli keys to actual
+
+  if value is None:
+    # print value for key
+    if (8,3) <= ver and key in GROUP_CONFIG_KEYS and group is not None:
+      # client.data.groups.{group}.config
+      conf = client.data.get('groups',{}).get(group,{}).get("config",{})
+      print(json.dumps(conf.get(key)))
     else:
-      group = client._group
+      # try getting key, no matter what it is
+      conf = client.data.get('config', {})
+      print(json.dumps(conf.get(key, conf.get(key0))))
+    return
 
-    # v8.3 splits config between global(account) and group
+  if 'cpus' == key:
+    maxcpus0 = client.data.get('info', {}).get('cpus', 0)
+    # available_cpus in fah v8.1.19 only
+    maxcpus = client.data.get('config', {}).get('available_cpus', maxcpus0)
+    if value > maxcpus:
+      raise Exception(f'error: cpus is greater than available cpus {maxcpus}')
+    # FIXME: cpus are in groups on fah 8.3; need to sum cpus across groups
+    # available_cpus = maxcpus - total_group_cpus
+    # if value > (available_cpus - current_group_cpus)
+    # this is simpler if only have one group (the default group)
+    # no need to calc available_cpus if new value is 0
+    # NOTE: client will not limit cpus value sent for us
 
-    key0 = key # might exist in 8.1
-    key = key.replace('-', '_') # convert cli keys to actual
+  if (8,3) <= ver:
+    if key in DEPRECATED_CONFIG_KEYS:
+      raise Exception(f'error: key "{key}" is deprecated in fah 8.3')
+    if not key in VALID_CONFIG_SET_KEYS:
+      raise Exception(f'error: setting "{key}" is not supported in fah 8.3')
+    if have_acct and key in GLOBAL_CONFIG_KEYS:
+      eprint('warning: machine is linked to an account')
+      eprint(f'warning: "{key}" "{value}" may be overwritten by account')
 
-    if value is None:
-      # print value for key
-      if (8,3) <= ver and key in GROUP_CONFIG_KEYS and group is not None:
-        # client.data.groups.{group}.config
-        conf = client.data.get('groups',{}).get(group,{}).get("config",{})
-        print(json.dumps(conf.get(key)))
-      else:
-        # try getting key, no matter what it is
-        conf = client.data.get('config', {})
-        print(json.dumps(conf.get(key, conf.get(key0))))
-      return
-
-    if 'cpus' == key:
-      maxcpus0 = client.data.get('info', {}).get('cpus', 0)
-      # available_cpus in fah v8.1.19 only
-      maxcpus = client.data.get('config', {}).get('available_cpus', maxcpus0)
-      if value > maxcpus:
-        raise Exception(f'error: cpus is greater than available cpus {maxcpus}')
-      # FIXME: cpus are in groups on fah 8.3; need to sum cpus across groups
-      # available_cpus = maxcpus - total_group_cpus
-      # if value > (available_cpus - current_group_cpus)
-      # this is simpler if only have one group (the default group)
-      # no need to calc available_cpus if new value is 0
-      # NOTE: client will not limit cpus value sent for us
-
-    if (8,3) <= ver:
-      if key in DEPRECATED_CONFIG_KEYS:
-        raise Exception(f'error: key "{key}" is deprecated in fah 8.3')
-      if not key in VALID_CONFIG_SET_KEYS:
-        raise Exception(f'error: setting "{key}" is not supported in fah 8.3')
-      if haveAcct and key in GLOBAL_CONFIG_KEYS:
-        eprint(f'warning: machine is linked to an account')
-        eprint(f'warning: "{key}" "{value}" may be overwritten by account')
-      eprint(f'warning: config may not work as expected with fah 8.3')
-
-    # TODO: don't send if value == current_value
-    conf = {key: value}
-    msg = {"cmd":"config", "config":conf}
-    if (8,3) <= ver and key in GROUP_CONFIG_KEYS:
-      # create appropriate 8.3 config.groups dict with all current groups
-      groupsconf = {}
-      for g in groups:
-        groupsconf[g] = {}
-      groupsconf[group] = conf
-      msg["config"] = {"groups": groupsconf}
-    await client.send(msg)
+  # TODO: don't send if value == current_value
+  conf = {key: value}
+  msg = {"cmd":"config", "config":conf}
+  if (8,3) <= ver and key in GROUP_CONFIG_KEYS:
+    # create appropriate 8.3 config.groups dict with all current groups
+    groupsconf = {}
+    for g in groups:
+      groupsconf[g] = {}
+    groupsconf[group] = conf
+    msg["config"] = {"groups": groupsconf}
+  await client.send(msg)
 
 
-async def log(options, client):
+async def do_log(client):
   # TODO: client.sendLogEnable(True)
   await client.send({"cmd": "log", "enable": True})
-  if options.debug: return
+  if OPTIONS.debug:
+    return
   while True:
     # TODO: FahClient needs register_callback, msg recv loop, reconnect option
-    r = await client._ws.recv()
+    r = await client.ws.recv()
     msg = json.loads(r)
     # client doesn't just send arrays
     if isinstance(msg, list) and len(msg) and msg[0] == 'log':
       # ignore msg[1], which is -1 or -2
       v = msg[2]
       if isinstance(v, (list, tuple)):
-        for line in v: print(line)
+        for line in v:
+          print(line)
       else:
         print(v)
-      sys.stdout.flush()
 
 
-async def experimental(options, **kwargs):
+async def do_experimental(**_):
   # ~1 sec delay if remote host ends with '.local'
-  client = FahClient(options.peer)
+  client = FahClient(OPTIONS.peer)
   await client.connect()
   print(json.dumps(client.data, indent=2))
   # ~10 sec delay exiting if don't close first; no async context manager?
@@ -721,19 +751,20 @@ async def experimental(options, **kwargs):
   await client.close()
 
 
-async def xpeer(options, **kwargs):
-  print('_uri_and_group_for_peer: ', _uri_and_group_for_peer(options.peer))
+async def do_xpeer(**_):
+  print('_uri_and_group_for_peer: ', _uri_and_group_for_peer(OPTIONS.peer))
 
 
-async def show_groups(options, client):
-  print(json.dumps(client.groups()))
+async def do_show_groups(client):
+  print(json.dumps(client.groups))
 
 
-async def watch(options, client):
-  if options.debug: return
+async def do_watch(client):
+  if OPTIONS.debug:
+    return
   print(json.dumps(client.data, indent=2))
   # FIXME: this can be slow to react to SIGINT
-  async for message in client._ws:
+  async for message in client.ws:
     msg = json.loads(message)
     if isinstance(msg, (list, dict, str)):
       print(json.dumps(msg))
@@ -750,13 +781,17 @@ def print_units_header():
 
 
 def status_for_unit(client, unit):
-  state = unit.get("state", '--') # is never FINISH
+  """Human-readable Status string"""
+  # FIXME: should exactly match what Web Control does
   # FIXME: waiting is web control unitview.waiting
   #if unit.get('waiting'): return STATUS_STRINGS.get('WAIT', state)
-  if unit.get('pause_reason'):
-    return STATUS_STRINGS.get('PAUSE', state)
+  status = unit.get('pause_reason')
+  if status:
+    # assume paused if have pause_reason
+    return status
+  state = unit.get("state", '') # is never FINISH
   if state == 'RUN':
-    if client.version() < (8,3):
+    if client.version < (8,3):
       paused = client.data.get('config',{}).get('paused', False)
       finish = client.data.get('config',{}).get('finish', False)
     else:
@@ -768,17 +803,20 @@ def status_for_unit(client, unit):
       else:
         paused = True
         finish = False
-    if paused: state = 'PAUSE'
-    elif finish: state = 'FINISH'
+    if paused:
+      state = 'PAUSE'
+    elif finish:
+      state = 'FINISH'
   return STATUS_STRINGS.get(state, state)
 
 
 def print_unit(client, unit):
-  if unit is None: return
+  if unit is None:
+    return
   # TODO: unit dataclass
   assignment = unit.get("assignment", {})
   project = assignment.get("project", '')
-  state = status_for_unit(client, unit)
+  status = status_for_unit(client, unit)
   cpus = unit.get("cpus", 0)
   gpus = len(unit.get("gpus", []))
   progress = unit.get("progress", 0)
@@ -787,7 +825,7 @@ def print_unit(client, unit):
   ppd = unit.get("ppd", 0)
   eta = unit.get("eta", '')
   print(
-    f'{project:<7}  {cpus:<4}  {gpus:<4}  {state:<16}{progress:^8}'
+    f'{project:<7}  {cpus:<4}  {gpus:<4}  {status:<16}{progress:^8}'
     f'  {ppd:<8}  {eta}')
 
 
@@ -796,7 +834,7 @@ def units_for_group(client, group):
     # assert ?
     raise Exception('error: units_for_group(client, group): client is None')
   all_units = client.data.get('units', [])
-  if group is None or client.version() < (8,3):
+  if group is None or client.version < (8,3):
     units = all_units
   else:
     units = []
@@ -808,7 +846,8 @@ def units_for_group(client, group):
 
 
 def client_machine_name(client):
-  if client is None: return ''
+  if client is None:
+    return ''
   return client.data.get('info',{}).get('hostname','')
 
 
@@ -816,17 +855,19 @@ def clients_sorted_by_machine_name():
   return sorted(list(_CLIENTS.values()), key=client_machine_name)
 
 
-async def print_units(options, **kwargs):
+async def do_print_units(**_):
   if _CLIENTS:
     print_units_header()
   for client in clients_sorted_by_machine_name():
-    r = urlparse(client._name)
+    r = urlparse(client.name)
     name = client_machine_name(client)
-    if not name: name = r.hostname
-    if r.port and r.port != 7396: name += f':{r.port}'
+    if not name:
+      name = r.hostname
+    if r.port and r.port != 7396:
+      name += f':{r.port}'
     if r.path and r.path.startswith('/api/websocket'):
       name += r.path[len('/api/websocket'):]
-    groups = client.groups()
+    groups = client.groups
     if not groups:
       print(name)
       units = units_for_group(client, None)
@@ -846,11 +887,12 @@ async def print_units(options, **kwargs):
           print_unit(client, unit)
 
 
-def print_info(options, client):
-  if client is None: return
+def print_info(client):
+  if client is None:
+    return
   info = client.data.get('info',{})
-  clientver = info.get('version','')
-  os = info.get('os','')
+  clientver = info.get('version','') # the string, not tuple
+  osname = info.get('os','')
   osver = info.get('os_version','')
   cpu = info.get('cpu','')
   brand = info.get('cpu_brand','')
@@ -858,82 +900,85 @@ def print_info(options, client):
   host = info.get('hostname','')
   print(f'  Host: {host}')
   print(f'Client: {clientver}')
-  print(f'    OS: {os} {osver}')
+  print(f'    OS: {osname} {osver}')
   print(f'   CPU: {cores} cores, {cpu}, "{brand}"')
 
 
-def print_info_multi(options, **kwargs):
+def do_print_info_multi(**_):
   clients = clients_sorted_by_machine_name()
   multi = len(clients) > 1
-  if multi: print()
+  if multi:
+    print()
   for client in clients:
-    print_info(options, client)
-    if multi: print()
+    print_info(client)
+    if multi:
+      print()
 
 
-def start_or_stop_local_sevice(options, **kwargs):
-  if sys.platform == 'darwin' and options.command in ['start', 'stop']:
-    if options.peer != '.':
+def do_start_or_stop_local_sevice(**_):
+  if sys.platform == 'darwin' and OPTIONS.command in ['start', 'stop']:
+    if OPTIONS.peer != '.':
       raise Exception('peer must be "." for commands start and stop')
-    from subprocess import check_call
-    note = f'org.foldingathome.fahclient.nobody.{options.command}'
+    note = f'org.foldingathome.fahclient.nobody.{OPTIONS.command}'
     cmd = ['notifyutil', '-p', note]
-    if options.debug:
+    if OPTIONS.debug:
       print(f'WOULD BE running: {" ".join(cmd)}')
       return
-    if options.verbose: print(' '.join(cmd))
+    if OPTIONS.verbose:
+      print(' '.join(cmd))
     check_call(cmd)
 
 
 COMMANDS_DISPATCH = {
-  "status"  : status,
-  "pause"   : command,
-  "unpause" : command,
-  "fold"    : command,
-  "finish"  : command,
-  "log"     : log,
-  "config"  : config,
-  "groups"  : show_groups,
-  "x"       : xpeer,
-  "watch"   : watch,
-  "start"   : start_or_stop_local_sevice,
-  "stop"    : start_or_stop_local_sevice,
-  "units"   : print_units,
-  "info"    : print_info_multi,
+  "status"  : do_status,
+  "pause"   : do_command,
+  "unpause" : do_command,
+  "fold"    : do_command,
+  "finish"  : do_command,
+  "log"     : do_log,
+  "config"  : do_config,
+  "groups"  : do_show_groups,
+  "x"       : do_xpeer,
+  "watch"   : do_watch,
+  "start"   : do_start_or_stop_local_sevice,
+  "stop"    : do_start_or_stop_local_sevice,
+  "units"   : do_print_units,
+  "info"    : do_print_info_multi,
 }
 
 
 async def main_async():
-  options = parse_args()
+  parse_args()
 
-  if not options.command in COMMANDS + HIDDEN_COMMANDS:
-    raise Exception(f'error: unknown command: {options.command}')
+  if not OPTIONS.command in COMMANDS + HIDDEN_COMMANDS:
+    raise Exception(f'error: unknown command: {OPTIONS.command}')
 
-  func = COMMANDS_DISPATCH.get(options.command)
+  func = COMMANDS_DISPATCH.get(OPTIONS.command)
   if func is None:
-    raise Exception(f'error: command {options.command} is not implemented')
+    raise Exception(f'error: command {OPTIONS.command} is not implemented')
 
-  if options.command in NO_CLIENT_COMMANDS:
+  if OPTIONS.command in NO_CLIENT_COMMANDS:
     client = None
-  elif options.command in MULTI_PEER_COMMANDS:
+  elif OPTIONS.command in MULTI_PEER_COMMANDS:
     client = None
   else:
-    client = FahClient(options.peer)
+    client = FahClient(OPTIONS.peer)
     await client.connect()
 
-  if options.command in MULTI_PEER_COMMANDS:
-    for peer in options.peers:
+  if OPTIONS.command in MULTI_PEER_COMMANDS:
+    for peer in OPTIONS.peers:
       c = FahClient(peer)
       if c is not None:
         await c.connect()
 
   try:
     if asyncio.iscoroutinefunction(func):
-      await func(options, client=client)
+      await func(client=client)
     else:
-      func(options, client=client)
+      func(client=client)
   except ConnectionClosed:
-    if options.verbose: eprint('Connection closed')
+    if OPTIONS.verbose:
+      eprint('Connection closed')
   finally:
     for c in _CLIENTS.values():
       try:
@@ -958,11 +1003,6 @@ def main():
       sys.exit(1)
     devnull = os.open(os.devnull, os.O_WRONLY)
     os.dup2(devnull, sys.stdout.fileno())
-  except OSError as e:
-    # Windows may raise this
-    if e.errno != 22:
-      eprint(e)
-      sys.exit(1)
   except Exception as e:
     eprint(e)
     sys.exit(1)
