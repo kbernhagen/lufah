@@ -108,7 +108,8 @@ COMMANDS_HELP = {
 GLOBAL_CONFIG_KEYS = ['user', 'team', 'passkey', 'cause']
 
 # keys to settings in groups under v8.3; in main config before 8.3
-GROUP_CONFIG_KEYS = ['on_idle', 'beta', 'key', 'cpus']
+GROUP_CONFIG_KEYS = ['on_idle', 'beta', 'key', 'cpus',
+  'on_battery', 'keep_awake']
 
 # peers is v8.1.x only, but possibly remains as cruft
 # gpus, paused, finish in main config before 8.3
@@ -180,6 +181,9 @@ VALID_KEYS_VALUES = {
   "checkpoint": {"default": 15, "type": int, "values": range(3, 30)},
   "priority": {"default": 'idle', "type": str.lower,
     "values": ['idle', 'low', 'normal', 'inherit']},
+  "on-battery": {"type": bool_from_string, "default": True},
+  "keep-awake": {"type": bool_from_string, "default": True},
+
   # no peer editing; peers not supported by v8.2+
   # it would be an error to directly change gpus, paused, finish
   # get-only config keys
