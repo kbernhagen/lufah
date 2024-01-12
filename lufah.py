@@ -30,13 +30,14 @@ import datetime
 import errno
 import math
 import operator
+import copy
 from functools import reduce
 from urllib.parse import urlparse
 from urllib.request import urlopen
 from subprocess import check_call
 
 from websockets import connect # pip3 install websockets --user
-from websockets.exceptions import ConnectionClosed
+from websockets.exceptions import ConnectionClosed, ConnectionClosedError
 
 PROGRAM = os.path.basename(sys.argv[0])
 if PROGRAM.endswith(".py"):
@@ -170,6 +171,7 @@ def value_for_key_path(): # adict, kp):
   return None
 
 
+# modified from bing chat answer
 def get_object_at_key_path(obj, key_path):
   if isinstance(key_path, str):
     key_path = key_path.split('.')
@@ -177,6 +179,26 @@ def get_object_at_key_path(obj, key_path):
     return reduce(operator.getitem, key_path, obj)
   except (KeyError, IndexError, TypeError):
     return None
+
+
+# modified from bing chat answer
+# TODO: sparse chenges in list items
+def diff_dicts(dict1, dict2):
+  diff = {}
+  for key in dict1:
+    if isinstance(dict1[key], dict) and isinstance(dict2.get(key), dict):
+      nested_diff = diff_dicts(dict1[key], dict2[key])
+      if nested_diff:
+        diff[key] = nested_diff
+    elif isinstance(dict1[key], list) and isinstance(dict2.get(key), list):
+      if dict1[key] != dict2[key]:
+        diff[key] = dict2[key]
+    elif dict1[key] != dict2.get(key):
+      diff[key] = dict2.get(key)
+  for key in dict2:
+    if key not in dict1:
+      diff[key] = dict2[key]
+  return diff
 
 
 # allowed config keys
@@ -559,6 +581,7 @@ class FahClient:
     self.data = {} # snapshot
     self._version = (0,0,0) # data.info.version as tuple after connect
     self._callbacks = [] # message callbacks
+    self.should_process_updates = False
     # peer is a pseuso-uri that needs munging
     # NOTE: this may raise
     self._uri, self._group = _uri_and_group_for_peer(peer)
@@ -607,7 +630,11 @@ class FahClient:
       if OPTIONS.debug:
         eprint('error: unable to convert message to json:', e)
       return
-    self._update(data)
+    try:
+      self._update(data)
+    except Exception as e:
+      if OPTIONS.debug:
+        eprint('error: _update():', e)
     for callback in self._callbacks:
       asyncio.ensure_future(callback(self, data))
 
@@ -615,11 +642,11 @@ class FahClient:
     while True:
       try:
         message = await self.ws.recv()
-      except ConnectionClosed:
+        await self.process_message(message)
+      except (ConnectionClosed, ConnectionClosedError):
         if OPTIONS.verbose:
           print(f'Connection closed: {self._uri}')
         break
-      await self.process_message(message)
 
   async def connect(self):
     if self.ws is not None and self.ws.open:
@@ -645,15 +672,61 @@ class FahClient:
   async def close(self):
     if self.ws is not None:
       await self.ws.close()
-    self.ws = None
+
 
   def _update(self, data): # data: json array or dict or string
-    if isinstance(data, dict):
+    if not self.should_process_updates:
+      return
+    if isinstance(data, list):
+      # last list element is value, prior elements are a key path
+      # if value is None, delete destination
+      if len(data) < 2:
+        return
+      value = data[len(data) - 1]
+
+      x = get_object_at_key_path(self.data, data[:-2])
+      # expect x is None, dict, or list
+      if x is None:
+        return
+      key = data[len(data)-2] # final key
+
+      if isinstance(x, list) and isinstance(key, int):
+        if key == -1:
+          # append value to dest list x
+          if not value is None:
+            x.append(value)
+
+        if key == -2:
+          # append values to dest list x
+          if not value is None:
+            for v in value:
+              x.append(v)
+
+        if 0 <= key and key < len(x):
+          if value is None:
+            del x[key]
+          else:
+            x[key] = value
+
+        if len(x) <= key and not value is None:
+          x.append(value)
+
+        return
+
+      if isinstance(x, dict) and isinstance(key, str):
+        if value is None:
+          del x[key]
+        else:
+          x[key] = value # is this ever merge?
+        return
+
+    elif isinstance(data, dict):
       # currently, this should not happen
-      self.data.update(data)
-    elif isinstance(data, list):
-      pass # self._process_update_list(data)
-    # else if string, ignore "ping"
+      # FIXME: maybe use deepmerge module
+      #self.data.update(data)
+      pass
+    # else ignore "ping"
+
 
   async def send(self, message):
     # TODO: check ws is open
@@ -837,11 +910,19 @@ async def _print_json_message(client, msg):
 
 async def do_watch(client):
   client.register_callback(_print_json_message)
+  client.should_process_updates = OPTIONS.debug
   await client.connect()
   if OPTIONS.debug:
-    return
+    snapshot0 = copy.deepcopy(client.data)
   print(json.dumps(client.data, indent=2))
-  await client.ws.wait_closed()
+  try:
+    await client.ws.wait_closed()
+  finally:
+    # ctrl-c seems uncatchable, but finally works
+    if OPTIONS.debug:
+      diff = diff_dicts(snapshot0, client.data)
+      print('\nChanges since connection opened:\n',
+        json.dumps(diff, indent=2))
 
 
 def print_units_header():
@@ -1064,7 +1145,7 @@ def main():
   try:
     asyncio.run(main_async())
   except (KeyboardInterrupt, EOFError):
-    print('\n')
+    pass
   except BrokenPipeError:
     # Python flushes standard streams on exit; redirect remaining output
     # to devnull to avoid another BrokenPipeError at shutdown
