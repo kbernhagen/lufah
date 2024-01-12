@@ -185,7 +185,6 @@ VALID_KEYS_VALUES = {
     "values": ['idle', 'low', 'normal', 'inherit']},
   "on-battery": {"type": bool_from_string, "default": True},
   "keep-awake": {"type": bool_from_string, "default": True},
-
   # no peer editing; peers not supported by v8.2+
   # it would be an error to directly change gpus, paused, finish
   # get-only config keys
@@ -728,17 +727,19 @@ async def do_config(client):
 
   if (8,3) <= ver:
     if key in DEPRECATED_CONFIG_KEYS:
-      raise Exception(f'error: key "{key}" is deprecated in fah 8.3')
+      raise Exception(f'error: key "{key0}" is deprecated in fah 8.3')
     if not key in VALID_CONFIG_SET_KEYS:
-      raise Exception(f'error: setting "{key}" is not supported in fah 8.3')
+      raise Exception(f'error: setting "{key0}" is not supported in fah 8.3')
     if have_acct and key in GLOBAL_CONFIG_KEYS:
       eprint('warning: machine is linked to an account')
-      eprint(f'warning: "{key}" "{value}" may be overwritten by account')
+      eprint(f'warning: "{key0}" "{value}" may be overwritten by account')
 
   # TODO: don't send if value == current_value
   conf = {key: value}
   msg = {"cmd":"config", "config":conf}
   if (8,3) <= ver and key in GROUP_CONFIG_KEYS:
+    if group is None:
+      raise Exception(f'error: cannot set "{key0}" on group None')
     # create appropriate 8.3 config.groups dict with all current groups
     groupsconf = {}
     for g in groups:
@@ -790,7 +791,7 @@ async def do_show_groups(client):
   print(json.dumps(client.groups))
 
 
-async def _print_json_mssage(client, message):
+async def _print_json_message(client, message):
   _ = client
   try:
     msg = json.loads(message)
@@ -803,7 +804,7 @@ async def _print_json_mssage(client, message):
 
 
 async def do_watch(client):
-  client.register_callback(_print_json_mssage)
+  client.register_callback(_print_json_message)
   await client.connect()
   if OPTIONS.debug:
     return
