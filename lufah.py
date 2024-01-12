@@ -3,7 +3,9 @@
 # pylint: disable=fixme,missing-function-docstring
 # pylint: disable=broad-exception-raised,broad-exception-caught,bare-except
 # pylint: disable=too-many-branches,too-many-statements,too-many-lines
-# pylint: disable=global-statement
+# pylint: disable=global-statement # this is for argparse OPTIONS
+# pylint: disable=too-many-instance-attributes
+# FIXME: this is excessive disabling
 
 """
 lufah: Little Utility for FAH v8
@@ -531,12 +533,11 @@ class FahClient:
     self.ws = None
     self.data = {} # snapshot
     self._version = (0,0,0) # data.info.version as tuple after connect
+    self._callbacks = [] # message callbacks
     # peer is a pseuso-uri that needs munging
     # NOTE: this may raise
     self._uri, self._group = _uri_and_group_for_peer(peer)
     self._name = name if name else self._uri
-    # NOTE: this does not actually connect yet
-    self._conn = connect(self._uri, ping_interval=None)
     # TODO: once connected, there is data.info.id, which is a better index
     _CLIENTS[self._name] = self
     if OPTIONS.debug:
@@ -568,6 +569,27 @@ class FahClient:
       groups = [s for s in peers if s.startswith("/")]
     return groups
 
+  def register_callback(self, callback):
+    self._callbacks.append(callback)
+
+  def unregister_callback(self, callback):
+    self._callbacks.remove(callback)
+
+  async def process_message(self, message):
+    # FIXME: send decoded json message, rather than raw data
+    for callback in self._callbacks:
+      asyncio.ensure_future(callback(self, message))
+
+  async def receive(self):
+    while True:
+      try:
+        message = await self.ws.recv()
+      except ConnectionClosed:
+        if OPTIONS.verbose:
+          print(f'Connection closed: {self._uri}')
+        break
+      await self.process_message(message)
+
   async def connect(self):
     if self.ws is not None and self.ws.open:
       return
@@ -587,6 +609,7 @@ class FahClient:
     v = snapshot.get("info", {}).get("version", "0")
     self._version = tuple(map(int, v.split('.')))
     self.data.update(snapshot)
+    asyncio.ensure_future(self.receive())
 
   async def close(self):
     if self.ws is not None:
@@ -624,39 +647,39 @@ class FahClient:
       await self.ws.send(msgstr)
 
   async def send_command(self, cmd):
-    if cmd == 'unpause':
-      cmd = 'fold'
-    # TODO
+    if not cmd in SIMPLE_CLIENT_COMMANDS:
+      raise Exception(f'unknown client command: {cmd}')
+    if self.version < (8,3):
+      if cmd == 'fold':
+        cmd = 'unpause'
+      msg = {"cmd": cmd}
+    else:
+      msg = {"state": cmd, "cmd": "state"}
+      # NOTE: group would be created if it doesn't exist
+      if self.group is not None:
+        group = munged_group_name(self.group, self.data)
+        if group is not None:
+          msg["group"] = group
+    await self.send(msg)
 
   #async def send_global_config(self, config): pass
   #async def send_group_config(self, group, config):pass
 
 
 async def do_status(client):
+  await client.connect()
   if not OPTIONS.debug:
     print(json.dumps(client.data, indent=2))
 
 
 async def do_command(client):
-  cmd = OPTIONS.command
-  if not cmd in SIMPLE_CLIENT_COMMANDS:
-    raise Exception(f'unknown client command: {cmd}')
-  if client.version < (8,3):
-    if cmd == 'fold':
-      cmd = 'unpause'
-    msg = {"cmd": cmd}
-  else:
-    msg = {"state": cmd, "cmd": "state"}
-    # NOTE: group would be created if it doesn't exist
-    if client.group is not None:
-      group = munged_group_name(client.group, client.data)
-      if group is not None:
-        msg["group"] = group
-  await client.send(msg)
+  await client.connect()
+  await client.send_command(OPTIONS.command)
 
 
 # TODO: refactor into config_get(), config_set(), get_config(snapshot,group)
 async def do_config(client):
+  await client.connect()
   key = OPTIONS.key
   value = OPTIONS.value
   ver = client.version
@@ -725,24 +748,27 @@ async def do_config(client):
   await client.send(msg)
 
 
+async def _print_log_lines(client, message):
+  _ = client
+  msg = json.loads(message)
+  # client doesn't just send arrays
+  if isinstance(msg, list) and len(msg) and msg[0] == 'log':
+    # ignore msg[1], which is -1 or -2
+    v = msg[2]
+    if isinstance(v, (list, tuple)):
+      for line in v:
+        print(line)
+    else:
+      print(v)
+
+
 async def do_log(client):
-  # TODO: client.sendLogEnable(True)
+  client.register_callback(_print_log_lines)
+  await client.connect()
   await client.send({"cmd": "log", "enable": True})
   if OPTIONS.debug:
     return
-  while True:
-    # TODO: FahClient needs register_callback, msg recv loop, reconnect option
-    r = await client.ws.recv()
-    msg = json.loads(r)
-    # client doesn't just send arrays
-    if isinstance(msg, list) and len(msg) and msg[0] == 'log':
-      # ignore msg[1], which is -1 or -2
-      v = msg[2]
-      if isinstance(v, (list, tuple)):
-        for line in v:
-          print(line)
-      else:
-        print(v)
+  await client.ws.wait_closed()
 
 
 async def do_experimental(**_):
@@ -760,21 +786,29 @@ async def do_xpeer(**_):
 
 
 async def do_show_groups(client):
+  await client.connect()
   print(json.dumps(client.groups))
 
 
+async def _print_json_mssage(client, message):
+  _ = client
+  try:
+    msg = json.loads(message)
+  except:
+    return
+  if isinstance(msg, (list, dict, str)):
+    print(json.dumps(msg))
+  elif isinstance(msg, bytes):
+    print(message.hex())
+
+
 async def do_watch(client):
+  client.register_callback(_print_json_mssage)
+  await client.connect()
   if OPTIONS.debug:
     return
   print(json.dumps(client.data, indent=2))
-  # FIXME: this can be slow to react to SIGINT
-  async for message in client.ws:
-    msg = json.loads(message)
-    if isinstance(msg, (list, dict, str)):
-      print(json.dumps(msg))
-    elif isinstance(msg, bytes):
-      print(message.hex())
-    sys.stdout.flush()
+  await client.ws.wait_closed()
 
 
 def print_units_header():
@@ -862,6 +896,8 @@ def clients_sorted_by_machine_name():
 async def do_print_units(**_):
   if _CLIENTS:
     print_units_header()
+  for client in _CLIENTS.values():
+    await client.connect()
   for client in clients_sorted_by_machine_name():
     r = urlparse(client.name)
     name = client_machine_name(client)
@@ -908,7 +944,9 @@ def print_info(client):
   print(f'   CPU: {cores} cores, {cpu}, "{brand}"')
 
 
-def do_print_info_multi(**_):
+async def do_print_info_multi(**_):
+  for client in _CLIENTS.values():
+    await client.connect()
   clients = clients_sorted_by_machine_name()
   multi = len(clients) > 1
   if multi:
@@ -967,13 +1005,10 @@ async def main_async():
     client = None
   else:
     client = FahClient(OPTIONS.peer)
-    await client.connect()
 
   if OPTIONS.command in MULTI_PEER_COMMANDS:
     for peer in OPTIONS.peers:
       c = FahClient(peer)
-      if c is not None:
-        await c.connect()
 
   try:
     if asyncio.iscoroutinefunction(func):
