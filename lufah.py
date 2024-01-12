@@ -575,9 +575,15 @@ class FahClient:
     self._callbacks.remove(callback)
 
   async def process_message(self, message):
-    # FIXME: send decoded json message, rather than raw data
+    try:
+      data = json.loads(message)
+    except Exception as e:
+      if OPTIONS.debug:
+        eprint('error: unable to convert message to json:', e)
+      return
+    self._update(data)
     for callback in self._callbacks:
-      asyncio.ensure_future(callback(self, message))
+      asyncio.ensure_future(callback(self, data))
 
   async def receive(self):
     while True:
@@ -615,7 +621,7 @@ class FahClient:
       await self.ws.close()
     self.ws = None
 
-  def update(self, data): # data: json array or dict or string
+  def _update(self, data): # data: json array or dict or string
     if isinstance(data, dict):
       # currently, this should not happen
       self.data.update(data)
@@ -749,11 +755,10 @@ async def do_config(client):
   await client.send(msg)
 
 
-async def _print_log_lines(client, message):
+async def _print_log_lines(client, msg):
   _ = client
-  msg = json.loads(message)
   # client doesn't just send arrays
-  if isinstance(msg, list) and len(msg) and msg[0] == 'log':
+  if isinstance(msg, list) and len(msg) == 3 and msg[0] == 'log':
     # ignore msg[1], which is -1 or -2
     v = msg[2]
     if isinstance(v, (list, tuple)):
@@ -791,16 +796,10 @@ async def do_show_groups(client):
   print(json.dumps(client.groups))
 
 
-async def _print_json_message(client, message):
+async def _print_json_message(client, msg):
   _ = client
-  try:
-    msg = json.loads(message)
-  except:
-    return
   if isinstance(msg, (list, dict, str)):
     print(json.dumps(msg))
-  elif isinstance(msg, bytes):
-    print(message.hex())
 
 
 async def do_watch(client):
