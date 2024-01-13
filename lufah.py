@@ -29,6 +29,8 @@ import re
 import datetime
 import errno
 import math
+import operator
+from functools import reduce
 from urllib.parse import urlparse
 from urllib.request import urlopen
 from subprocess import check_call
@@ -41,7 +43,6 @@ if PROGRAM.endswith(".py"):
   PROGRAM = PROGRAM[:-3]
 
 # TODO:
-# lufah . get <keypath> # show json for snapshot.keypath
 # lufah . create-group <name> # by sending pause to nonexistent group
 # lufah . delete-group <name> # refuse if running WU, unless --force
 # lufah file:~/peers.json units
@@ -74,6 +75,7 @@ COMMANDS = [
   'info',
   'log',
   'watch',
+  'get',
 ]
 if sys.platform == 'darwin':
   COMMANDS += ['start', 'stop']
@@ -96,6 +98,7 @@ COMMANDS_HELP = {
   'watch'  : 'show incoming messages; use control-c to exit',
   'units'  : 'show table of all units by group',
   'info'   : 'show peer host and client info',
+  'get'    : 'show json value at dot-separated key path in client state',
 }
 
 # fah 8.3 config keys
@@ -162,6 +165,15 @@ def value_for_key_path(): # adict, kp):
   # like to handle int array indicies in str kp
   # ? import munch/addict/benedict
   return None
+
+
+def get_object_at_key_path(obj, key_path):
+  if isinstance(key_path, str):
+    key_path = key_path.split('.')
+  try:
+    return reduce(operator.getitem, key_path, obj)
+  except (KeyError, IndexError, TypeError):
+    return None
 
 
 # allowed config keys
@@ -369,6 +381,7 @@ Config priority does not seem to work. Cores are probably setting priority.
   parser.set_defaults(peer='') # in case peer is not required in future
   parser.set_defaults(peers=[])
   parser.set_defaults(command=None)
+  parser.set_defaults(keypath=None)
 
   parser.add_argument('-v', '--verbose', action='store_true')
   parser.add_argument('-d', '--debug', action='store_true')
@@ -396,6 +409,10 @@ host[:port],host[:port],...
         help = ' '.join(VALID_KEYS_VALUES.keys()))
       par.add_argument('value', nargs='?', metavar='<value>',
         help = 'a valid config value for given key')
+    elif cmd == 'get':
+      par.add_argument('keypath', metavar='<keypath>',
+        help = 'a dot-separated path to a value in client state')
+
 
   for cmd in HIDDEN_COMMANDS:
     subparsers.add_parser(cmd)
@@ -796,6 +813,13 @@ async def do_show_groups(client):
   print(json.dumps(client.groups))
 
 
+async def do_get(client):
+  await client.connect()
+  value = get_object_at_key_path(client.data, OPTIONS.keypath)
+  print(json.dumps(value, indent=2))
+
+
+
 async def _print_json_message(client, msg):
   _ = client
   if isinstance(msg, (list, dict, str)):
@@ -986,6 +1010,7 @@ COMMANDS_DISPATCH = {
   "stop"    : do_start_or_stop_local_sevice,
   "units"   : do_print_units,
   "info"    : do_print_info_multi,
+  "get"     : do_get,
 }
 
 

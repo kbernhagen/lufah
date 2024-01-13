@@ -54,6 +54,7 @@ positional arguments:
     info         show peer host and client info
     log          show log; use control-c to exit
     watch        show incoming messages; use control-c to exit
+    get          show json value at dot-separated key path in client state
     start        start local client service; peer must be "."
     stop         stop local client service; peer must be "."
 
