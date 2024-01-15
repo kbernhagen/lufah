@@ -25,8 +25,8 @@ install-dev: venv
 install-user: venv
 	"$(PYTHON)" -m pipx install .
 
-install: venv
-	"$(PYTHON)" -m pip install .
+install:
+	python3 -m pip install .
 
 publish-testpypi: build
 	"$(PYTHON)" -m twine upload -u __token__ --repository testpypi dist/*
