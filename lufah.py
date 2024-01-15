@@ -145,6 +145,9 @@ STATUS_STRINGS = {
 
 
 OPTIONS = argparse.Namespace()
+OPTIONS.verbose = False
+OPTIONS.debug = False
+
 _CLIENTS = {}
 
 
