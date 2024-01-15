@@ -435,7 +435,13 @@ def _uri_and_group_for_peer(peer):
     uri = 'ws://.' + peer
   elif peer.startswith('/'):
     uri = 'ws://.' + peer
-  if urlparse(uri).scheme == '':
+
+  scheme = urlparse(uri).scheme
+
+  if scheme == '':
+    uri = 'ws://' + peer
+  elif not scheme in ['ws', 'wss', 'http', 'https', 'file']:
+    # assume misparse of 'host:port'
     uri = 'ws://' + peer
 
   u = urlparse(uri)
@@ -473,9 +479,9 @@ def _uri_and_group_for_peer(peer):
         # may cause lufah to always use ipv4 running on Windows w 'host.local'
         try:
           host = socket.gethostbyname(host + '.local')
-        except socket.gaierror as e2:
-          m = f'Unable to resolve {repr(host)} or {repr(host + ".local")}'
-          raise Exception(m) from e2
+        except socket.gaierror:
+          eprint(f'Unable to resolve {host!r} or {(host + ".local")!r}')
+          return (None, None)
 
   port = u.port or 7396
 
