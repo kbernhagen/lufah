@@ -5,10 +5,9 @@
 """an example of lufah as api"""
 
 import asyncio
+import logging
 
 from lufah import FahClient, OPTIONS
-
-OPTIONS.verbose = True
 
 _CONFIG = {
   "peers": [
@@ -32,9 +31,11 @@ async def send_command_to_clients(cmd: str, clients: list):
 
 async def main_async():
   """example main_async"""
+  OPTIONS.verbose = True
+  logging.basicConfig(level=logging.INFO)
   clients = []
   try:
-    for peer in _CONFIG.get('peers'):
+    for peer in _CONFIG.get('peers', []):
       try:
         client = FahClient(peer)
         await client.connect()

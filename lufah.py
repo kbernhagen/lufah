@@ -31,6 +31,7 @@ import errno
 import math
 import operator
 import copy
+import logging
 from functools import reduce
 from urllib.parse import urlparse
 from urllib.request import urlopen
@@ -42,6 +43,8 @@ from websockets.exceptions import ConnectionClosed, ConnectionClosedError
 PROGRAM = os.path.basename(sys.argv[0])
 if PROGRAM.endswith(".py"):
   PROGRAM = PROGRAM[:-3]
+
+_LOGGER = logging.getLogger('lufah' if __name__ == '__main__' else __name__)
 
 # TODO:
 # lufah . create-group <name> # by sending pause to nonexistent group
@@ -60,7 +63,6 @@ NO_CLIENT_COMMANDS = ['start', 'stop', 'x']
 # both as sent to client, and cli command
 SIMPLE_CLIENT_COMMANDS = ['fold', 'finish', 'pause']
 
-# TODO: multi peer support
 MULTI_PEER_COMMANDS = ['units', 'info'] #, 'fold', 'finish', 'pause']
 
 # allowed cli commands; all visible
@@ -161,14 +163,7 @@ def bool_from_string(value):
     return True
   if value.lower() in ['false', 'no', 'off', '0']:
     return False
-  raise Exception(f'error: not a bool string: {value}')
-
-
-def value_for_key_path(): # adict, kp):
-  # kp: an array of keys or a dot-separated str of keys
-  # like to handle int array indicies in str kp
-  # ? import munch/addict/benedict
-  return None
+  raise Exception(f'ERROR: not a bool string: {value}')
 
 
 # modified from bing chat answer
@@ -247,8 +242,8 @@ def _fetch_json(url):
 
 def _fetch_causes(**_):
   data = _fetch_json('https://api.foldingathome.org/project/cause')
-  if OPTIONS.verbose:
-    print('causes:', json.dumps(data, indent=2))
+  if _LOGGER.isEnabledFor(logging.INFO):
+    _LOGGER.info('Causes: %s', json.dumps(data, indent=2))
   return data
 
 
@@ -256,24 +251,29 @@ def validate():
   if OPTIONS.debug:
     OPTIONS.verbose = True
 
+  if OPTIONS.debug:
+    logging.basicConfig(level=logging.DEBUG)
+  elif OPTIONS.verbose:
+    logging.basicConfig(level=logging.INFO)
+  else:
+    logging.basicConfig(level=logging.WARNING)
+
   OPTIONS.peer = OPTIONS.peer.lstrip() # ONLY left strip
   if not OPTIONS.peer:
-    raise Exception('error: no peer specified')
+    raise Exception('ERROR: no peer specified')
   # true validation of peer is done by _uri_and_group_for_peer()
   # TODO: accept file:~/peers.json containing {"peers":[".","host2","host3"]}
   #   set OPTIONS.peers; set OPTIONS.peer = None
 
-  if OPTIONS.debug:
-    print(f'   peer: {repr(OPTIONS.peer)}')
-    print(f'command: {repr(OPTIONS.command)}')
+  _LOGGER.debug('   peer: %s', repr(OPTIONS.peer))
+  _LOGGER.debug('command: %s', repr(OPTIONS.command))
 
   if OPTIONS.command in [None, '']:
     OPTIONS.command = DEFAULT_COMMAND
   else:
     OPTIONS.command = COMMAND_ALIASES.get(OPTIONS.command, OPTIONS.command)
 
-  if OPTIONS.debug:
-    print(f'command: {repr(OPTIONS.command)}')
+  _LOGGER.debug('Command: %s', repr(OPTIONS.command))
 
   OPTIONS.peers = []
   if ',' in OPTIONS.peer and not '/' in OPTIONS.peer:
@@ -283,17 +283,16 @@ def validate():
       peer = peer.strip()
       if peer:
         OPTIONS.peers.append(peer)
-    if OPTIONS.debug:
-      print(f'  peers: {OPTIONS.peers!r}')
+    _LOGGER.debug('  peers: %s', repr(OPTIONS.peers))
     OPTIONS.peer = None
   else:
     OPTIONS.peers = [OPTIONS.peer]
 
   if OPTIONS.peer and re.match(r'^[^/]*,.*/.*$', OPTIONS.peer):
-    raise Exception('error: host cannot have a comma')
+    raise Exception('ERROR: host cannot have a comma')
 
   if OPTIONS.peer is None and not OPTIONS.command in MULTI_PEER_COMMANDS:
-    raise Exception(f'error: {OPTIONS.command!r} cannot use multiple peers')
+    raise Exception(f'ERROR: {OPTIONS.command!r} cannot use multiple peers')
 
   # validate config key value
   if OPTIONS.command in ['config']:
@@ -306,18 +305,18 @@ def validate():
     conv = info.get('type')
     default = info.get('default')
 
-    if OPTIONS.debug:
-      print(f'         key: {key}')
-      print(f'       value: {value}')
-      print(f'  valid keys: {" ".join(keys)}')
-      print(f'valid values: {values}')
-      print(f'     default: {default}')
-      print(f'       regex: {regex}')
-      print(f'type convert: {conv}')
+    if _LOGGER.isEnabledFor(logging.DEBUG):
+      _LOGGER.debug('         key: %s', key)
+      _LOGGER.debug('       value: %s', value)
+      _LOGGER.debug('  valid keys: %s', " ".join(keys))
+      _LOGGER.debug('valid values: %s', values)
+      _LOGGER.debug('     default: %s', default)
+      _LOGGER.debug('       regex: %s', regex)
+      _LOGGER.debug('type convert: %s', conv)
 
     if not key in keys:
       k = ' '.join(keys)
-      raise Exception(f'unsupported config key: {key}\nknown keys: {k}')
+      raise Exception(f'Unsupported config key: {key}\nKnown keys: {k}')
 
     if value is None:
       return
@@ -337,24 +336,24 @@ def validate():
 
     if 'user' == key:
       if len(value.encode('utf-8')) > 100:
-        raise Exception('error: max user length is 100 bytes')
+        raise Exception('ERROR: max user length is 100 bytes')
       if value != value0:
-        eprint('warning: leading/trailing whitespace trimmed from user')
+        _LOGGER.warning('Leading/trailing whitespace trimmed from user')
 
     if values:
       if value in values:
         return
-      m = f'error: invalid value for {key}: {value}\nvalid values: {values}'
+      m = f'ERROR: invalid value for {key}: {value}\nvalid values: {values}'
       raise Exception(m)
     if regex:
       if not re.match(regex, value):
-        m = f'error: invalid {key} value: {value}'
+        m = f'ERROR: invalid {key} value: {value}'
         help1 = info.get('help')
         if help1:
           m += '\n' + help1
         raise Exception(m)
       return # valid regex match
-    raise Exception(f'error: config {key} is read-only')
+    raise Exception(f'ERROR: config {key} is read-only')
 
 
 def parse_args():
@@ -472,7 +471,8 @@ def _uri_and_group_for_peer(peer):
   u = urlparse(uri)
 
   if not u.scheme in ['ws', 'wss']:
-    eprint(f'error: scheme {u.scheme} is not supported for peer {repr(peer)}')
+    _LOGGER.error(
+      'Scheme %s is not supported for peer %s', u.scheme, repr(peer))
     return (None, None)
 
   userpass = ''
@@ -505,7 +505,8 @@ def _uri_and_group_for_peer(peer):
         try:
           host = socket.gethostbyname(host + '.local')
         except socket.gaierror:
-          eprint(f'Unable to resolve {host!r} or {(host + ".local")!r}')
+          _LOGGER.error(
+            'Unable to resolve %s or %s', repr(host), repr(host + ".local"))
           return (None, None)
 
   port = u.port or 7396
@@ -545,7 +546,8 @@ def munged_group_name(group, snapshot):
   if group is None:
     return None # no group specified
   if snapshot is None:
-    raise Exception('error: snapshot is None')
+    _LOGGER.error('Snapshot is None')
+    return None
   orig_group = group
   # get array of actual group names else []
   groups = list(snapshot.get('groups', {}).keys())
@@ -559,15 +561,15 @@ def munged_group_name(group, snapshot):
     # '' is always the default group and not checked here
     group0 = '/' + group
     if group0 in groups and group in groups:
-      raise Exception(f'error: both "{group}" and "{group0}" exist')
+      raise Exception(f'ERROR: both "{group}" and "{group0}" exist')
     if group0 in groups and not group in groups:
       group = group0
   if not group in groups:
-    raise Exception(f'error: no "{group}" in groups {groups}')
-  if OPTIONS.debug:
-    print(f'        groups: {groups}')
-    print(f'original group: {repr(orig_group)}"')
-    print(f'  munged group: {repr(group)}')
+    _LOGGER.error('Group "%s" is not in groups %s', group, groups)
+    return None
+  _LOGGER.debug('        groups: %s', groups)
+  _LOGGER.debug('original group: %s', repr(orig_group))
+  _LOGGER.debug('  munged group: %s', repr(group))
   return group
 
 
@@ -575,6 +577,8 @@ class FahClient:
   """Class to manage a remote client connection"""
 
   def __init__(self, peer, name=None):
+    if name is None:
+      name = peer
     self._name = None # if exception, __del__ needs name to exist
     self._group = None
     self.ws = None
@@ -588,14 +592,14 @@ class FahClient:
     self._name = name if name else self._uri
     # TODO: once connected, there is data.info.id, which is a better index
     _CLIENTS[self._name] = self
-    if OPTIONS.debug:
-      print(f'Created FahClient: {repr(self._name)}')
+    _LOGGER.debug('Created FahClient("%s")', self._name)
 
   def __del__(self):
-    if OPTIONS.debug:
-      print("Destructor called for", type(self).__name__, self.name)
-    if self.name in _CLIENTS:
-      del _CLIENTS[self.name]
+    try:
+      if self.name in _CLIENTS:
+        del _CLIENTS[self.name]
+    except:
+      pass
 
   @property
   def name(self):
@@ -627,14 +631,14 @@ class FahClient:
     try:
       data = json.loads(message)
     except Exception as e:
-      if OPTIONS.debug:
-        eprint('error: unable to convert message to json:', e)
+      _LOGGER.error(
+        'FahClient("%s")._update():unable to convert message to json:%s',
+        self._name, type(e))
       return
     try:
       self._update(data)
     except Exception as e:
-      if OPTIONS.debug:
-        eprint('error: _update():', e)
+      _LOGGER.error('FahClient("%s")._update():%s', self._name, type(e))
     for callback in self._callbacks:
       asyncio.ensure_future(callback(self, data))
 
@@ -644,24 +648,25 @@ class FahClient:
         message = await self.ws.recv()
         await self.process_message(message)
       except (ConnectionClosed, ConnectionClosedError):
-        if OPTIONS.verbose:
-          print(f'Connection closed: {self._uri}')
+        _LOGGER.info('Connection closed: %s', self._uri)
         break
 
   async def connect(self):
     if self.ws is not None and self.ws.open:
       return
+    if self._uri is None:
+      _LOGGER.error('FahClient("%s").connect(): uri is None', self._name)
+      return
     if not self.ws:
-      if OPTIONS.verbose:
-        print(f'Opening {self._uri}')
+      _LOGGER.info('Opening %s', self._uri)
       try:
         self.ws = await connect(self._uri, ping_interval=None)
-        if OPTIONS.verbose:
-          print(f"Connected to {self._uri}")
-      except Exception as e:
+        _LOGGER.info('Connected to %s', self._uri)
+      except Exception:
         self.data = {}
         self._version = (0,0,0)
-        raise Exception(f"Failed to connect to {self._uri}") from e
+        _LOGGER.warning('Failed to connect to %s', self._uri)
+        return
     r = await self.ws.recv()
     snapshot = json.loads(r)
     v = snapshot.get("info", {}).get("version", "0")
@@ -729,7 +734,10 @@ class FahClient:
 
 
   async def send(self, message):
-    # TODO: check ws is open
+    if self.ws is None or not self.ws.open:
+      _LOGGER.warning(
+        'FahClient("%s").send(): websocket is not open', self._name)
+      return
     msgstr = None
     if isinstance(message, dict):
       msg = message.copy()
@@ -743,16 +751,15 @@ class FahClient:
       # currently, would be invalid
       msgstr = json.dumps(message)
     if OPTIONS.debug:
-      print(f'WOULD BE sending: {msgstr}')
+      _LOGGER.debug('FahClient("%s"):WOULD BE sending: %s', self._name, msgstr)
       return
-    if OPTIONS.verbose:
-      print(f'sending: {msgstr}')
     if msgstr:
+      _LOGGER.info('FahClient("%s"): sending: %s', self._name, msgstr)
       await self.ws.send(msgstr)
 
   async def send_command(self, cmd):
     if not cmd in SIMPLE_CLIENT_COMMANDS:
-      raise Exception(f'unknown client command: {cmd}')
+      raise Exception(f'Unknown client command: "{cmd}"')
     if self.version < (8,3):
       if cmd == 'fold':
         cmd = 'unpause'
@@ -762,8 +769,9 @@ class FahClient:
       # NOTE: group would be created if it doesn't exist
       if self.group is not None:
         group = munged_group_name(self.group, self.data)
-        if group is not None:
-          msg["group"] = group
+        if group is None:
+          return
+        msg["group"] = group
     await self.send(msg)
 
   #async def send_global_config(self, config): pass
@@ -772,8 +780,7 @@ class FahClient:
 
 async def do_status(client):
   await client.connect()
-  if not OPTIONS.debug:
-    print(json.dumps(client.data, indent=2))
+  print(json.dumps(client.data, indent=2))
 
 
 async def do_command(client):
@@ -822,7 +829,7 @@ async def do_config(client):
     # available_cpus in fah v8.1.19 only
     maxcpus = client.data.get('config', {}).get('available_cpus', maxcpus0)
     if value > maxcpus:
-      raise Exception(f'error: cpus is greater than available cpus {maxcpus}')
+      raise Exception(f'ERROR: cpus is greater than available cpus {maxcpus}')
     # FIXME: cpus are in groups on fah 8.3; need to sum cpus across groups
     # available_cpus = maxcpus - total_group_cpus
     # if value > (available_cpus - current_group_cpus)
@@ -832,19 +839,19 @@ async def do_config(client):
 
   if (8,3) <= ver:
     if key in DEPRECATED_CONFIG_KEYS:
-      raise Exception(f'error: key "{key0}" is deprecated in fah 8.3')
+      raise Exception(f'ERROR: key "{key0}" is deprecated in fah 8.3')
     if not key in VALID_CONFIG_SET_KEYS:
-      raise Exception(f'error: setting "{key0}" is not supported in fah 8.3')
+      raise Exception(f'ERROR: setting "{key0}" is not supported in fah 8.3')
     if have_acct and key in GLOBAL_CONFIG_KEYS:
-      eprint('warning: machine is linked to an account')
-      eprint(f'warning: "{key0}" "{value}" may be overwritten by account')
+      _LOGGER.warning('Machine is linked to an account')
+      _LOGGER.warning(' "%s" "%s" may be overwritten by account', key0, value)
 
   # TODO: don't send if value == current_value
   conf = {key: value}
   msg = {"cmd":"config", "config":conf}
   if (8,3) <= ver and key in GROUP_CONFIG_KEYS:
     if group is None:
-      raise Exception(f'error: cannot set "{key0}" on group None')
+      raise Exception(f'ERROR: cannot set "{key0}" on group None')
     # create appropriate 8.3 config.groups dict with all current groups
     groupsconf = {}
     for g in groups:
@@ -983,8 +990,8 @@ def print_unit(client, unit):
 
 def units_for_group(client, group):
   if client is None:
-    # assert ?
-    raise Exception('error: units_for_group(client, group): client is None')
+    _LOGGER.error(' units_for_group(client, group): client is None')
+    return []
   all_units = client.data.get('units', [])
   if group is None or client.version < (8,3):
     units = all_units
@@ -1008,10 +1015,10 @@ def clients_sorted_by_machine_name():
 
 
 async def do_print_units(**_):
-  if _CLIENTS:
-    print_units_header()
   for client in _CLIENTS.values():
     await client.connect()
+  if _CLIENTS:
+    print_units_header()
   for client in clients_sorted_by_machine_name():
     r = urlparse(client.name)
     name = client_machine_name(client)
@@ -1026,7 +1033,6 @@ async def do_print_units(**_):
       print(name)
       units = units_for_group(client, None)
       if not units:
-        #print(f' no units')
         continue
       for unit in units:
         print_unit(client, unit)
@@ -1035,7 +1041,6 @@ async def do_print_units(**_):
         print(f'{name}/{group}')
         units = units_for_group(client, group)
         if not units:
-          #print(f' no units')
           continue
         for unit in units:
           print_unit(client, unit)
@@ -1078,10 +1083,9 @@ def do_start_or_stop_local_sevice(**_):
     note = f'org.foldingathome.fahclient.nobody.{OPTIONS.command}'
     cmd = ['notifyutil', '-p', note]
     if OPTIONS.debug:
-      print(f'WOULD BE running: {" ".join(cmd)}')
+      _LOGGER.debug('WOULD BE running: %s', " ".join(cmd))
       return
-    if OPTIONS.verbose:
-      print(' '.join(cmd))
+    _LOGGER.info('%s', ' '.join(cmd))
     check_call(cmd)
 
 
@@ -1108,11 +1112,11 @@ async def main_async():
   parse_args()
 
   if not OPTIONS.command in COMMANDS + HIDDEN_COMMANDS:
-    raise Exception(f'error: unknown command: {OPTIONS.command}')
+    raise Exception(f'ERROR:Unknown command: {OPTIONS.command}')
 
   func = COMMANDS_DISPATCH.get(OPTIONS.command)
   if func is None:
-    raise Exception(f'error: command {OPTIONS.command} is not implemented')
+    raise Exception(f'ERROR:Command {OPTIONS.command} is not implemented')
 
   if OPTIONS.command in NO_CLIENT_COMMANDS:
     client = None
@@ -1131,8 +1135,7 @@ async def main_async():
     else:
       func(client=client)
   except ConnectionClosed:
-    if OPTIONS.verbose:
-      eprint('Connection closed')
+    _LOGGER.info('Connection closed')
   finally:
     for c in _CLIENTS.values():
       try:
