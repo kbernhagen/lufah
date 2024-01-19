@@ -4,47 +4,51 @@
 # pylint: disable=broad-exception-raised,broad-exception-caught,bare-except
 # pylint: disable=too-many-branches,too-many-statements,too-many-lines
 # pylint: disable=global-statement # this is for argparse OPTIONS
-# pylint: disable=too-many-instance-attributes
+# pylint: disable=too-many-instance-attributes,wildcard-import
 # FIXME: this is excessive disabling
 
 """
 lufah: Little Utility for FAH v8
 """
 
-__version__ = '0.3.5'
-
-__all__ = ['FahClient']
-
-__license__   = 'MIT'
-__copyright__ = 'Copyright (c) 2024 Kevin Bernhagen'
-__url__       = 'https://github.com/kbernhagen/lufah'
-
 import os
 import sys
 import json
 import asyncio
-import socket
 import argparse
 import re
-import datetime
 import errno
 import math
-import operator
 import copy
 import logging
-from functools import reduce
 from urllib.parse import urlparse
 from urllib.request import urlopen
 from subprocess import check_call
 
-from websockets import connect # pip3 install websockets --user
-from websockets.exceptions import ConnectionClosed, ConnectionClosedError
+#from websockets import connect
+from websockets.exceptions import ConnectionClosed
+
+from .__init__ import __version__
+from .const import * # pylint: disable=unused-wildcard-import
+from .exceptions import * # pylint: disable=unused-wildcard-import
+from .fahclient import FahClient
+from .util import (
+  eprint, bool_from_string, diff_dicts,
+  munged_group_name, uri_and_group_for_peer, get_object_at_key_path
+  )
+
 
 PROGRAM = os.path.basename(sys.argv[0])
 if PROGRAM.endswith(".py"):
   PROGRAM = PROGRAM[:-3]
 
-_LOGGER = logging.getLogger('lufah' if __name__ == '__main__' else __name__)
+_LOGGER = logging.getLogger('lufah') # __name__
+
+OPTIONS = argparse.Namespace()
+OPTIONS.verbose = False
+OPTIONS.debug = False
+
+_CLIENTS = {}
 
 # TODO:
 # lufah . create-group <name> # by sending pause to nonexistent group
@@ -57,13 +61,10 @@ _LOGGER = logging.getLogger('lufah' if __name__ == '__main__' else __name__)
 # suggest only allow status, units, log, watch
 DEFAULT_COMMAND = 'units'
 
-HIDDEN_COMMANDS = ['x', 'fake'] # experimental stuff
+HIDDEN_COMMANDS = ['x'] # experimental stuff
 NO_CLIENT_COMMANDS = ['start', 'stop', 'x']
 
-# both as sent to client, and cli command
-SIMPLE_CLIENT_COMMANDS = ['fold', 'finish', 'pause']
-
-MULTI_PEER_COMMANDS = ['units', 'info'] #, 'fold', 'finish', 'pause']
+MULTI_PEER_COMMANDS = ['units', 'info', 'fold', 'finish', 'pause']
 
 # allowed cli commands; all visible
 COMMANDS = [
@@ -104,97 +105,6 @@ COMMANDS_HELP = {
   'get'    : 'show json value at dot-separated key path in client state',
 }
 
-# fah 8.3 config keys
-# valid global/group keys are in json files:
-# https://github.com/FoldingAtHome/fah-client-bastet/tree/master/src/resources
-# note that these are the actual keys with underscore
-
-# keys to settings possibly owned by account (if logged in)
-# Joseph says it's safe to change these while logged in
-# it is possible for a machine to differ from account
-# web control will only show the account values when logged in
-GLOBAL_CONFIG_KEYS = ['user', 'team', 'passkey', 'cause']
-
-# keys to settings in groups under v8.3; in main config before 8.3
-GROUP_CONFIG_KEYS = ['on_idle', 'beta', 'key', 'cpus',
-  'on_battery', 'keep_awake']
-
-# peers is v8.1.x only, but possibly remains as cruft
-# gpus, paused, finish in main config before 8.3
-READ_ONLY_GLOBAL_KEYS = ["peers", "gpus", "paused", "finish"]
-# should never be changed externally for any fah version
-READ_ONLY_GROUP_KEYS = ["gpus", "paused", "finish"]
-
-READ_ONLY_CONFIG_KEYS = READ_ONLY_GLOBAL_KEYS + READ_ONLY_GROUP_KEYS
-VALID_CONFIG_SET_KEYS = GLOBAL_CONFIG_KEYS + GROUP_CONFIG_KEYS
-VALID_CONFIG_GET_KEYS = VALID_CONFIG_SET_KEYS + READ_ONLY_CONFIG_KEYS
-
-# removed in 8.3
-DEPRECATED_CONFIG_KEYS = ["fold_anon", "peers", "checkpoint", "priority"]
-
-# From Web Control
-# some of these are synthetic (not actual unit.state)
-STATUS_STRINGS = {
-  'ASSIGN':   'Requesting work',
-  'DOWNLOAD': 'Downloading work',
-  'CORE':     'Downloading core',
-  'RUN':      'Running',
-  'FINISH':   'Finishing',
-  'UPLOAD':   'Uploading',
-  'CLEAN':    'Cleaning up',
-  'WAIT':     'Waiting',
-  'PAUSE':    'Paused'
-}
-
-
-OPTIONS = argparse.Namespace()
-OPTIONS.verbose = False
-OPTIONS.debug = False
-
-_CLIENTS = {}
-
-
-def eprint(*args, **kwargs):
-  print(*args, file=sys.stderr, **kwargs)
-
-
-def bool_from_string(value):
-  if value.lower() in ['true', 'yes', 'on', '1']:
-    return True
-  if value.lower() in ['false', 'no', 'off', '0']:
-    return False
-  raise Exception(f'ERROR: not a bool string: {value}')
-
-
-# modified from bing chat answer
-def get_object_at_key_path(obj, key_path):
-  if isinstance(key_path, str):
-    key_path = key_path.split('.')
-  try:
-    return reduce(operator.getitem, key_path, obj)
-  except (KeyError, IndexError, TypeError):
-    return None
-
-
-# modified from bing chat answer
-# TODO: sparse chenges in list items
-def diff_dicts(dict1, dict2):
-  diff = {}
-  for key in dict1:
-    if isinstance(dict1[key], dict) and isinstance(dict2.get(key), dict):
-      nested_diff = diff_dicts(dict1[key], dict2[key])
-      if nested_diff:
-        diff[key] = nested_diff
-    elif isinstance(dict1[key], list) and isinstance(dict2.get(key), list):
-      if dict1[key] != dict2[key]:
-        diff[key] = dict2[key]
-    elif dict1[key] != dict2.get(key):
-      diff[key] = dict2.get(key)
-  for key in dict2:
-    if key not in dict1:
-      diff[key] = dict2[key]
-  return diff
-
 
 # allowed config keys
 VALID_KEYS_VALUES = {
@@ -215,8 +125,8 @@ VALID_KEYS_VALUES = {
   "checkpoint": {"default": 15, "type": int, "values": range(3, 30)},
   "priority": {"default": 'idle', "type": str.lower,
     "values": ['idle', 'low', 'normal', 'inherit']},
-  "on-battery": {"type": bool_from_string, "default": True},
-  "keep-awake": {"type": bool_from_string, "default": True},
+  "on-battery": {"type": bool_from_string},
+  "keep-awake": {"type": bool_from_string},
   # no peer editing; peers not supported by v8.2+
   # it would be an error to directly change gpus, paused, finish
   # get-only config keys
@@ -261,19 +171,14 @@ def validate():
   OPTIONS.peer = OPTIONS.peer.lstrip() # ONLY left strip
   if not OPTIONS.peer:
     raise Exception('ERROR: no peer specified')
-  # true validation of peer is done by _uri_and_group_for_peer()
+  # true validation of peer is done by uri_and_group_for_peer()
   # TODO: accept file:~/peers.json containing {"peers":[".","host2","host3"]}
   #   set OPTIONS.peers; set OPTIONS.peer = None
-
-  _LOGGER.debug('   peer: %s', repr(OPTIONS.peer))
-  _LOGGER.debug('command: %s', repr(OPTIONS.command))
 
   if OPTIONS.command in [None, '']:
     OPTIONS.command = DEFAULT_COMMAND
   else:
     OPTIONS.command = COMMAND_ALIASES.get(OPTIONS.command, OPTIONS.command)
-
-  _LOGGER.debug('Command: %s', repr(OPTIONS.command))
 
   OPTIONS.peers = []
   if ',' in OPTIONS.peer and not '/' in OPTIONS.peer:
@@ -414,7 +319,8 @@ Config priority does not seem to work. Cores are probably setting priority.
   help2 = '''\
 [host][:port][/group]
 Use "." for localhost.
-For commands "units" and "info", it can be a comma-separated list of hosts:
+Peer can be a comma-separated list of hosts for commands
+units, info, fold, finish, pause:
 host[:port],host[:port],...
 '''
   parser.add_argument('peer', metavar='<peer>', help = help2)
@@ -437,7 +343,6 @@ host[:port],host[:port],...
       par.add_argument('keypath', metavar='<keypath>',
         help = 'a dot-separated path to a value in client state')
 
-
   for cmd in HIDDEN_COMMANDS:
     subparsers.add_parser(cmd)
 
@@ -446,346 +351,18 @@ host[:port],host[:port],...
   validate()
 
 
-def _uri_and_group_for_peer(peer):
-  # do not strip right; 8.3 group names might not be stripped
-  # create-group should strip what is specified, as web control does
-  if peer:
-    peer = peer.lstrip()
-  if peer in [None, '']:
-    return (None, None)
-
-  uri = peer
-  if peer.startswith(':'):
-    uri = 'ws://.' + peer
-  elif peer.startswith('/'):
-    uri = 'ws://.' + peer
-
-  scheme = urlparse(uri).scheme
-
-  if scheme == '':
-    uri = 'ws://' + peer
-  elif not scheme in ['ws', 'wss', 'http', 'https', 'file']:
-    # assume misparse of 'host:port'
-    uri = 'ws://' + peer
-
-  u = urlparse(uri)
-
-  if not u.scheme in ['ws', 'wss']:
-    _LOGGER.error(
-      'Scheme %s is not supported for peer %s', u.scheme, repr(peer))
-    return (None, None)
-
-  userpass = ''
-  user = u.username
-  password = u.password
-  if user and password:
-    userpass = f'{user}:{password}@'
-
-  host = u.hostname # can be None
-  if host:
-    host = host.strip()
-  if host in [None, '', '.', 'localhost', 'localhost.']:
-    host = '127.0.0.1'
-  else:
-    # TODO: validate host regex; maybe disallow numeric IPv6 addresses
-    # try to munge a resolvable host name
-    # remote in vm is on another subnet; need host.local resolved to ipv4
-    if host.endswith('.'):
-      host = host[:-1]
-    if host.endswith('.local'):
-      host = host[:-6]
-    if not '.' in host:
-      try:
-        socket.gethostbyname(host)
-      except socket.gaierror:
-        # cannot resolve, try again with '.local', if so use ipv4 addr
-        # this will be slow if host does not exist
-        # note: we do not catch exception
-        # may cause lufah to always use ipv4 running on Windows w 'host.local'
-        try:
-          host = socket.gethostbyname(host + '.local')
-        except socket.gaierror:
-          _LOGGER.error(
-            'Unable to resolve %s or %s', repr(host), repr(host + ".local"))
-          return (None, None)
-
-  port = u.port or 7396
-
-  uri = f'{u.scheme}://{userpass}{host}:{port}/api/websocket'
-
-  # validate and munge group, possibly modify uri for 8.1
-  # for v8.3, allow "//" prefix, spaces, special chars
-  # None or '' is no group (aka all groups)
-  # '/'  will be '' (default group)
-  # '//' will be '/'
-  # '//*' will be '/*'
-  # 8.1 group name '/' requires using '//'
-  group = u.path
-  if group in [None, '']:
-    group = None # no group
-  elif group == '/':
-    group = '' # default group
-  elif group.startswith("/"):
-    group = group[1:] # strip "/"; can now be ''
-  if group and re.match(r'^\/?[\w.-]*$', group):
-    # might be connecting to fah 8.1, so append /group
-    if not group.startswith('/'):
-      uri += '/'
-    uri += group
-
-  return (uri, group)
-
-
-def munged_group_name(group, snapshot):
-  # returns group name that exists, None, or throws
-  # assume v8.3; old group names may persist from upgrade
-  # NOTE: must have connected to have snapshot
-  # group may be None
-  # expect always having first leading '/' removed from cli argument
-  # expect user specified '//name' for actual '/name' (already stripped)
-  if group is None:
-    return None # no group specified
-  if snapshot is None:
-    _LOGGER.error('Snapshot is None')
-    return None
-  orig_group = group
-  # get array of actual group names else []
-  groups = list(snapshot.get('groups', {}).keys())
-  if not groups:
-    # for 8.1
-    peers = snapshot.get('peers', [])
-    groups = [s for s in peers if s.startswith("/")]
-  if len(group): # don't conflate '' with '/'; both can legit exist
-    # check 'groupname' and '/groupname'
-    # if both exist, throw
-    # '' is always the default group and not checked here
-    group0 = '/' + group
-    if group0 in groups and group in groups:
-      raise Exception(f'ERROR: both "{group}" and "{group0}" exist')
-    if group0 in groups and not group in groups:
-      group = group0
-  if not group in groups:
-    _LOGGER.error('Group "%s" is not in groups %s', group, groups)
-    return None
-  _LOGGER.debug('        groups: %s', groups)
-  _LOGGER.debug('original group: %s', repr(orig_group))
-  _LOGGER.debug('  munged group: %s', repr(group))
-  return group
-
-
-class FahClient:
-  """Class to manage a remote client connection"""
-
-  def __init__(self, peer, name=None):
-    if name is None:
-      name = peer
-    self._name = None # if exception, __del__ needs name to exist
-    self._group = None
-    self.ws = None
-    self.data = {} # snapshot
-    self._version = (0,0,0) # data.info.version as tuple after connect
-    self._callbacks = [] # message callbacks
-    self.should_process_updates = False
-    # peer is a pseuso-uri that needs munging
-    # NOTE: this may raise
-    self._uri, self._group = _uri_and_group_for_peer(peer)
-    self._name = name if name else self._uri
-    # TODO: once connected, there is data.info.id, which is a better index
-    _CLIENTS[self._name] = self
-    _LOGGER.debug('Created FahClient("%s")', self._name)
-
-  def __del__(self):
-    try:
-      if self.name in _CLIENTS:
-        del _CLIENTS[self.name]
-    except:
-      pass
-
-  @property
-  def name(self):
-    return self._name
-
-  @property
-  def group(self):
-    return self._group
-
-  @property
-  def version(self):
-    return self._version
-
-  @property
-  def groups(self):
-    groups = list(self.data.get('groups', {}).keys())
-    if not groups:
-      peers = self.data.get('peers', [])
-      groups = [s for s in peers if s.startswith("/")]
-    return groups
-
-  def register_callback(self, callback):
-    self._callbacks.append(callback)
-
-  def unregister_callback(self, callback):
-    self._callbacks.remove(callback)
-
-  async def process_message(self, message):
-    try:
-      data = json.loads(message)
-    except Exception as e:
-      _LOGGER.error(
-        'FahClient("%s")._update():unable to convert message to json:%s',
-        self._name, type(e))
-      return
-    try:
-      self._update(data)
-    except Exception as e:
-      _LOGGER.error('FahClient("%s")._update():%s', self._name, type(e))
-    for callback in self._callbacks:
-      asyncio.ensure_future(callback(self, data))
-
-  async def receive(self):
-    while True:
-      try:
-        message = await self.ws.recv()
-        await self.process_message(message)
-      except (ConnectionClosed, ConnectionClosedError):
-        _LOGGER.info('Connection closed: %s', self._uri)
-        break
-
-  async def connect(self):
-    if self.ws is not None and self.ws.open:
-      return
-    if self._uri is None:
-      _LOGGER.error('FahClient("%s").connect(): uri is None', self._name)
-      return
-    if not self.ws:
-      _LOGGER.info('Opening %s', self._uri)
-      try:
-        self.ws = await connect(self._uri, ping_interval=None)
-        _LOGGER.info('Connected to %s', self._uri)
-      except Exception:
-        self.data = {}
-        self._version = (0,0,0)
-        _LOGGER.warning('Failed to connect to %s', self._uri)
-        return
-    r = await self.ws.recv()
-    snapshot = json.loads(r)
-    v = snapshot.get("info", {}).get("version", "0")
-    self._version = tuple(map(int, v.split('.')))
-    self.data.update(snapshot)
-    asyncio.ensure_future(self.receive())
-
-  async def close(self):
-    if self.ws is not None:
-      await self.ws.close()
-
-
-  def _update(self, data): # data: json array or dict or string
-    if not self.should_process_updates:
-      return
-    if isinstance(data, list):
-      # last list element is value, prior elements are a key path
-      # if value is None, delete destination
-      if len(data) < 2:
-        return
-      value = data[len(data) - 1]
-
-      x = get_object_at_key_path(self.data, data[:-2])
-      # expect x is None, dict, or list
-      if x is None:
-        return
-      key = data[len(data)-2] # final key
-
-      if isinstance(x, list) and isinstance(key, int):
-        if key == -1:
-          # append value to dest list x
-          if not value is None:
-            x.append(value)
-
-        if key == -2:
-          # append values to dest list x
-          if not value is None:
-            for v in value:
-              x.append(v)
-
-        if 0 <= key and key < len(x):
-          if value is None:
-            del x[key]
-          else:
-            x[key] = value
-
-        if len(x) <= key and not value is None:
-          x.append(value)
-
-        return
-
-      if isinstance(x, dict) and isinstance(key, str):
-        if value is None:
-          del x[key]
-        else:
-          x[key] = value # is this ever merge?
-        return
-
-    elif isinstance(data, dict):
-      # currently, this should not happen
-      # FIXME: maybe use deepmerge module
-      #self.data.update(data)
-      pass
-    # else ignore "ping"
-
-
-  async def send(self, message):
-    if self.ws is None or not self.ws.open:
-      _LOGGER.warning(
-        'FahClient("%s").send(): websocket is not open', self._name)
-      return
-    msgstr = None
-    if isinstance(message, dict):
-      msg = message.copy()
-      if not 'time' in msg:
-        t = datetime.datetime.utcnow().isoformat() + 'Z'
-        msg['time'] = t
-      msgstr = json.dumps(msg)
-    elif isinstance(message, str):
-      msgstr = message
-    elif isinstance(message, list):
-      # currently, would be invalid
-      msgstr = json.dumps(message)
-    if OPTIONS.debug:
-      _LOGGER.debug('FahClient("%s"):WOULD BE sending: %s', self._name, msgstr)
-      return
-    if msgstr:
-      _LOGGER.info('FahClient("%s"): sending: %s', self._name, msgstr)
-      await self.ws.send(msgstr)
-
-  async def send_command(self, cmd):
-    if not cmd in SIMPLE_CLIENT_COMMANDS:
-      raise Exception(f'Unknown client command: "{cmd}"')
-    if self.version < (8,3):
-      if cmd == 'fold':
-        cmd = 'unpause'
-      msg = {"cmd": cmd}
-    else:
-      msg = {"state": cmd, "cmd": "state"}
-      # NOTE: group would be created if it doesn't exist
-      if self.group is not None:
-        group = munged_group_name(self.group, self.data)
-        if group is None:
-          return
-        msg["group"] = group
-    await self.send(msg)
-
-  #async def send_global_config(self, config): pass
-  #async def send_group_config(self, group, config):pass
-
-
 async def do_status(client):
   await client.connect()
   print(json.dumps(client.data, indent=2))
 
 
-async def do_command(client):
-  await client.connect()
-  await client.send_command(OPTIONS.command)
+async def do_command_multi(**_):
+  for client in _CLIENTS.values():
+    try:
+      await client.connect()
+      await client.send_command(OPTIONS.command)
+    except:
+      pass
 
 
 # TODO: refactor into config_get(), config_set(), get_config(snapshot,group)
@@ -798,7 +375,7 @@ async def do_config(client):
 
   # FIXME: potential race if groups changes before we write
   # think currently client deletes groups not in group config command
-  groups = client.groups # [] on < 8.3
+  groups = client.groups # [] on 8.2; 8.1 may have peer groups
   # we don't care about 8.1 peer groups because everything is in main config
   # just need to be mindful of possible config.available_cpus
 
@@ -894,7 +471,7 @@ async def do_experimental(**_):
 
 
 async def do_xpeer(**_):
-  print('_uri_and_group_for_peer: ', _uri_and_group_for_peer(OPTIONS.peer))
+  print('uri_and_group_for_peer: ', uri_and_group_for_peer(OPTIONS.peer))
 
 
 async def do_show_groups(client):
@@ -906,7 +483,6 @@ async def do_get(client):
   await client.connect()
   value = get_object_at_key_path(client.data, OPTIONS.keypath)
   print(json.dumps(value, indent=2))
-
 
 
 async def _print_json_message(client, msg):
@@ -1007,7 +583,7 @@ def units_for_group(client, group):
 def client_machine_name(client):
   if client is None:
     return ''
-  return client.data.get('info',{}).get('hostname','')
+  return client.data.get('info', {}).get('hostname', client.name)
 
 
 def clients_sorted_by_machine_name():
@@ -1030,6 +606,9 @@ async def do_print_units(**_):
       name += r.path[len('/api/websocket'):]
     groups = client.groups
     if not groups:
+      if not client.is_connected:
+        print(name + '  NOT CONNECTED')
+        continue
       print(name)
       units = units_for_group(client, None)
       if not units:
@@ -1050,6 +629,8 @@ def print_info(client):
   if client is None:
     return
   info = client.data.get('info',{})
+  if not info:
+    return
   clientver = info.get('version','') # the string, not tuple
   osname = info.get('os','')
   osver = info.get('os_version','')
@@ -1091,10 +672,9 @@ def do_start_or_stop_local_sevice(**_):
 
 COMMANDS_DISPATCH = {
   "status"  : do_status,
-  "pause"   : do_command,
-  "unpause" : do_command,
-  "fold"    : do_command,
-  "finish"  : do_command,
+  "fold"    : do_command_multi,
+  "finish"  : do_command_multi,
+  "pause"   : do_command_multi,
   "log"     : do_log,
   "config"  : do_config,
   "groups"  : do_show_groups,
@@ -1118,16 +698,14 @@ async def main_async():
   if func is None:
     raise Exception(f'ERROR:Command {OPTIONS.command} is not implemented')
 
-  if OPTIONS.command in NO_CLIENT_COMMANDS:
-    client = None
-  elif OPTIONS.command in MULTI_PEER_COMMANDS:
-    client = None
-  else:
-    client = FahClient(OPTIONS.peer)
-
-  if OPTIONS.command in MULTI_PEER_COMMANDS:
+  client = None
+  if not OPTIONS.command in NO_CLIENT_COMMANDS:
     for peer in OPTIONS.peers:
       c = FahClient(peer)
+      if c is not None:
+        _CLIENTS[peer] = c
+    if len(_CLIENTS) == 1:
+      client = list(_CLIENTS.values())[0]
 
   try:
     if asyncio.iscoroutinefunction(func):
@@ -1138,10 +716,7 @@ async def main_async():
     _LOGGER.info('Connection closed')
   finally:
     for c in _CLIENTS.values():
-      try:
-        await c.close()
-      except:
-        pass
+      await c.close()
 
 
 def main():

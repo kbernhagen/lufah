@@ -1,25 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # pylint: disable=bare-except,broad-exception-caught
+# pylint: disable=unused-import
 
 """an example of lufah as api"""
 
 import asyncio
 import logging
 
-from lufah import FahClient, OPTIONS
+from lufah import FahClient, COMMAND_FOLD, COMMAND_FINISH, COMMAND_PAUSE
 
 _CONFIG = {
   "peers": [
     "localhost",
-    ":7399/zz",
+    "/no such group",
     "other.local:9999/some group name"
   ]
 }
-
-COMMAND_FOLD   = 'fold' # same as 'unpause'
-COMMAND_FINISH = 'finish'
-COMMAND_PAUSE  = 'pause'
 
 async def send_command_to_clients(cmd: str, clients: list):
   """send command to all clients"""
@@ -31,7 +28,6 @@ async def send_command_to_clients(cmd: str, clients: list):
 
 async def main_async():
   """example main_async"""
-  OPTIONS.verbose = True
   logging.basicConfig(level=logging.INFO)
   clients = []
   try:

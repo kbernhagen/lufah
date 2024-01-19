@@ -39,9 +39,9 @@ usage: lufah [-h] [-v] [-d] [--version] <peer> <command> ...
 Little Utility for FAH v8
 
 positional arguments:
-  <peer>         [host][:port][/group] Use "." for localhost. For commands
-                 "units" and "info", it can be a comma-separated list of
-                 hosts: host[:port],host[:port],...
+  <peer>         [host][:port][/group] Use "." for localhost. Peer can be a
+                 comma-separated list of hosts for commands units, info,
+                 fold, finish, pause: host[:port],host[:port],...
   <command>
     status       show json snapshot of client state
     units        show table of all units by group
