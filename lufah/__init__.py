@@ -1,6 +1,6 @@
 """lufah"""
 
-__version__ = '0.3.5'
+__version__ = '0.4.0'
 
 __license__   = 'MIT'
 __copyright__ = 'Copyright (c) 2024 Kevin Bernhagen'
