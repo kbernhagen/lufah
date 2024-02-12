@@ -441,9 +441,9 @@ async def do_config(client):
 async def _print_log_lines(client, msg):
   _ = client
   # client doesn't just send arrays
-  if isinstance(msg, list) and len(msg) == 3 and msg[0] == 'log':
-    # ignore msg[1], which is -1 or -2
-    v = msg[2]
+  if isinstance(msg, list) and len(msg) > 1 and msg[0] == 'log':
+    # ignore index, which is -1 or -2 or may not exist
+    v = msg[-1]
     if isinstance(v, (list, tuple)):
       for line in v:
         print(line)
