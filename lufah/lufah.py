@@ -444,11 +444,17 @@ async def _print_log_lines(client, msg):
   if isinstance(msg, list) and len(msg) > 1 and msg[0] == 'log':
     # ignore index, which is -1 or -2 or may not exist
     v = msg[-1]
-    if isinstance(v, (list, tuple)):
-      for line in v:
-        print(line)
-    else:
-      print(v)
+    if isinstance(v, str):
+      v = [v]
+    try:
+      if isinstance(v, (list, tuple)):
+        for line in v:
+          if line:
+            print(line)
+    except BrokenPipeError:
+      devnull = os.open(os.devnull, os.O_WRONLY)
+      os.dup2(devnull, sys.stdout.fileno())
+      await client.close()
 
 
 async def do_log(client):
@@ -457,7 +463,8 @@ async def do_log(client):
   await client.send({"cmd": "log", "enable": True})
   if OPTIONS.debug:
     return
-  await client.ws.wait_closed()
+  if client.is_connected:
+    await client.ws.wait_closed()
 
 
 async def do_experimental(**_):
