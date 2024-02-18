@@ -28,7 +28,7 @@ version = {attr = "lufah.__version__"}
 #[project.optional-dependencies]
 
 [project.scripts]
-lufah = "lufah.lufah:main"
+lufah = "lufah.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/kbernhagen/lufah"
