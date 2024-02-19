@@ -25,10 +25,9 @@ from urllib.parse import urlparse
 from urllib.request import urlopen
 from subprocess import check_call
 
-#from websockets import connect
 from websockets.exceptions import ConnectionClosed
 
-from .__init__ import __version__
+from . import __version__
 from .const import * # pylint: disable=unused-wildcard-import
 from .exceptions import * # pylint: disable=unused-wildcard-import
 from .fahclient import FahClient
@@ -42,7 +41,7 @@ PROGRAM = os.path.basename(sys.argv[0])
 if PROGRAM.endswith(".py"):
   PROGRAM = PROGRAM[:-3]
 
-_LOGGER = logging.getLogger('lufah') # __name__
+_LOGGER = logging.getLogger(__name__)
 
 OPTIONS = argparse.Namespace()
 OPTIONS.verbose = False

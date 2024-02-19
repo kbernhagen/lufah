@@ -205,7 +205,7 @@ class FahClient:
       await self.ws.send(msgstr)
 
   async def send_command(self, cmd):
-    if not cmd in ['fold', 'finish', 'pause']:
+    if not cmd in [COMMAND_FOLD, COMMAND_FINISH, COMMAND_PAUSE]:
       raise FahClientUnknownCommand(f'Unknown client command: "{cmd}"')
     if self.version < (8,3):
       if cmd == 'fold':

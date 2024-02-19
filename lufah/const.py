@@ -4,10 +4,6 @@ COMMAND_FOLD   = 'fold'
 COMMAND_FINISH = 'finish'
 COMMAND_PAUSE  = 'pause'
 
-# both as sent to client, and cli command
-SIMPLE_CLIENT_COMMANDS = [COMMAND_FOLD, COMMAND_FINISH, COMMAND_PAUSE]
-
-
 # fah 8.3 config keys
 # valid global/group keys are in json files:
 # https://github.com/FoldingAtHome/fah-client-bastet/tree/master/src/resources
