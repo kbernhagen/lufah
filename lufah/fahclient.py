@@ -204,7 +204,7 @@ class FahClient:
       _LOGGER.info('%s:sending: %s', self._name, msgstr)
       await self.ws.send(msgstr)
 
-  async def send_command(self, cmd):
+  async def send_command(self, cmd, **kwargs):
     if not cmd in [COMMAND_FOLD, COMMAND_FINISH, COMMAND_PAUSE]:
       raise FahClientUnknownCommand(f'Unknown client command: "{cmd}"')
     if self.version < (8,3):
@@ -213,9 +213,10 @@ class FahClient:
       msg = {"cmd": cmd}
     else:
       msg = {"state": cmd, "cmd": "state"}
+      group = kwargs.get('group', self.group)
       # NOTE: group would be created if it doesn't exist
-      if self.group is not None:
-        group = munged_group_name(self.group, self.data)
+      if group is not None:
+        group = munged_group_name(group, self.data)
         if group is None:
           return
         msg["group"] = group
