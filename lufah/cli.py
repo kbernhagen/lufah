@@ -79,6 +79,7 @@ COMMANDS = [
   'log',
   'watch',
   'get',
+  'unlink-account',
 ]
 if sys.platform == 'darwin':
   COMMANDS += ['start', 'stop']
@@ -676,6 +677,12 @@ def do_start_or_stop_local_sevice(**_):
     check_call(cmd)
 
 
+async def do_unlink_account(client):
+  await client.connect()
+  if (8,3,1) <= client.version:
+    await client.send({"cmd":"reset"})
+
+
 COMMANDS_DISPATCH = {
   "status"  : do_status,
   "fold"    : do_command_multi,
@@ -691,6 +698,7 @@ COMMANDS_DISPATCH = {
   "units"   : do_print_units,
   "info"    : do_print_info_multi,
   "get"     : do_get,
+  "unlink-account" : do_unlink_account,
 }
 
 
