@@ -5,6 +5,7 @@
 # pylint: disable=too-many-branches,too-many-statements,too-many-lines
 # pylint: disable=global-statement # this is for argparse OPTIONS
 # pylint: disable=too-many-instance-attributes,wildcard-import
+# pylint: disable=too-many-locals
 # FIXME: this is excessive disabling
 
 """
@@ -21,6 +22,7 @@ import errno
 import math
 import copy
 import logging
+import platform
 from urllib.parse import urlparse
 from urllib.request import urlopen
 from subprocess import check_call
@@ -80,6 +82,7 @@ COMMANDS = [
   'watch',
   'get',
   'unlink-account',
+  'link-account',
 ]
 if sys.platform == 'darwin':
   COMMANDS += ['start', 'stop']
@@ -103,6 +106,7 @@ COMMANDS_HELP = {
   'units'  : 'show table of all units by group',
   'info'   : 'show peer host and client info',
   'get'    : 'show json value at dot-separated key path in client state',
+  'link-account' : '<account-token> [<machine-name>]',
 }
 
 
@@ -198,6 +202,18 @@ def validate():
 
   if OPTIONS.peer is None and not OPTIONS.command in MULTI_PEER_COMMANDS:
     raise Exception(f'ERROR: {OPTIONS.command!r} cannot use multiple peers')
+
+  if OPTIONS.command == 'link-account':
+    token = OPTIONS.account_token
+    name = OPTIONS.machine_name
+    # token is URL base64 encoding of 32 bytes, no padding '=', else ""
+    if token and not re.match(r'^[a-zA-Z0-9_\-]{43}$', token):
+      raise Exception('ERROR: token must be 43 url base64 characters')
+    if name and not re.match(r'^[\w\.-]{1,64}$', name):
+      raise Exception('ERROR: name must be 1 to 64 letters, numbers, '
+        'underscore, dash (-), dot(.)')
+    # empty/null token or name is handled after connecting
+    return
 
   # validate config key value
   if OPTIONS.command in ['config']:
@@ -311,6 +327,7 @@ Config priority does not seem to work. Cores are probably setting priority.
   parser.set_defaults(peers=[])
   parser.set_defaults(command=None)
   parser.set_defaults(keypath=None)
+  parser.set_defaults(account_token=None, machine_name=None)
 
   parser.add_argument('-v', '--verbose', action='store_true')
   parser.add_argument('-d', '--debug', action='store_true')
@@ -342,6 +359,11 @@ host[:port],host[:port],...
     elif cmd == 'get':
       par.add_argument('keypath', metavar='<keypath>',
         help = 'a dot-separated path to a value in client state')
+    elif cmd == 'link-account':
+      par.add_argument('account_token', metavar='<account-token>',
+        help = '43 url base64 characters (32 bytes); use "" for current token')
+      par.add_argument('machine_name', nargs='?', metavar='<machine-name>',
+        help = '1 to 64 letters, numbers, underscore, dash (-), dot(.)')
 
   for cmd in HIDDEN_COMMANDS:
     subparsers.add_parser(cmd)
@@ -683,6 +705,23 @@ async def do_unlink_account(client):
     await client.send({"cmd":"reset"})
 
 
+async def do_link_account(client):
+  await client.connect()
+  if (8,3,1) <= client.version:
+    token = OPTIONS.account_token
+    name = OPTIONS.machine_name
+    if not token:
+      token = client.data.get('info', {}).get('account', '')
+    if not name:
+      name = client.data.get('info', {}).get('mach_name', '')
+    if not name and OPTIONS.peer == '.':
+      name = platform.node()
+    if not (token and name):
+      raise Exception('ERROR: unable to determine token and name')
+    msg = {"cmd":"link", "token":token, "name":name}
+    await client.send(msg)
+
+
 COMMANDS_DISPATCH = {
   "status"  : do_status,
   "fold"    : do_command_multi,
@@ -699,6 +738,7 @@ COMMANDS_DISPATCH = {
   "info"    : do_print_info_multi,
   "get"     : do_get,
   "unlink-account" : do_unlink_account,
+  "link-account"   : do_link_account,
 }
 
 
