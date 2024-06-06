@@ -83,6 +83,7 @@ COMMANDS = [
   'get',
   'unlink-account',
   'link-account',
+  'restart-account',
 ]
 if sys.platform == 'darwin':
   COMMANDS += ['start', 'stop']
@@ -107,6 +108,7 @@ COMMANDS_HELP = {
   'info'   : 'show peer host and client info',
   'get'    : 'show json value at dot-separated key path in client state',
   'link-account' : '<account-token> [<machine-name>]',
+  'restart-account' : 'restart account/node connection',
 }
 
 
@@ -701,8 +703,18 @@ def do_start_or_stop_local_sevice(**_):
 
 async def do_unlink_account(client):
   await client.connect()
-  if (8,3,1) <= client.version:
+  if (8,3,1) <= client.version and client.version < (8,3,17):
     await client.send({"cmd":"reset"})
+  else:
+    raise Exception('unlink account requires client 8.3.1 thru 8.3.16')
+
+
+async def do_restart_account(client):
+  await client.connect()
+  if (8,3,17) <= client.version:
+    await client.send({"cmd":"restart"})
+  else:
+    raise Exception('restart account requires client 8.3.17+')
 
 
 async def do_link_account(client):
@@ -739,6 +751,7 @@ COMMANDS_DISPATCH = {
   "get"     : do_get,
   "unlink-account" : do_unlink_account,
   "link-account"   : do_link_account,
+  "restart-account": do_restart_account,
 }
 
 
