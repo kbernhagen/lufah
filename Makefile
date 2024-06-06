@@ -35,4 +35,4 @@ publish-pypi: build
 	"$(PYTHON)" -m twine upload -u __token__ dist/*
 
 clean:
-	rm -rf dist build *.egg-info __pycache__ examples/__pycache__ "$(VENV)"
+	rm -rf dist build *.egg-info lufah/__pycache__ examples/__pycache__ "$(VENV)"

@@ -39,30 +39,34 @@ usage: lufah [-h] [-v] [-d] [--version] <peer> <command> ...
 Little Utility for FAH v8
 
 positional arguments:
-  <peer>         [host][:port][/group] Use "." for localhost. Peer can be a
-                 comma-separated list of hosts for commands units, info,
-                 fold, finish, pause: host[:port],host[:port],...
+  <peer>           [host][:port][/group] Use "." for localhost. Peer can be a
+                   comma-separated list of hosts for commands units, info,
+                   fold, finish, pause: host[:port],host[:port],...
   <command>
-    status       show json snapshot of client state
-    units        show table of all units by group
+    status         show json snapshot of client state
+    units          show table of all units by group
     fold
     finish
     pause
-    unpause      alias for fold
-    config       get or set config values
-    groups       show json array of resource group names
-    info         show peer host and client info
-    log          show log; use control-c to exit
-    watch        show incoming messages; use control-c to exit
-    get          show json value at dot-separated key path in client state
-    start        start local client service; peer must be "."
-    stop         stop local client service; peer must be "."
+    unpause        alias for fold
+    config         get or set config values
+    groups         show json array of resource group names
+    info           show peer host and client info
+    log            show log; use control-c to exit
+    watch          show incoming messages; use control-c to exit
+    get            show json value at dot-separated key path in client state
+    unlink-account
+    link-account   <account-token> [<machine-name>]
+    restart-account
+                   restart account/node connection
+    start          start local client service; peer must be "."
+    stop           stop local client service; peer must be "."
 
 options:
-  -h, --help     show this help message and exit
+  -h, --help       show this help message and exit
   -v, --verbose
   -d, --debug
-  --version      show program's version number and exit
+  --version        show program's version number and exit
 
 Examples
 
