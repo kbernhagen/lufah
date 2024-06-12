@@ -52,10 +52,11 @@ OPTIONS.debug = False
 _CLIENTS = {}
 
 # TODO:
-# lufah . create-group <name> # by sending pause to nonexistent group
 # lufah . delete-group <name> # refuse if running WU, unless --force
 # lufah file:~/peers.json units
 #   { "peers": ["peer1", "peer2", ...] }
+# lufah /mygpus enable-all-gpus
+# lufah . wait-until-paused # wait until all groups are paused (finished)
 
 
 # FIXME: default is not restricted
@@ -77,6 +78,7 @@ COMMANDS = [
   'unpause',
   'config',
   'groups',
+  'create-group',
   'info',
   'log',
   'watch',
@@ -109,6 +111,7 @@ COMMANDS_HELP = {
   'get'    : 'show json value at dot-separated key path in client state',
   'link-account' : '<account-token> [<machine-name>]',
   'restart-account' : 'restart account/node connection',
+  'create-group' : 'create group if it does not exist',
 }
 
 
@@ -701,6 +704,11 @@ def do_start_or_stop_local_sevice(**_):
     check_call(cmd)
 
 
+async def do_create_group(client):
+  await client.connect()
+  await client.create_group(client.group)
+
+
 async def do_unlink_account(client):
   await client.connect()
   if (8,3,1) <= client.version and client.version < (8,3,17):
@@ -752,6 +760,7 @@ COMMANDS_DISPATCH = {
   "unlink-account" : do_unlink_account,
   "link-account"   : do_link_account,
   "restart-account": do_restart_account,
+  "create-group"   : do_create_group,
 }
 
 

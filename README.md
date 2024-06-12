@@ -51,6 +51,7 @@ positional arguments:
     unpause        alias for fold
     config         get or set config values
     groups         show json array of resource group names
+    create-group   create group if it does not exist
     info           show peer host and client info
     log            show log; use control-c to exit
     watch          show incoming messages; use control-c to exit

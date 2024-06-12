@@ -226,3 +226,17 @@ class FahClient:
     # default_group=self.group
     # force=False
   #def get_config_value(self, key, **kwargs):
+
+  async def create_group(self, group):
+    if self.version < (8,3,1):
+      raise Exception('create group requires client 8.3.1+')
+    if group is None:
+      raise Exception('no group specified')
+    # strip leading/trailing whitespace, as web control does
+    group = group.strip()
+    if group in self.groups:
+      _LOGGER.warning('%s: group "%s" already exists', self._name, group)
+      return
+    # use side-effect that setting state on non-existant group creates it
+    # FIXME: might break in future
+    await self.send({"state":"pause", "cmd":"state", "group":group})
