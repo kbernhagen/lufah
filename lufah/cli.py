@@ -56,7 +56,6 @@ _CLIENTS = {}
 # lufah file:~/peers.json units
 #   { "peers": ["peer1", "peer2", ...] }
 # lufah /mygpus enable-all-gpus
-# lufah . wait-until-paused # wait until all groups are paused (finished)
 
 
 # FIXME: default is not restricted
@@ -86,6 +85,7 @@ COMMANDS = [
   'unlink-account',
   'link-account',
   'restart-account',
+  'wait-until-paused',
 ]
 if sys.platform == 'darwin':
   COMMANDS += ['start', 'stop']
@@ -112,6 +112,7 @@ COMMANDS_HELP = {
   'link-account' : '<account-token> [<machine-name>]',
   'restart-account' : 'restart account/node connection',
   'create-group' : 'create group if it does not exist',
+  'wait-until-paused' : 'run until all target groups seem paused',
 }
 
 
@@ -742,6 +743,42 @@ async def do_link_account(client):
     await client.send(msg)
 
 
+async def _close_if_paused(client, _):
+  # unused: msg
+  group = client.group
+  if group is None:
+    groups = client.groups
+  elif not group in client.groups:
+    raise Exception(f'group "{group}" does not exist')
+  else:
+    groups = [group]
+  for group in groups:
+    # return if any group is not paused
+    gconfig = client.data.get('groups',{}).get(group,{}).get('config',{})
+    paused = gconfig.get('paused', None)
+    #finish = gconfig.get('finish', False)
+    if paused is False:
+      return
+    if paused is None:
+      _LOGGER.warning('no value for paused in group "%s"', group)
+  # all target groups are assumed paused
+  await client.close()
+
+
+async def do_wait_until_paused(client):
+  client.register_callback(_close_if_paused)
+  client.should_process_updates = True
+  await client.connect()
+  if client.version < (8,3,17):
+    raise Exception('wait-until-paused requires client 8.3.17+')
+  if OPTIONS.debug:
+    return
+  # process initial connection snapshot
+  await _close_if_paused(client, None)
+  if client.is_connected:
+    await client.ws.wait_closed()
+
+
 COMMANDS_DISPATCH = {
   "status"  : do_status,
   "fold"    : do_command_multi,
@@ -761,6 +798,7 @@ COMMANDS_DISPATCH = {
   "link-account"   : do_link_account,
   "restart-account": do_restart_account,
   "create-group"   : do_create_group,
+  "wait-until-paused" : do_wait_until_paused,
 }
 
 
