@@ -86,6 +86,7 @@ COMMANDS = [
   'link-account',
   'restart-account',
   'wait-until-paused',
+  'enable-all-gpus',
 ]
 if sys.platform == 'darwin':
   COMMANDS += ['start', 'stop']
@@ -113,6 +114,7 @@ COMMANDS_HELP = {
   'restart-account' : 'restart account/node connection',
   'create-group' : 'create group if it does not exist',
   'wait-until-paused' : 'run until all target groups seem paused',
+  'enable-all-gpus': 'enable all unclaimed gpus in specified group',
 }
 
 
@@ -779,6 +781,54 @@ async def do_wait_until_paused(client):
     await client.ws.wait_closed()
 
 
+async def do_enable_all_gpus(client):
+  await client.connect()
+  if client.version < (8,3,17):
+    raise Exception('enable-all-gpus requires client 8.3.17+')
+  if client.group is None or not client.group in client.groups:
+    raise Exception('an existing group must be specified for enable-all-gpus')
+  all_gpus = client.data.get("info", {}).get("gpus", {})
+  # get set of all_supported gpu ids, info.gpus id with "supported" True
+  all_supported = set()
+  for gpuid in all_gpus.keys():
+    if all_gpus.get(gpuid, {}).get("supported") is True:
+      all_supported.add(gpuid)
+  if len(all_supported) == 0:
+    _LOGGER.warning('no supported gpus found')
+    return
+  # get set of already_enabled gpus across all groups
+  already_enabled = set()
+  groups_dict = client.data.get("groups",{})
+  for group in client.groups:
+    gconfgpus = groups_dict.get(group,{}).get("config",{}).get("gpus",{})
+    for gpuid in gconfgpus.keys():
+      if gconfgpus.get(gpuid,{}).get("enabled") is True:
+        already_enabled.add(gpuid)
+
+  to_enable = all_supported - already_enabled
+  _LOGGER.debug('all_supported: %s', repr(all_supported))
+  _LOGGER.debug('already_enabled: %s', repr(already_enabled))
+  _LOGGER.info('to_enable: %s', repr(to_enable))
+  if len(to_enable) == 0:
+    _LOGGER.warning('no gpus to enable')
+    return
+  # create group config with to_enable gpus, {gpuid = {enabled = True}}
+  # start with existing gpus, so we don't disable any in target group
+  groupconf = client.data.get("groups",{}).get(client.group,{}).get("config",{})
+  target_group_conf_gpus = groupconf.get("gpus",{}).copy()
+  for gpuid in to_enable:
+    target_group_conf_gpus[gpuid] = {"enabled": True}
+  # create config dict {"groups" = {groupname = {},...}}
+  # need empty conf for each existing group
+  groupsconf = {}
+  for g in client.groups:
+    groupsconf[g] = {}
+  groupsconf[client.group] = {"gpus": target_group_conf_gpus}
+  conf = {"groups": groupsconf}
+  # send config
+  await client.send({"cmd":"config", "config":conf})
+
+
 COMMANDS_DISPATCH = {
   "status"  : do_status,
   "fold"    : do_command_multi,
@@ -799,6 +849,7 @@ COMMANDS_DISPATCH = {
   "restart-account": do_restart_account,
   "create-group"   : do_create_group,
   "wait-until-paused" : do_wait_until_paused,
+  "enable-all-gpus": do_enable_all_gpus,
 }
 
 

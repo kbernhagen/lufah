@@ -61,6 +61,7 @@ positional arguments:
     restart-account  restart account/node connection
     wait-until-paused
                      run until all target groups seem paused
+    enable-all-gpus  enable all unclaimed gpus in specified group
     start            start local client service; peer must be "."
     stop             stop local client service; peer must be "."
 
