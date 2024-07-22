@@ -55,7 +55,6 @@ _CLIENTS = {}
 # lufah . delete-group <name> # refuse if running WU, unless --force
 # lufah file:~/peers.json units
 #   { "peers": ["peer1", "peer2", ...] }
-# lufah /mygpus enable-all-gpus
 
 
 # FIXME: default is not restricted
@@ -582,6 +581,22 @@ def status_for_unit(client, unit):
   return STATUS_STRINGS.get(state, state)
 
 
+def format_seconds(secs: int):
+  if secs < 0:
+    return '-(' + format_seconds(-secs) + ')'
+  if secs < 60:
+    return f'{secs:02d}s'
+  m, s = divmod(secs, 60)
+  h, m = divmod(m, 60)
+  d, h = divmod(h, 24)
+  #return f'{d}:{h:02d}:{m:02d}:{s:02d}'
+  if h == 0:
+    return f'{m:02d}m {s:02d}s'
+  if d == 0:
+    return f'{h}h {m:02d}m'
+  return f'{d}d {h}h'
+
+
 def print_unit(client, unit):
   if unit is None:
     return
@@ -591,11 +606,14 @@ def print_unit(client, unit):
   status = status_for_unit(client, unit)
   cpus = unit.get("cpus", 0)
   gpus = len(unit.get("gpus", []))
-  progress = unit.get("progress", 0)
+  # FIXME: there can also be wait_progress
+  progress = unit.get("wu_progress", unit.get("progress", 0))
   progress = math.floor(progress * 1000) / 10.0
   progress = str(progress) + '%'
   ppd = unit.get("ppd", 0)
   eta = unit.get("eta", '')
+  if isinstance(eta, int):
+    eta = format_seconds(eta)
   print(
     f'{project:<7}  {cpus:<4}  {gpus:<4}  {status:<16}{progress:^8}'
     f'  {ppd:<8}  {eta}')
