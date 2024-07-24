@@ -85,6 +85,8 @@ Notes
 
 If not given, the default command is 'units'.
 
+In 8.3+, config requires a group name, except for account settings
+(user, team, passkey, cause).
 In 8.3, /group config cpus <n> is not limited to unused cpus across groups.
 
 Group names for fah 8.1 must:
@@ -97,6 +99,7 @@ For a group name actually starting with "/", use prefix "//".
 An error may not be shown if the initial connection times out.
 If group does not exist on 8.1, this script may hang until silent timeout.
 Config priority does not seem to work. Cores are probably setting priority.
+It sometimes takes 30 seconds to exit after a control-c.
 Commands start and stop are macOS-only.
 ```
 

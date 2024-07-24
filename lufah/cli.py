@@ -116,6 +116,17 @@ COMMANDS_HELP = {
   'enable-all-gpus': 'enable all unclaimed gpus in specified group',
 }
 
+COMMANDS_DESC = {
+  'config' : f'''
+get or set config values
+
+Other than for account settings (user, team, passkey, cause),
+a group must be specified. E.g.,
+
+  {PROGRAM} / config cpus 0
+''',
+}
+
 
 # allowed config keys
 VALID_KEYS_VALUES = {
@@ -302,6 +313,8 @@ Notes
 
 If not given, the default command is {DEFAULT_COMMAND!r}.
 
+In 8.3+, config requires a group name, except for account settings
+(user, team, passkey, cause).
 In 8.3, /group config cpus <n> is not limited to unused cpus across groups.
 
 Group names for fah 8.1 must:
@@ -314,6 +327,7 @@ For a group name actually starting with "/", use prefix "//".
 An error may not be shown if the initial connection times out.
 If group does not exist on 8.1, this script may hang until silent timeout.
 Config priority does not seem to work. Cores are probably setting priority.
+It sometimes takes 30 seconds to exit after a control-c.
 '''
 
   if sys.platform == 'darwin':
@@ -356,7 +370,9 @@ host[:port],host[:port],...
     if cmd in COMMAND_ALIASES:
       default_help = 'alias for ' + COMMAND_ALIASES.get(cmd)
     help1 = COMMANDS_HELP.get(cmd, default_help)
-    par = subparsers.add_parser(cmd, description=help1, help=help1)
+    desc1 = COMMANDS_DESC.get(cmd, help1)
+    par = subparsers.add_parser(cmd, description=desc1, help=help1,
+      formatter_class=argparse.RawDescriptionHelpFormatter)
     if cmd == 'config':
       # TODO: add subparser for each valid config key
       par.add_argument('key', metavar='<key>',
