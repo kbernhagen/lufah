@@ -62,6 +62,7 @@ positional arguments:
     wait-until-paused
                      run until all target groups seem paused
     enable-all-gpus  enable all unclaimed gpus in specified group
+    dump-all         dump all paused units in specified group or all groups
     start            start local client service; peer must be "."
     stop             stop local client service; peer must be "."
 
@@ -118,15 +119,16 @@ watch -n 10 lufah $(hostname) units
 ## Example Output
 
 ```
-lufah frotz.local units
+lufah .,panda units
 ```
 ```
--------------------------------------------------------------------------
-Project  CPUs  GPUs  Status          Progress  PPD       ETA
--------------------------------------------------------------------------
-frotz/
-18402    8     0     Finishing        35.1%    173973    10 hours 59 mins
-frotz//two
-18490    8     0     Running          80.7%    177621    1 hour 29 mins
-frotz//tree
+-------------------------------------------------------------------------------
+Project  CPUs  GPUs  Core  Status          Progress  PPD       ETA
+-------------------------------------------------------------------------------
+Panda/
+12418    4     0     0xa8  Running          31.3%    162732    3 hours 47 mins
+Sanctuary/
+12419    8     0     0xa8  Running          20.3%    249740    3h 18m
 ```
+
+Note: Panda is v8.3.18, Sanctuary is v8.4.1

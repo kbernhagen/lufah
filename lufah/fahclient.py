@@ -240,3 +240,26 @@ class FahClient:
     # use side-effect that setting state on non-existant group creates it
     # FIXME: might break in future
     await self.send({"state":"pause", "cmd":"state", "group":group})
+
+  async def dump_unit(self, unit):
+    if unit is None:
+      _LOGGER.error('%s: unit to dump is None', self._name)
+      return
+    if isinstance(unit, str):
+      unit_id = unit
+    else:
+      unit_id = unit.get('id')
+    if unit_id:
+      await self.send({"cmd":"dump", "unit":unit_id})
+    else:
+      _LOGGER.error('%s: unit to dump has no id', self._name)
+
+  def paused_units_in_group(self, group):
+    units = []
+    for unit in self.data.get('units', []):
+      if not unit.get('pause_reason'):
+        continue
+      if group is not None and group != unit.get('group'):
+        continue
+      units.append(unit)
+    return units

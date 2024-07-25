@@ -187,3 +187,20 @@ def munged_group_name(group, snapshot):
   _LOGGER.debug('original group: %s', repr(orig_group))
   _LOGGER.debug('  munged group: %s', repr(group))
   return group
+
+
+def format_seconds(secs: int):
+  """Human-readable time interval"""
+  if secs < 0:
+    return '-(' + format_seconds(-secs) + ')'
+  if secs < 60:
+    return f'{secs:02d}s'
+  m, s = divmod(secs, 60)
+  h, m = divmod(m, 60)
+  d, h = divmod(h, 24)
+  #return f'{d}:{h:02d}:{m:02d}:{s:02d}'
+  if h == 0:
+    return f'{m:02d}m {s:02d}s'
+  if d == 0:
+    return f'{h}h {m:02d}m'
+  return f'{d}d {h}h'

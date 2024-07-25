@@ -35,7 +35,8 @@ from .exceptions import * # pylint: disable=unused-wildcard-import
 from .fahclient import FahClient
 from .util import (
   eprint, bool_from_string, diff_dicts,
-  munged_group_name, uri_and_group_for_peer, get_object_at_key_path
+  munged_group_name, uri_and_group_for_peer, get_object_at_key_path,
+  format_seconds
   )
 
 
@@ -86,6 +87,7 @@ COMMANDS = [
   'restart-account',
   'wait-until-paused',
   'enable-all-gpus',
+  'dump-all',
 ]
 if sys.platform == 'darwin':
   COMMANDS += ['start', 'stop']
@@ -114,6 +116,7 @@ COMMANDS_HELP = {
   'create-group' : 'create group if it does not exist',
   'wait-until-paused' : 'run until all target groups seem paused',
   'enable-all-gpus': 'enable all unclaimed gpus in specified group',
+  'dump-all': 'dump all paused units in specified group or all groups',
 }
 
 COMMANDS_DESC = {
@@ -124,6 +127,13 @@ Other than for account settings (user, team, passkey, cause),
 a group must be specified. E.g.,
 
   {PROGRAM} / config cpus 0
+''',
+  'dump-all' : '''
+dump all paused units in specified group or all groups
+
+This command is not interactive.
+To dump units, use option "--force".
+You should only dump a WU if it will not be completed before its deadline.
 ''',
 }
 
@@ -387,6 +397,9 @@ host[:port],host[:port],...
         help = '43 url base64 characters (32 bytes); use "" for current token')
       par.add_argument('machine_name', nargs='?', metavar='<machine-name>',
         help = '1 to 64 letters, numbers, underscore, dash (-), dot(.)')
+    elif cmd == 'dump-all':
+      par.add_argument('--force', action='store_true')
+
 
   for cmd in HIDDEN_COMMANDS:
     subparsers.add_parser(cmd)
@@ -562,9 +575,9 @@ async def do_watch(client):
 
 def print_units_header():
   empty = ''
-  print(f'{empty:-<73}')
-  print('Project  CPUs  GPUs  Status          Progress  PPD       ETA')
-  print(f'{empty:-<73}')
+  print(f'{empty:-<79}')
+  print('Project  CPUs  GPUs  Core  Status          Progress  PPD       ETA')
+  print(f'{empty:-<79}')
 
 
 def status_for_unit(client, unit):
@@ -597,28 +610,13 @@ def status_for_unit(client, unit):
   return STATUS_STRINGS.get(state, state)
 
 
-def format_seconds(secs: int):
-  if secs < 0:
-    return '-(' + format_seconds(-secs) + ')'
-  if secs < 60:
-    return f'{secs:02d}s'
-  m, s = divmod(secs, 60)
-  h, m = divmod(m, 60)
-  d, h = divmod(h, 24)
-  #return f'{d}:{h:02d}:{m:02d}:{s:02d}'
-  if h == 0:
-    return f'{m:02d}m {s:02d}s'
-  if d == 0:
-    return f'{h}h {m:02d}m'
-  return f'{d}d {h}h'
-
-
 def print_unit(client, unit):
   if unit is None:
     return
   # TODO: unit dataclass
   assignment = unit.get("assignment", {})
   project = assignment.get("project", '')
+  core = assignment.get("core", {}).get("type", '')
   status = status_for_unit(client, unit)
   cpus = unit.get("cpus", 0)
   gpus = len(unit.get("gpus", []))
@@ -631,7 +629,7 @@ def print_unit(client, unit):
   if isinstance(eta, int):
     eta = format_seconds(eta)
   print(
-    f'{project:<7}  {cpus:<4}  {gpus:<4}  {status:<16}{progress:^8}'
+    f'{project:<7}  {cpus:<4}  {gpus:<4}  {core:<4}  {status:<16}{progress:^8}'
     f'  {ppd:<8}  {eta}')
 
 
@@ -863,6 +861,37 @@ async def do_enable_all_gpus(client):
   await client.send({"cmd":"config", "config":conf})
 
 
+async def do_dump_all(client):
+  await client.connect()
+  if client.version < (8,3):
+    raise Exception('dump-all requires client 8.3+')
+  group = client.group
+  units = client.paused_units_in_group(group)
+  if len(units) == 0:
+    msg = f'{client.name}: no paused units found'
+    if group is not None:
+      msg += f' in group "{group}"'
+    if sys.stdout.isatty():
+      print(msg)
+    else:
+      _LOGGER.info('%s', msg)
+    return
+  if sys.stdout.isatty():
+    print('Units to dump:')
+    print_units_header()
+    for unit in units:
+      print_unit(client, unit)
+  if not OPTIONS.force:
+    msg = f'{client.name}: to dump units, use option --force'
+    if sys.stdout.isatty():
+      print(msg)
+    else:
+      _LOGGER.warning('%s', msg)
+    return
+  for unit in units:
+    await client.dump_unit(unit)
+
+
 COMMANDS_DISPATCH = {
   "status"  : do_status,
   "fold"    : do_command_multi,
@@ -884,6 +913,7 @@ COMMANDS_DISPATCH = {
   "create-group"   : do_create_group,
   "wait-until-paused" : do_wait_until_paused,
   "enable-all-gpus": do_enable_all_gpus,
+  "dump-all"       : do_dump_all,
 }
 
 
