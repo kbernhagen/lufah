@@ -122,13 +122,11 @@ watch -n 10 lufah $(hostname) units
 lufah .,panda units
 ```
 ```
--------------------------------------------------------------------------------
-Project  CPUs  GPUs  Core  Status          Progress  PPD       ETA
--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+Project  CPUs  GPUs  Core  Status          Progress  PPD       ETA      Deadline
+--------------------------------------------------------------------------------
 Panda/
-12418    4     0     0xa8  Running          31.3%    162732    3 hours 47 mins
+12417    4     0     0xa8  Running          25.4%    162364    4h 7m    4d 22h  
 Sanctuary/
-12419    8     0     0xa8  Running          20.3%    249740    3h 18m
+18806    8     0     0xa9  Running          63.1%    261999    2h 53m   2d 21h  
 ```
-
-Note: Panda is v8.3.18, Sanctuary is v8.4.1

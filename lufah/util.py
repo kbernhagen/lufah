@@ -191,6 +191,7 @@ def munged_group_name(group, snapshot):
 
 def format_seconds(secs: int):
   """Human-readable time interval"""
+  secs = int(secs) # it may not be int
   if secs < 0:
     return '-(' + format_seconds(-secs) + ')'
   if secs < 60:

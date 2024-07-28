@@ -26,6 +26,7 @@ import platform
 from urllib.parse import urlparse
 from urllib.request import urlopen
 from subprocess import check_call
+import datetime as dt
 
 from websockets.exceptions import ConnectionClosed
 
@@ -575,9 +576,13 @@ async def do_watch(client):
 
 def print_units_header():
   empty = ''
-  print(f'{empty:-<79}')
-  print('Project  CPUs  GPUs  Core  Status          Progress  PPD       ETA')
-  print(f'{empty:-<79}')
+  width = 70
+  hd = 'Project  CPUs  GPUs  Core  Status          Progress  PPD       ETA    '
+  hd += '  Deadline'
+  width = len(hd)
+  print(f'{empty:-<{width}}')
+  print(hd)
+  print(f'{empty:-<{width}}')
 
 
 def status_for_unit(client, unit):
@@ -610,6 +615,14 @@ def status_for_unit(client, unit):
   return STATUS_STRINGS.get(state, state)
 
 
+def shorten_eta(eta: str):
+  eta = eta.replace(' days', 'd').replace(' day', 'd')
+  eta = eta.replace(' hours', 'h').replace(' hour', 'h')
+  eta = eta.replace(' mins', 'm').replace(' min', 'm')
+  eta = eta.replace(' secs', 's').replace(' sec', 's')
+  return eta
+
+
 def print_unit(client, unit):
   if unit is None:
     return
@@ -628,9 +641,23 @@ def print_unit(client, unit):
   eta = unit.get("eta", '')
   if isinstance(eta, int):
     eta = format_seconds(eta)
+  elif isinstance(eta, str):
+    eta = shorten_eta(eta)
+  assign_time = assignment.get("time") # str iso UTC
+  deadline_str = ''
+  if assign_time:
+    try:
+      deadline = assignment.get("deadline", 0) # secs from assign time
+      now = dt.datetime.now(dt.timezone.utc)
+      atime = dt.datetime.fromisoformat(assign_time)
+      dtime = atime + dt.timedelta(seconds=deadline)
+      deadline_secs = (dtime - now).total_seconds()
+      deadline_str = format_seconds(deadline_secs)
+    except:
+      pass
   print(
     f'{project:<7}  {cpus:<4}  {gpus:<4}  {core:<4}  {status:<16}{progress:^8}'
-    f'  {ppd:<8}  {eta}')
+    f'  {ppd:<8}  {eta:<7}  {deadline_str:<8}')
 
 
 def units_for_group(client, group):
