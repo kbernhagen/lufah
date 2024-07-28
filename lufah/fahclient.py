@@ -107,7 +107,8 @@ class FahClient:
     if not self.ws:
       _LOGGER.info('%s:Opening %s', self._name, self._uri)
       try:
-        self.ws = await connect(self._uri, ping_interval=None)
+        # client can send a huge message when log is first enabled
+        self.ws = await connect(self._uri,ping_interval=None,max_size=16777216)
         _LOGGER.info('%s:Connected to %s', self._name, self._uri)
       except Exception:
         self.data = {}
