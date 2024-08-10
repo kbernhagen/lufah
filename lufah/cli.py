@@ -160,6 +160,7 @@ VALID_KEYS_VALUES = {
     "values": ['idle', 'low', 'normal', 'inherit']},
   "on-battery": {"type": bool_from_string},
   "keep-awake": {"type": bool_from_string},
+  "cuda": {"type": bool_from_string},
   # no peer editing; peers not supported by v8.2+
   # it would be an error to directly change gpus, paused, finish
   # get-only config keys
@@ -430,6 +431,7 @@ async def do_config(client):
   key = OPTIONS.key
   value = OPTIONS.value
   ver = client.version
+  # Note: account can be out-of-date, but does become "" when unlinked
   have_acct = 0 < len(client.data.get("info", {}).get("account", ''))
 
   # FIXME: potential race if groups changes before we write
