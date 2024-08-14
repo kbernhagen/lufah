@@ -48,6 +48,7 @@ publish-pypi: build  # build and publish to pypi.org
 .PHONY: clean
 clean:  # remove all build products
 	rm -rf dist build *.egg-info lufah/__pycache__ examples/__pycache__
+	rm -rf src/*.egg-info src/*/__pycache__
 
 .PHONY: clean-venv
 clean-venv:  # remove dev venv
