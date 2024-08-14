@@ -1,11 +1,7 @@
 """lufah"""
 
-__version__ = '0.5.0'
+__version__ = "0.5.0"
+__all__ = ["COMMAND_FINISH", "COMMAND_FOLD", "COMMAND_PAUSE", "FahClient"]
 
-__license__   = 'MIT'
-__copyright__ = 'Copyright (c) 2024 Kevin Bernhagen'
-__url__       = 'https://github.com/kbernhagen/lufah'
-
-from .const import COMMAND_FOLD, COMMAND_FINISH, COMMAND_PAUSE
-#from .exceptions import *
+from .const import COMMAND_FINISH, COMMAND_FOLD, COMMAND_PAUSE
 from .fahclient import FahClient

@@ -1,8 +1,8 @@
 """constants"""
 
-COMMAND_FOLD   = 'fold'
-COMMAND_FINISH = 'finish'
-COMMAND_PAUSE  = 'pause'
+COMMAND_FOLD = "fold"
+COMMAND_FINISH = "finish"
+COMMAND_PAUSE = "pause"
 
 # fah 8.3 config keys
 # valid global/group keys are in json files:
@@ -13,12 +13,19 @@ COMMAND_PAUSE  = 'pause'
 # Joseph says it's safe to change these while logged in
 # it is possible for a machine to differ from account
 # web control will only show the account values when logged in
-GLOBAL_CONFIG_KEYS = ['user', 'team', 'passkey', 'cause']
+GLOBAL_CONFIG_KEYS = ["user", "team", "passkey", "cause"]
 
 # keys to settings in groups under v8.3; in main config before 8.3
 # cuda added for 8.4
-GROUP_CONFIG_KEYS = ['on_idle', 'beta', 'key', 'cpus',
-  'on_battery', 'keep_awake', 'cuda']
+GROUP_CONFIG_KEYS = [
+    "on_idle",
+    "beta",
+    "key",
+    "cpus",
+    "on_battery",
+    "keep_awake",
+    "cuda",
+]
 
 # peers is v8.1.x only, but possibly remains as cruft
 # gpus, paused, finish in main config before 8.3
@@ -37,13 +44,13 @@ DEPRECATED_CONFIG_KEYS = ["fold_anon", "peers", "checkpoint", "priority"]
 # some of these are synthetic (not actual unit.state)
 # client can return pause_reason strings longer than 16 chars
 STATUS_STRINGS = {
-  'ASSIGN':   'Requesting work',
-  'DOWNLOAD': 'Downloading work',
-  'CORE':     'Downloading core',
-  'RUN':      'Running',
-  'FINISH':   'Finishing',
-  'UPLOAD':   'Uploading',
-  'CLEAN':    'Cleaning up',
-  'WAIT':     'Waiting',
-  'PAUSE':    'Paused'
+    "ASSIGN": "Requesting work",
+    "DOWNLOAD": "Downloading work",
+    "CORE": "Downloading core",
+    "RUN": "Running",
+    "FINISH": "Finishing",
+    "UPLOAD": "Uploading",
+    "CLEAN": "Cleaning up",
+    "WAIT": "Waiting",
+    "PAUSE": "Paused",
 }
