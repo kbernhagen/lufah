@@ -1,38 +1,57 @@
-VENV = build/venv
+VENV = .venv
 PYTHON = $(VENV)/bin/python
 
+.PHONY: help
 help:
 	@echo "Please use \`make <target>' where <target> is one of"
-	@echo "  install      install for all users; may not have permission"
-	@echo "  install-user install via pipx for current user"
-	@echo "  install-dev  like install-user, but is live linked to source code"
-	@echo "  build        build py package; done as-needed by other targets"
-	@echo "  clean        remove all build products"
+	@grep -E '^[a-zA-Z_-]+:.*?# .*$$' $(MAKEFILE_LIST) \
+	  | awk 'BEGIN {FS = ":.*?# "}; {printf "  %-14s %s\n", $$1, $$2}'
 
-build: venv
-	"$(PYTHON)" -m build
+.DEFAULT_GOAL := help
 
-venv: "$(VENV)"
+.PHONY: venv
+venv: "$(VENV)"  # create dev venv; does not install dependencies
 
 "$(VENV)":
 	python3 -m venv "$(VENV)"
 	"$(PYTHON)" -m pip install --upgrade pip
-	"$(PYTHON)" -m pip install --upgrade build twine pipx
+	# install base dev dependencies
+	"$(PYTHON)" -m pip install --upgrade build pipx twine
+	@echo "You may need to use \"source $(VENV)/bin/activate\""
 
-install-dev: venv
-	"$(PYTHON)" -m pipx install --editable .
+.PHONY: build
+build: clean venv
+	@# clean build package; done as-needed by other targets
+	"$(PYTHON)" -m build
 
-install-user: venv
-	"$(PYTHON)" -m pipx install .
+.PHONY: install-dev
+install-dev: venv  # dev install with deps in venv; live linked to source code
+	"$(PYTHON)" -m pip install --editable ".[dev]"
+	@echo "You may need to use \"source $(VENV)/bin/activate\""
 
-install:
+.PHONY: install-user
+install-user: venv  # install non-dev via pipx for current user
+	"$(PYTHON)" -m pipx install --force .
+
+.PHONY: install
+install:  # install for all users; you may need sudo
 	python3 -m pip install .
 
+.PHONY: publish-testpypi
 publish-testpypi: build
 	"$(PYTHON)" -m twine upload -u __token__ --repository testpypi dist/*
 
-publish-pypi: build
+.PHONY: publish-pypi
+publish-pypi: build  # build and publish to pypi.org
 	"$(PYTHON)" -m twine upload -u __token__ dist/*
 
-clean:
+.PHONY: clean
+clean:  # remove all build products
 	rm -rf dist build *.egg-info lufah/__pycache__ examples/__pycache__
+
+.PHONY: clean-venv
+clean-venv:  # remove dev venv
+	rm -rf "$(VENV)"
+
+.PHONY: clean-all
+clean-all: clean clean-venv  # clean all
