@@ -1,10 +1,4 @@
 """lufah utility functions"""
-# -*- coding: utf-8 -*-
-# pylint: disable=fixme,missing-function-docstring
-# pylint: disable=broad-exception-raised,broad-exception-caught,bare-except
-# pylint: disable=too-many-branches,too-many-statements,too-many-lines
-# pylint: disable=global-statement # this is for argparse OPTIONS
-# pylint: disable=too-many-instance-attributes,wildcard-import
 
 import logging
 import operator

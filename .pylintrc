@@ -1,2 +1,19 @@
+[MESSAGES CONTROL]
+disable=
+    bare-except,
+    broad-exception-caught,
+    broad-exception-raised,
+    chained-comparison,
+    fixme,
+    global-statement, # for argparse OPTIONS
+    missing-function-docstring,
+    too-many-branches,
+    too-many-instance-attributes,
+    too-many-lines,
+    too-many-locals,
+    too-many-statements,
+    unused-wildcard-import,
+    wildcard-import
+
 [FORMAT]
 indent-string='    '

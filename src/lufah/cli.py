@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-# pylint: disable=fixme,missing-function-docstring
-# pylint: disable=broad-exception-raised,broad-exception-caught,bare-except
-# pylint: disable=too-many-branches,too-many-statements,too-many-lines
-# pylint: disable=global-statement # this is for argparse OPTIONS
-# pylint: disable=too-many-instance-attributes,wildcard-import
-# pylint: disable=too-many-locals
-# FIXME: this is excessive disabling
-
 """
 lufah: Little Utility for FAH v8
 """
@@ -38,7 +29,7 @@ from .const import (
     STATUS_STRINGS,
     VALID_CONFIG_SET_KEYS,
 )
-from .exceptions import *  # pylint: disable=unused-wildcard-import  # noqa: F403
+from .exceptions import *  # noqa: F403
 from .fahclient import FahClient
 from .util import (
     bool_from_string,

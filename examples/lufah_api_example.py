@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-# pylint: disable=bare-except,broad-exception-caught
-# pylint: disable=unused-import
 
 """an example of lufah as api"""
 

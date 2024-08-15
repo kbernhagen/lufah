@@ -1,17 +1,11 @@
 """FahClient class"""
-# -*- coding: utf-8 -*-
-# pylint: disable=fixme,missing-function-docstring
-# pylint: disable=broad-exception-raised,broad-exception-caught,bare-except
-# pylint: disable=too-many-branches,too-many-statements,too-many-lines
-# pylint: disable=too-many-instance-attributes,wildcard-import,chained-comparison
-# pylint: disable=chained-comparison
 
 import asyncio
 import datetime
 import json
 import logging
 
-from websockets import connect  # pip3 install websockets --user
+from websockets import connect  # pip3 install websockets
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError
 
 from .const import (
