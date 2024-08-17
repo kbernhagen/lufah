@@ -579,9 +579,13 @@ def print_unit(client, unit):
         try:
             deadline = assignment.get("deadline", 0)  # secs from assign time
             now = dt.datetime.now(dt.timezone.utc)
+            print("now:  ", now)
             atime = dt.datetime.fromisoformat(assign_time.replace("Z", "+00:00"))
+            print("atime:", atime)
             dtime = atime + dt.timedelta(seconds=deadline)
+            print("dtime:", dtime)
             deadline_secs = (dtime - now).total_seconds()
+            print("deadline_secs:", deadline_secs)
             deadline_str = format_seconds(deadline_secs)
         except:  # noqa: E722
             pass
