@@ -579,6 +579,7 @@ def print_unit(client, unit):
         try:
             deadline = assignment.get("deadline", 0)  # secs from assign time
             now = dt.datetime.now(dt.timezone.utc)
+            now = now.replace(microsecond=0)
             print("now:  ", now)
             atime = dt.datetime.fromisoformat(assign_time.replace("Z", "+00:00"))
             print("atime:", atime)
