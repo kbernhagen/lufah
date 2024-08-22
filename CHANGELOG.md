@@ -6,12 +6,17 @@
 
 - Added Uninstall to docs and Makefile
 - Added `top` command
+- Optional shell command completion via Typer
+
+### Changed
+
+- Uses Typer instead of Argparse for cli parsing
 
 ---
 
 ## [0.7.0] - 2024-09-24
 
-This may be the last release to support FAH v8.1 and v8.2.
+Support for FAH older than v8.3 is deprecated.
 
 ### Changed
 
