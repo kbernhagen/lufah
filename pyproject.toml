@@ -10,11 +10,14 @@ keywords = ["fah", "foldingathome", "folding-at-home", "folding@home"]
 license = {file = "LICENSE"}
 readme = "README.md"
 authors = [{name = "Kevin Bernhagen", email = "kbernhagen.github@gmail.com"}]
-requires-python = ">=3.8"
+requires-python = ">=3.8.1"
 dependencies = [
+    "shellingham",
+    "typer-slim",
+    "typing-extensions",
     "websockets>=13.0.1",
     "windows-curses; platform_system=='Windows'",
-    ]
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
@@ -30,7 +33,7 @@ classifiers = [
 ]
 
 [project.scripts]
-lufah = "lufah.cli:main"
+lufah = "lufah.cli_typer:main"
 
 [project.urls]
 Homepage = "https://github.com/kbernhagen/lufah"
@@ -46,5 +49,9 @@ dev-dependencies = [
     "pylint",
     "pytest",
     "ruff",
+    "textual",
+    "textual-dev",
+    "trogon>=0.6.0",
+    "typer",
     "twine",
 ]

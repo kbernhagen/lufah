@@ -1,5 +1,8 @@
 """ lufah __main__ """
 
-from .cli import main
+try:
+    from lufah.cli_typer import main
+except ImportError:
+    from lufah.cli import main
 
 main()

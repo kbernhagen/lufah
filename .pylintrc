@@ -5,7 +5,6 @@ disable=
     broad-exception-raised,
     chained-comparison,
     fixme,
-    global-statement, # for argparse OPTIONS
     missing-function-docstring,
     too-many-branches,
     too-many-instance-attributes,
@@ -14,7 +13,8 @@ disable=
     too-many-statements,
     unused-import,
     unused-wildcard-import,
-    wildcard-import
+    wildcard-import,
+    R0801  # Similar lines in files
 
 [FORMAT]
 indent-string='    '
