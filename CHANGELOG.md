@@ -6,6 +6,12 @@
 
 - Added Uninstall to docs and Makefile
 - Added `top` command
+- Optional shell command completion via Typer
+- Optional extra `tui` which provides `trogon` TUI command
+
+### Changed
+
+- Uses Typer instead of Argparse for cli parsing
 
 ---
 
