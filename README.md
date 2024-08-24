@@ -86,8 +86,8 @@ Notes
 
 If not given, the default command is 'units'.
 
-In 8.3+, config requires a group name, except for account settings
-(user, team, passkey, cause).
+In 8.3+, if there are multiple groups, config requires a group name,
+except for account settings (user, team, passkey, cause).
 In 8.3, -a /group config cpus <n> is not limited to unused cpus across groups.
 
 Group names for fah 8.1 must:

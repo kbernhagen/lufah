@@ -350,8 +350,8 @@ Notes
 
 If not given, the default command is {DEFAULT_COMMAND!r}.
 
-In 8.3+, config requires a group name, except for account settings
-(user, team, passkey, cause).
+In 8.3+, if there are multiple groups, config requires a group name,
+except for account settings (user, team, passkey, cause).
 In 8.3, -a /group config cpus <n> is not limited to unused cpus across groups.
 
 Group names for fah 8.1 must:
@@ -491,6 +491,10 @@ async def do_config(client):
     else:
         group = client.group
 
+    # don't require group if there is only one (the default group "")
+    if group is None and len(groups) == 1:
+        group = groups[0]
+
     # v8.3 splits config between global(account) and group
 
     key0 = key  # might exist in 8.1
@@ -535,7 +539,9 @@ async def do_config(client):
     msg = {"cmd": "config", "config": conf}
     if (8, 3) <= ver and key in GROUP_CONFIG_KEYS:
         if group is None:
-            raise Exception(f'ERROR: cannot set "{key0}" on group None')
+            raise Exception(
+                f'ERROR: cannot set "{key0}" on unspecified group. There are {len(groups)} groups.'
+            )
         # create appropriate 8.3 config.groups dict with all current groups
         groupsconf = {}
         for g in groups:
