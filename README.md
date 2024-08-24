@@ -34,61 +34,61 @@ This has security implications if you enable direct remote access on a client.
 See [HOWTO: Allow v8 Client Remote Control](https://foldingforum.org/viewtopic.php?t=39050)
 
 ```
-usage: lufah [-h] [-v] [-d] [--version] <peer> <command> ...
+usage: lufah [-h] [-v] [-d] [--version] [-a ADDRESS] COMMAND ...
 
 Little Utility for FAH v8
 
 positional arguments:
-  <peer>             [host][:port][/group] Use "." for localhost. Peer can be
-                     a comma-separated list of hosts for commands units, info,
-                     fold, finish, pause: host[:port],host[:port],...
-  <command>
-    status           show json snapshot of client state
-    units            show table of all units by group
+  COMMAND
+    status              show json snapshot of client state
+    state               alias for status
+    units               show table of all units by group
     fold
     finish
     pause
-    unpause          alias for fold
-    config           get or set config values
-    groups           show json array of resource group names
-    create-group     create group if it does not exist
-    info             show peer host and client info
-    log              show log; use control-c to exit
-    watch            show incoming messages; use control-c to exit
-    get              show json value at dot-separated key path in client state
+    unpause             alias for fold
+    config              get or set config values
+    groups              show json array of resource group names
+    create-group        create group if it does not exist
+    info                show peer host and client info
+    log                 show log; use control-c to exit
+    watch               show incoming messages; use control-c to exit
+    get                 show json value at dot-separated key path in client state
     unlink-account
-    link-account     <account-token> [<machine-name>]
-    restart-account  restart account/node connection
-    wait-until-paused
-                     run until all target groups seem paused
-    enable-all-gpus  enable all unclaimed gpus in specified group
-    dump-all         dump all paused units in specified group or all groups
-    start            start local client service; peer must be "."
-    stop             stop local client service; peer must be "."
+    link-account        account-token [machine-name]
+    restart-account     restart account/node connection
+    wait-until-paused   run until all target groups seem paused
+    enable-all-gpus     enable all unclaimed gpus in specified group
+    dump-all            dump all paused units in specified group or all groups
+    start               start local client service; peer must be "."
+    stop                stop local client service; peer must be "."
 
 options:
-  -h, --help         show this help message and exit
+  -h, --help            show this help message and exit
   -v, --verbose
   -d, --debug
-  --version          show program's version number and exit
+  --version             show program's version number and exit
+  -a ADDRESS, --address ADDRESS
+                        [host][:port][/group] Use "." for localhost. Can be a comma-separated list of hosts for commands units,
+                        info, fold, finish, pause: host[:port],host[:port],...
 
 Examples
 
-lufah . units
-lufah /rg2 finish
-lufah other.local/rg1 status
-lufah /mygpu1 config cpus 0
-lufah . config -h
-lufah host1,host2,host3 units
-lufah host1,host2,host3 info
+lufah units
+lufah -a /rg2 finish
+lufah -a other.local/rg1 status
+lufah -a /mygpu1 config cpus 0
+lufah config -h
+lufah -a host1,host2,host3 units
+lufah -a host1,host2,host3 info
 
 Notes
 
 If not given, the default command is 'units'.
 
-In 8.3+, config requires a group name, except for account settings
-(user, team, passkey, cause).
-In 8.3, /group config cpus <n> is not limited to unused cpus across groups.
+In 8.3+, if there are multiple groups, config requires a group name,
+except for account settings (user, team, passkey, cause).
+In 8.3, -a /group config cpus <n> is not limited to unused cpus across groups.
 
 Group names for fah 8.1 must:
   begin "/", have only letters, numbers, period, underscore, hyphen
@@ -113,13 +113,13 @@ On Linux, you probably already have `watch` installed.
 ```
 brew install watch
 
-watch -n 10 lufah $(hostname) units
+watch -n 10 lufah -a $(hostname) units
 ```
 
 ## Example Output
 
 ```
-lufah .,panda units
+lufah -a .,panda units
 ```
 ```
 --------------------------------------------------------------------------------
