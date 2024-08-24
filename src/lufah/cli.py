@@ -53,12 +53,6 @@ OPTIONS.debug = False
 
 _CLIENTS = {}
 
-# TODO:
-# lufah . delete-group <name> # refuse if running WU, unless --force
-# lufah file:~/peers.json units
-#   { "peers": ["peer1", "peer2", ...] }
-
-
 # FIXME: default is not restricted
 # suggest only allow status, units, log, watch
 DEFAULT_COMMAND = "units"
@@ -71,6 +65,7 @@ MULTI_PEER_COMMANDS = ["units", "info", "fold", "finish", "pause"]
 # allowed cli commands; all visible
 COMMANDS = [
     "status",
+    "state",
     "units",
     "fold",
     "finish",
@@ -96,6 +91,7 @@ if sys.platform == "darwin":
 COMMAND_ALIASES = {
     # alias : actual
     "unpause": "fold",
+    "state": "status",  # fahctl has state command
 }
 
 COMMANDS_HELP = {
@@ -112,7 +108,7 @@ COMMANDS_HELP = {
     "units": "show table of all units by group",
     "info": "show peer host and client info",
     "get": "show json value at dot-separated key path in client state",
-    "link-account": "<account-token> [<machine-name>]",
+    "link-account": "account-token [machine-name]",
     "restart-account": "restart account/node connection",
     "create-group": "create group if it does not exist",
     "wait-until-paused": "run until all target groups seem paused",
@@ -127,7 +123,7 @@ get or set config values
 Other than for account settings (user, team, passkey, cause),
 a group must be specified. E.g.,
 
-  {PROGRAM} / config cpus 0
+  {PROGRAM} -a / config cpus 0
 """,
     "dump-all": """
 dump all paused units in specified group or all groups
@@ -136,6 +132,9 @@ This command is not interactive.
 To dump units, use option "--force".
 You should only dump a WU if it will not be completed before its deadline.
 """,
+    "link-account": """
+    Requested machine-name is currently ignored.
+    """,
 }
 
 
@@ -224,6 +223,8 @@ def validate():
     else:
         logging.basicConfig(level=logging.WARNING)
 
+    if OPTIONS.peer in [None, ""]:
+        OPTIONS.peer = "."
     OPTIONS.peer = OPTIONS.peer.lstrip()  # ONLY left strip
     if not OPTIONS.peer:
         raise Exception("ERROR: no peer specified")
@@ -337,13 +338,13 @@ def parse_args():
     epilog = f"""
 Examples
 
-{PROGRAM} . units
-{PROGRAM} /rg2 finish
-{PROGRAM} other.local/rg1 status
-{PROGRAM} /mygpu1 config cpus 0
-{PROGRAM} . config -h
-{PROGRAM} host1,host2,host3 units
-{PROGRAM} host1,host2,host3 info
+{PROGRAM} units
+{PROGRAM} -a /rg2 finish
+{PROGRAM} -a other.local/rg1 status
+{PROGRAM} -a /mygpu1 config cpus 0
+{PROGRAM} config -h
+{PROGRAM} -a host1,host2,host3 units
+{PROGRAM} -a host1,host2,host3 info
 
 Notes
 
@@ -351,7 +352,7 @@ If not given, the default command is {DEFAULT_COMMAND!r}.
 
 In 8.3+, config requires a group name, except for account settings
 (user, team, passkey, cause).
-In 8.3, /group config cpus <n> is not limited to unused cpus across groups.
+In 8.3, -a /group config cpus <n> is not limited to unused cpus across groups.
 
 Group names for fah 8.1 must:
   begin "/", have only letters, numbers, period, underscore, hyphen
@@ -394,13 +395,15 @@ It sometimes takes 30 seconds to exit after a control-c.
     help2 = """\
 [host][:port][/group]
 Use "." for localhost.
-Peer can be a comma-separated list of hosts for commands
+Can be a comma-separated list of hosts for commands
 units, info, fold, finish, pause:
 host[:port],host[:port],...
 """
-    parser.add_argument("peer", metavar="<peer>", help=help2)
+    parser.add_argument(
+        "-a", "--address", metavar="ADDRESS", dest="peer", default=".", help=help2
+    )
 
-    subparsers = parser.add_subparsers(dest="command", metavar="<command>")
+    subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
 
     for cmd in COMMANDS:
         default_help = ""
@@ -417,30 +420,30 @@ host[:port],host[:port],...
         if cmd == "config":
             # TODO: add subparser for each valid config key
             par.add_argument(
-                "key", metavar="<key>", help=" ".join(VALID_KEYS_VALUES.keys())
+                "key", metavar="KEY", help=" ".join(VALID_KEYS_VALUES.keys())
             )
             par.add_argument(
                 "value",
                 nargs="?",
-                metavar="<value>",
+                metavar="VALUE",
                 help="a valid config value for given key",
             )
         elif cmd == "get":
             par.add_argument(
                 "keypath",
-                metavar="<keypath>",
+                metavar="KEYPATH",
                 help="a dot-separated path to a value in client state",
             )
         elif cmd == "link-account":
             par.add_argument(
                 "account_token",
-                metavar="<account-token>",
+                metavar="ACCOUNT-TOKEN",
                 help='43 url base64 characters (32 bytes); use "" for current token',
             )
             par.add_argument(
                 "machine_name",
                 nargs="?",
-                metavar="<machine-name>",
+                metavar="MACHINE-NAME",
                 help="1 to 64 letters, numbers, underscore, dash (-), dot(.)",
             )
         elif cmd == "dump-all":
