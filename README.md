@@ -60,8 +60,8 @@ positional arguments:
     wait-until-paused   run until all target groups seem paused
     enable-all-gpus     enable all unclaimed gpus in specified group
     dump-all            dump all paused units in specified group or all groups
-    start               start local client service; peer must be "."
-    stop                stop local client service; peer must be "."
+    start               start local client service
+    stop                stop local client service
 
 options:
   -h, --help            show this help message and exit
@@ -69,8 +69,11 @@ options:
   -d, --debug
   --version             show program's version number and exit
   -a ADDRESS, --address ADDRESS
-                        [host][:port][/group] Use "." for localhost. Can be a comma-separated list of hosts for commands units,
-                        info, fold, finish, pause: host[:port],host[:port],...
+                        [host][:port][/group]
+                        Use "." for localhost.
+                        Can be a comma-separated list of hosts for commands
+                        units, info, fold, finish, pause:
+                        host[:port],host[:port],...
 
 Examples
 

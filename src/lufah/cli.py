@@ -101,8 +101,8 @@ COMMANDS_HELP = {
     "finish": "",
     "log": "show log; use control-c to exit",
     "config": "get or set config values",
-    "start": 'start local client service; peer must be "."',
-    "stop": 'stop local client service; peer must be "."',
+    "start": 'start local client service',
+    "stop": 'stop local client service',
     "groups": "show json array of resource group names",
     "watch": "show incoming messages; use control-c to exit",
     "units": "show table of all units by group",
@@ -121,7 +121,7 @@ COMMANDS_DESC = {
 get or set config values
 
 Other than for account settings (user, team, passkey, cause),
-a group must be specified. E.g.,
+a group must be specified if there is more than one group. E.g.,
 
   {PROGRAM} -a / config cpus 0
 """,
@@ -809,8 +809,8 @@ async def do_print_info_multi(**_):
 
 def do_start_or_stop_local_sevice(**_):
     if sys.platform == "darwin" and OPTIONS.command in ["start", "stop"]:
-        if OPTIONS.peer != ".":
-            raise Exception('peer must be "." for commands start and stop')
+        if OPTIONS.peer not in [".", "localhost", "", None]:
+            raise Exception('commands start and stop only apply to local client service')
         note = f"org.foldingathome.fahclient.nobody.{OPTIONS.command}"
         cmd = ["notifyutil", "-p", note]
         if OPTIONS.debug:
