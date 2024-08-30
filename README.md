@@ -50,14 +50,14 @@ positional arguments:
     config              get or set config values
     groups              show json array of resource group names
     create-group        create group if it does not exist
-    info                show peer host and client info
+    info                show host and client info
     log                 show log; use control-c to exit
     watch               show incoming messages; use control-c to exit
     get                 show json value at dot-separated key path in client state
     unlink-account
     link-account        account-token [machine-name]
     restart-account     restart account/node connection
-    wait-until-paused   run until all target groups seem paused
+    wait-until-paused   run until specified group or all groups are paused
     enable-all-gpus     enable all unclaimed gpus in specified group
     dump-all            dump all paused units in specified group or all groups
     start               start local client service
