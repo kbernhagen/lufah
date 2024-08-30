@@ -106,12 +106,12 @@ COMMANDS_HELP = {
     "groups": "show json array of resource group names",
     "watch": "show incoming messages; use control-c to exit",
     "units": "show table of all units by group",
-    "info": "show peer host and client info",
+    "info": "show host and client info",
     "get": "show json value at dot-separated key path in client state",
     "link-account": "account-token [machine-name]",
     "restart-account": "restart account/node connection",
     "create-group": "create group if it does not exist",
-    "wait-until-paused": "run until all target groups seem paused",
+    "wait-until-paused": "run until specified group or all groups are paused",
     "enable-all-gpus": "enable all unclaimed gpus in specified group",
     "dump-all": "dump all paused units in specified group or all groups",
 }
@@ -227,7 +227,7 @@ def validate():
         OPTIONS.peer = "."
     OPTIONS.peer = OPTIONS.peer.lstrip()  # ONLY left strip
     if not OPTIONS.peer:
-        raise Exception("ERROR: no peer specified")
+        raise Exception("ERROR: no address specified")
     # true validation of peer is done by uri_and_group_for_peer()
     # TODO: accept file:~/peers.json containing {"peers":[".","host2","host3"]}
     #   set OPTIONS.peers; set OPTIONS.peer = None
@@ -254,7 +254,7 @@ def validate():
         raise Exception("ERROR: host cannot have a comma")
 
     if OPTIONS.peer is None and OPTIONS.command not in MULTI_PEER_COMMANDS:
-        raise Exception(f"ERROR: {OPTIONS.command!r} cannot use multiple peers")
+        raise Exception(f"ERROR: {OPTIONS.command!r} cannot use multiple hosts")
 
     if OPTIONS.command == "link-account":
         token = OPTIONS.account_token
