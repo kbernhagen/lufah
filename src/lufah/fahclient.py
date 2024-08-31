@@ -184,8 +184,9 @@ class FahClient:
             msg = message
             if "time" not in msg:
                 msg = message.copy()
-                t = datetime.datetime.utcnow().isoformat() + "Z"
-                msg["time"] = t
+                now = datetime.datetime.now(datetime.timezone.utc)
+                t = now.replace(microsecond=0).isoformat()
+                msg["time"] = t.replace("+00:00", "Z")
             msgstr = json.dumps(msg)
         elif isinstance(message, str):
             msgstr = message
