@@ -1,5 +1,5 @@
-VENV = .venv
-PYTHON = $(VENV)/bin/python
+VENV := .venv
+PYTHON := $(VENV)/bin/python
 
 .PHONY: help
 help:
@@ -10,9 +10,9 @@ help:
 .DEFAULT_GOAL := help
 
 .PHONY: venv
-venv: "$(VENV)"  # create dev venv; does not install dependencies
+venv: $(VENV)  # create dev venv; does not install dependencies
 
-"$(VENV)":
+$(VENV):
 	python3 -m venv "$(VENV)"
 	"$(PYTHON)" -m pip install --upgrade pip
 	# install base dev dependencies
@@ -20,17 +20,17 @@ venv: "$(VENV)"  # create dev venv; does not install dependencies
 	@echo "You may need to use \"source $(VENV)/bin/activate\""
 
 .PHONY: build
-build: clean venv
+build: clean $(VENV)
 	@# clean build package; done as-needed by other targets
 	"$(PYTHON)" -m build
 
 .PHONY: install-dev
-install-dev: venv  # dev install with deps in venv; live linked to source code
+install-dev: $(VENV)  # dev install with deps in venv; live linked to source code
 	"$(PYTHON)" -m pip install --editable ".[dev]"
 	@echo "You may need to use \"source $(VENV)/bin/activate\""
 
 .PHONY: install-user
-install-user: venv  # install non-dev via pipx for current user
+install-user: $(VENV)  # install non-dev via pipx for current user
 	"$(PYTHON)" -m pipx install --force .
 
 .PHONY: install
