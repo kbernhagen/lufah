@@ -15,10 +15,10 @@ if "%1" == "help" (
 if "%1" == "install-user" (
 	echo. py -m venv %VENV%
 	py -m venv %VENV%
-	%PYTHON% -m pip install --upgrade pip
-	%PYTHON% -m pip install --upgrade build pipx
-	%PYTHON% -m pipx ensurepath
+	%PYTHON% -m ensurepip
+	%PYTHON% -m pip install pipx
 	%PYTHON% -m pipx install --force .
+	%PYTHON% -m pipx ensurepath
 	goto end
 )
 

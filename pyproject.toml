@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools >= 61.0"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "lufah"
@@ -20,16 +20,10 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
-]
-
-[tool.setuptools.dynamic]
-version = {attr = "lufah.__version__"}
-
-[project.optional-dependencies]
-dev = [
-    "build",
-    "pipx",
-    "twine",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
 
 [project.scripts]
@@ -37,3 +31,14 @@ lufah = "lufah.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/kbernhagen/lufah"
+
+[tool.hatch.version]
+path = "src/lufah/__init__.py"
+
+[tool.uv]
+dev-dependencies = [
+    "pipx",
+    "pylint",
+    "ruff",
+    "twine",
+]

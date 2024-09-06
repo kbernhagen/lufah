@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.8"
+# dependencies = [
+#     "lufah",
+# ]
+# ///
 
 """an example of lufah as api"""
+
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -10,7 +18,7 @@ from lufah import COMMAND_FINISH, COMMAND_FOLD, COMMAND_PAUSE, FahClient  # noqa
 _CONFIG = {"peers": ["localhost", "/no such group", "other.local:9999/some group name"]}
 
 
-async def send_command_to_clients(cmd: str, clients: list):
+async def send_command_to_clients(cmd: str, clients: list[FahClient]):
     """send command to all clients"""
     for client in clients:
         try:
