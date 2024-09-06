@@ -577,7 +577,10 @@ async def do_log(client):
     if OPTIONS.debug:
         return
     if client.is_connected:
-        await client.ws.wait_closed()
+        try:
+            await client.ws.wait_closed()
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            pass
 
 
 async def do_experimental(**_):
@@ -620,8 +623,9 @@ async def do_watch(client):
     print(json.dumps(client.data, indent=2))
     try:
         await client.ws.wait_closed()
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        _LOGGER.debug("do_watch() caught KeyboardInterrupt or asyncio.CancelledError")
     finally:
-        # ctrl-c seems uncatchable, but finally works
         if OPTIONS.debug:
             diff = diff_dicts(snapshot0, client.data)
             print("\nChanges since connection opened:\n", json.dumps(diff, indent=2))
