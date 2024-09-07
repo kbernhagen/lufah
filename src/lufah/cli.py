@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-lufah: Little Utility for FAH v8
+Little Utility for FAH v8
 """
 
 import argparse
@@ -64,8 +64,8 @@ MULTI_PEER_COMMANDS = ["units", "info", "fold", "finish", "pause"]
 
 # allowed cli commands; all visible
 COMMANDS = [
-    "status",
     "state",
+    "status",
     "units",
     "fold",
     "finish",
@@ -91,11 +91,11 @@ if sys.platform == "darwin":
 COMMAND_ALIASES = {
     # alias : actual
     "unpause": "fold",
-    "state": "status",  # fahctl has state command
+    "status": "state",  # fahctl has state command
 }
 
 COMMANDS_HELP = {
-    "status": "show json snapshot of client state",
+    "state": "show json snapshot of client state",
     "pause": "",
     "fold": "",
     "finish": "",
@@ -198,7 +198,6 @@ VALID_KEYS_VALUES = {
 
 def _fetch_json(url):
     data = None
-    # TODO: handle file:peers.json
     with urlopen(url) as response:
         if response.getcode() == 200:
             data = json.loads(response.read().decode("utf-8"))
@@ -229,8 +228,6 @@ def validate():
     if not OPTIONS.peer:
         raise Exception("ERROR: no address specified")
     # true validation of peer is done by uri_and_group_for_peer()
-    # TODO: accept file:~/peers.json containing {"peers":[".","host2","host3"]}
-    #   set OPTIONS.peers; set OPTIONS.peer = None
 
     if OPTIONS.command in [None, ""]:
         OPTIONS.command = DEFAULT_COMMAND
@@ -334,13 +331,12 @@ def validate():
 
 def parse_args():
     global OPTIONS
-    description = "Little Utility for FAH v8"
     epilog = f"""
 Examples
 
 {PROGRAM} units
 {PROGRAM} -a /rg2 finish
-{PROGRAM} -a other.local/rg1 status
+{PROGRAM} -a other.local/rg1 state
 {PROGRAM} -a /mygpu1 config cpus 0
 {PROGRAM} config -h
 {PROGRAM} -a host1,host2,host3 units
@@ -364,7 +360,6 @@ For a group name actually starting with "/", use prefix "//".
 An error may not be shown if the initial connection times out.
 If group does not exist on 8.1, this script may hang until silent timeout.
 Config priority does not seem to work. Cores are probably setting priority.
-It sometimes takes 30 seconds to exit after a control-c.
 """
 
     if sys.platform == "darwin":
@@ -375,7 +370,7 @@ It sometimes takes 30 seconds to exit after a control-c.
 
     parser = argparse.ArgumentParser(
         prog=PROGRAM,
-        description=description,
+        description=__doc__,
         epilog=epilog,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -457,7 +452,7 @@ host[:port],host[:port],...
     validate()
 
 
-async def do_status(client):
+async def do_state(client):
     await client.connect()
     print(json.dumps(client.data, indent=2))
 
@@ -978,7 +973,7 @@ async def do_dump_all(client):
 
 
 COMMANDS_DISPATCH = {
-    "status": do_status,
+    "state": do_state,
     "fold": do_command_multi,
     "finish": do_command_multi,
     "pause": do_command_multi,

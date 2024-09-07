@@ -40,8 +40,8 @@ Little Utility for FAH v8
 
 positional arguments:
   COMMAND
-    status              show json snapshot of client state
-    state               alias for status
+    state               show json snapshot of client state
+    status              alias for state
     units               show table of all units by group
     fold
     finish
@@ -79,7 +79,7 @@ Examples
 
 lufah units
 lufah -a /rg2 finish
-lufah -a other.local/rg1 status
+lufah -a other.local/rg1 state
 lufah -a /mygpu1 config cpus 0
 lufah config -h
 lufah -a host1,host2,host3 units
@@ -103,7 +103,6 @@ For a group name actually starting with "/", use prefix "//".
 An error may not be shown if the initial connection times out.
 If group does not exist on 8.1, this script may hang until silent timeout.
 Config priority does not seem to work. Cores are probably setting priority.
-It sometimes takes 30 seconds to exit after a control-c.
 Commands start and stop are macOS-only.
 ```
 
