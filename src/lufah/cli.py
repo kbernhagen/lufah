@@ -13,15 +13,15 @@ import logging
 import math
 import os
 import platform
-import re
 import sys
 from subprocess import check_call
+from textwrap import dedent
 from urllib.parse import urlparse
-from urllib.request import urlopen
 
 from websockets.exceptions import ConnectionClosed
 
 from . import __version__
+from . import validate as valid
 from .const import (
     DEPRECATED_CONFIG_KEYS,
     GLOBAL_CONFIG_KEYS,
@@ -44,12 +44,12 @@ from .util import (
 PROGRAM = os.path.basename(sys.argv[0])
 if PROGRAM.endswith(".py"):
     PROGRAM = PROGRAM[:-3]
+if PROGRAM == "__main__":
+    PROGRAM = "lufah"
 
 _LOGGER = logging.getLogger(__name__)
 
 OPTIONS = argparse.Namespace()
-OPTIONS.verbose = False
-OPTIONS.debug = False
 
 _CLIENTS = {}
 
@@ -96,9 +96,9 @@ COMMAND_ALIASES = {
 
 COMMANDS_HELP = {
     "state": "show json snapshot of client state",
-    "pause": "",
-    "fold": "",
-    "finish": "",
+    "pause": "pause folding in specified group or all groups",
+    "fold": "start folding in specified group or all groups",
+    "finish": "finish folding and pause specified group or all groups",
     "log": "show log; use control-c to exit",
     "config": "get or set config values",
     "start": "start local client service",
@@ -109,6 +109,7 @@ COMMANDS_HELP = {
     "info": "show host and client info",
     "get": "show json value at dot-separated key path in client state",
     "link-account": "account-token [machine-name]",
+    "unlink-account": "unlink account requires client 8.3.1 thru 8.3.16",
     "restart-account": "restart account/node connection",
     "create-group": "create group if it does not exist",
     "wait-until-paused": "run until specified group or all groups are paused",
@@ -118,97 +119,56 @@ COMMANDS_HELP = {
 
 COMMANDS_DESC = {
     "config": f"""
-get or set config values
+        get or set config values
 
-Other than for account settings (user, team, passkey, cause),
-a group must be specified if there is more than one group. E.g.,
+        Other than for account settings (user, team, passkey, cause),
+        a group must be specified if there is more than one group. E.g.,
 
-  {PROGRAM} -a / config cpus 0
-""",
+          {PROGRAM} -a / config cpus 0
+        """,
     "dump-all": """
-dump all paused units in specified group or all groups
+        dump all paused units in specified group or all groups
 
-This command is not interactive.
-To dump units, use option "--force".
-You should only dump a WU if it will not be completed before its deadline.
-""",
+        This command is not interactive.
+        To dump units, use option "--force".
+        You should only dump a WU if it will not be completed before its deadline.
+        The ETA may not be accuarate until progress is a few percent done.
+        """,
     "link-account": """
-    Requested machine-name is currently ignored.
-    """,
+        Requested machine-name is currently ignored by client.
+        Changing machine-name must be done via Web Control.
+        """,
+    "restart-account": """
+        restart account/node connection
+        
+        This is useful if the client has lost its node connection
+        and is not automatically reconnecting.
+        """,
 }
 
 
-# allowed config keys
+# config keys and value validation info
 VALID_KEYS_VALUES = {
-    "fold-anon": {"type": bool_from_string},
-    "user": {
-        "default": "Anonymous",
-        "type": str.strip,
-        "re": r"^[^\t\n\r]{1,100}$",
-        "help": "If you are using unusual chars, please use Web Control.",
-    },
-    "team": {"default": 0, "type": int, "values": range(0, 0x7FFFFFFF)},
-    "passkey": {
-        "default": "",
-        "type": str.lower,
-        "re": r"^[0-9a-fA-F]{32}$",
-        "help": "passkey must be 32 hexadecimal characters",
-    },
-    "beta": {"type": bool_from_string},
-    # https://api.foldingathome.org/project/cause
-    "cause": {
-        "default": "any",
-        "type": str.lower,
-        "values": [
-            "any",
-            "alzheimers",
-            "cancer",
-            "huntingtons",
-            "parkinsons",
-            "influenza",
-            "diabetes",
-            "covid-19",
-        ],
-    },
-    "key": {"default": 0, "type": int, "values": range(0, 0xFFFFFFFFFFFFFFFF)},
-    "on-idle": {"type": bool_from_string},
-    "cpus": {"type": int, "values": range(0, 256)},
-    "checkpoint": {"default": 15, "type": int, "values": range(3, 30)},
-    "priority": {
-        "default": "idle",
-        "type": str.lower,
-        "values": ["idle", "low", "normal", "inherit"],
-    },
-    "on-battery": {"type": bool_from_string},
-    "keep-awake": {"type": bool_from_string},
-    "cuda": {"type": bool_from_string},
-    # no peer editing; peers not supported by v8.2+
-    # it would be an error to directly change gpus, paused, finish
-    # get-only config keys
-    "peers": {},
-    "gpus": {},
-    "paused": {},
-    "finish": {},
+    "user": {"type": valid.user, "help": valid.user.__doc__},
+    "team": {"type": valid.team, "help": valid.team.__doc__},
+    "passkey": {"type": valid.passkey, "help": valid.passkey.__doc__},
+    "cause": {"type": valid.cause, "help": valid.cause.__doc__},
+    "cpus": {"type": valid.cpus, "help": valid.cpus.__doc__},
+    "on-idle": {"type": bool_from_string, "help": "fold only when user is idle"},
+    "on-battery": {"type": bool_from_string, "help": "fold on battery power"},
+    "keep-awake": {"type": bool_from_string, "help": "prevent sleep while folding"},
+    "cuda": {"type": bool_from_string, "help": "allow CUDA cores in group"},
+    "beta": {"type": bool_from_string, "help": "for internal testing"},
+    "key": {"type": valid.key, "help": valid.key.__doc__},
+    "checkpoint": {"type": valid.checkpoint, "help": valid.checkpoint.__doc__},
+    "priority": {"type": valid.priority, "help": valid.priority.__doc__},
+    "fold-anon": {"type": bool_from_string, "help": "deprecated"},
 }
-# resource group r'^\/[\w.-]*$'
+# 8.1 resource group name r'^\/[\w.-]*$'
 # user recommended ^[0-9a-zA-Z_]+$
-# user not alleged reserved chars ^#|~ other disallowed \s
-# user email
-
-
-def _fetch_json(url):
-    data = None
-    with urlopen(url) as response:
-        if response.getcode() == 200:
-            data = json.loads(response.read().decode("utf-8"))
-    return data
-
-
-def _fetch_causes(**_):
-    data = _fetch_json("https://api.foldingathome.org/project/cause")
-    if _LOGGER.isEnabledFor(logging.INFO):
-        _LOGGER.info("Causes: %s", json.dumps(data, indent=2))
-    return data
+# user should not contain alleged reserved chars ^#|~  or \s
+# user email discouraged
+# in reality, most anything goes up to 100 bytes
 
 
 def validate():
@@ -222,21 +182,15 @@ def validate():
     else:
         logging.basicConfig(level=logging.WARNING)
 
-    if OPTIONS.peer in [None, ""]:
-        OPTIONS.peer = "."
-    OPTIONS.peer = OPTIONS.peer.lstrip()  # ONLY left strip
-    if not OPTIONS.peer:
-        raise Exception("ERROR: no address specified")
-    # true validation of peer is done by uri_and_group_for_peer()
-
     if OPTIONS.command in [None, ""]:
         OPTIONS.command = DEFAULT_COMMAND
     else:
         OPTIONS.command = COMMAND_ALIASES.get(OPTIONS.command, OPTIONS.command)
 
+    # create peers from peer
     OPTIONS.peers = []
     if "," in OPTIONS.peer and "/" not in OPTIONS.peer:
-        # assume comma separated list of peers
+        # assume comma separated list of peers with no group
         peers = OPTIONS.peer.split(",")
         for peer in peers:
             peer = peer.strip()
@@ -247,86 +201,9 @@ def validate():
     else:
         OPTIONS.peers = [OPTIONS.peer]
 
-    if OPTIONS.peer and re.match(r"^[^/]*,.*/.*$", OPTIONS.peer):
-        raise Exception("ERROR: host cannot have a comma")
-
+    # FIXME: dispatched functions should handle this
     if OPTIONS.peer is None and OPTIONS.command not in MULTI_PEER_COMMANDS:
         raise Exception(f"ERROR: {OPTIONS.command!r} cannot use multiple hosts")
-
-    if OPTIONS.command == "link-account":
-        token = OPTIONS.account_token
-        name = OPTIONS.machine_name
-        # token is URL base64 encoding of 32 bytes, no padding '=', else ""
-        if token and not re.match(r"^[a-zA-Z0-9_\-]{43}$", token):
-            raise Exception("ERROR: token must be 43 url base64 characters")
-        if name and not re.match(r"^[\w\.-]{1,64}$", name):
-            raise Exception(
-                "ERROR: name must be 1 to 64 letters, numbers, "
-                "underscore, dash (-), dot(.)"
-            )
-        # empty/null token or name is handled after connecting
-        return
-
-    # validate config key value
-    if OPTIONS.command in ["config"]:
-        key = OPTIONS.key
-        value = OPTIONS.value
-        keys = VALID_KEYS_VALUES.keys()
-        info = VALID_KEYS_VALUES.get(key, {})
-        values = info.get("values")
-        regex = info.get("re")
-        conv = info.get("type")
-        default = info.get("default")
-
-        if _LOGGER.isEnabledFor(logging.DEBUG):
-            _LOGGER.debug("         key: %s", key)
-            _LOGGER.debug("       value: %s", value)
-            _LOGGER.debug("  valid keys: %s", " ".join(keys))
-            _LOGGER.debug("valid values: %s", values)
-            _LOGGER.debug("     default: %s", default)
-            _LOGGER.debug("       regex: %s", regex)
-            _LOGGER.debug("type convert: %s", conv)
-
-        if key not in keys:
-            k = " ".join(keys)
-            raise Exception(f"Unsupported config key: {key}\nKnown keys: {k}")
-
-        if value is None:
-            return
-
-        # validate value
-
-        if default is not None and value == "":
-            OPTIONS.value = default
-            return
-
-        value0 = value
-        if conv is not None and callable(conv):
-            OPTIONS.value = value = conv(value)
-
-        if conv == bool_from_string:
-            return
-
-        if "user" == key:
-            if len(value.encode("utf-8")) > 100:
-                raise Exception("ERROR: max user length is 100 bytes")
-            if value != value0:
-                _LOGGER.warning("Leading/trailing whitespace trimmed from user")
-
-        if values:
-            if value in values:
-                return
-            m = f"ERROR: invalid value for {key}: {value}\nvalid values: {values}"
-            raise Exception(m)
-        if regex:
-            if not re.match(regex, value):
-                m = f"ERROR: invalid {key} value: {value}"
-                help1 = info.get("help")
-                if help1:
-                    m += "\n" + help1
-                raise Exception(m)
-            return  # valid regex match
-        raise Exception(f"ERROR: config {key} is read-only")
 
 
 def parse_args():
@@ -363,21 +240,16 @@ An error may not be shown if the initial connection times out.
 If group does not exist on 8.1, this script may hang until silent timeout.
 Config priority does not seem to work. Cores are probably setting priority.
 """
-
     if sys.platform == "darwin":
         epilog += "Commands start and stop are macOS-only."
-
-    if len(sys.argv) == 2 and sys.argv[1] == "help":
-        sys.argv[1] = "-h"
 
     parser = argparse.ArgumentParser(
         prog=PROGRAM,
         description=__doc__,
         epilog=epilog,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=argparse.RawTextHelpFormatter,
     )
 
-    parser.set_defaults(argparser=None)
     parser.set_defaults(key=None, value=None)  # do not remove this
     parser.set_defaults(peer="")  # in case peer is not required in future
     parser.set_defaults(peers=[])
@@ -389,15 +261,14 @@ Config priority does not seem to work. Cores are probably setting priority.
     parser.add_argument("-d", "--debug", action="store_true")
     parser.add_argument("--version", action="version", version=__version__)
 
-    help2 = """\
-[host][:port][/group]
-Use "." for localhost.
-Can be a comma-separated list of hosts for commands
-units, info, fold, finish, pause:
-host[:port],host[:port],...
-"""
     parser.add_argument(
-        "-a", "--address", metavar="ADDRESS", dest="peer", default=".", help=help2
+        "-a",
+        "--address",
+        metavar="ADDRESS",
+        dest="peer",
+        default=".",
+        type=valid.address,
+        help=dedent(valid.address.__doc__),
     )
 
     subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
@@ -406,25 +277,39 @@ host[:port],host[:port],...
         default_help = ""
         if cmd in COMMAND_ALIASES:
             default_help = "alias for " + COMMAND_ALIASES.get(cmd)
-        help1 = COMMANDS_HELP.get(cmd, default_help)
-        desc1 = COMMANDS_DESC.get(cmd, help1)
+        help1 = dedent(COMMANDS_HELP.get(cmd, default_help))
+        desc1 = dedent(COMMANDS_DESC.get(cmd, help1))
         par = subparsers.add_parser(
             cmd,
             description=desc1,
             help=help1,
-            formatter_class=argparse.RawDescriptionHelpFormatter,
+            formatter_class=argparse.RawTextHelpFormatter,
         )
         if cmd == "config":
-            # TODO: add subparser for each valid config key
-            par.add_argument(
-                "key", metavar="KEY", help=" ".join(VALID_KEYS_VALUES.keys())
+            config_parsers = par.add_subparsers(
+                dest="key", metavar="KEY", required=True
             )
-            par.add_argument(
-                "value",
-                nargs="?",
-                metavar="VALUE",
-                help="a valid config value for given key",
-            )
+            # add subparser for each valid config key
+            for key, info in VALID_KEYS_VALUES.items():
+                conv = info.get("type")
+                choices = info.get("values")
+                kdesc = dedent(info.get("help", ""))
+                khelp = kdesc  # TODO, maybe: util.firstline(kdesc).strip()
+                keyparser = config_parsers.add_parser(
+                    key,
+                    description=kdesc,
+                    help=khelp,
+                    formatter_class=argparse.RawTextHelpFormatter,
+                )
+                if conv or choices:
+                    keyparser.add_argument(
+                        "value",
+                        metavar="VALUE",
+                        nargs="?",
+                        help=khelp,
+                        type=conv,
+                        choices=choices,
+                    )
         elif cmd == "get":
             par.add_argument(
                 "keypath",
@@ -435,13 +320,15 @@ host[:port],host[:port],...
             par.add_argument(
                 "account_token",
                 metavar="ACCOUNT-TOKEN",
-                help='43 url base64 characters (32 bytes); use "" for current token',
+                type=valid.account_token,
+                help=valid.account_token.__doc__,
             )
             par.add_argument(
                 "machine_name",
                 nargs="?",
                 metavar="MACHINE-NAME",
-                help="1 to 64 letters, numbers, underscore, dash (-), dot(.)",
+                type=valid.machine_name,
+                help=valid.machine_name.__doc__,
             )
         elif cmd == "dump-all":
             par.add_argument("--force", action="store_true")
@@ -450,7 +337,6 @@ host[:port],host[:port],...
         subparsers.add_parser(cmd)
 
     OPTIONS = parser.parse_args()
-    OPTIONS.argparser = parser
     validate()
 
 
@@ -465,7 +351,7 @@ async def do_command_multi(**_):
             await client.connect()
             await client.send_command(OPTIONS.command)
         except Exception as e:
-            raise Exception(f"FahClient('{client.name}'):{e}")
+            raise Exception(f"FahClient('{client.name}'):{e}") from e
 
 
 # TODO: refactor into config_get(), config_set(), get_config(snapshot,group)
@@ -487,7 +373,7 @@ async def do_config(client):
         try:
             group = munged_group_name(client.group, client.data)
         except Exception as e:
-            raise Exception(f"FahClient('{client.name}'):{e}")
+            raise Exception(f"FahClient('{client.name}'):{e}") from e
     else:
         group = client.group
 
@@ -836,7 +722,7 @@ async def do_unlink_account(client):
     if (8, 3, 1) <= client.version and client.version < (8, 3, 17):
         await client.send({"cmd": "reset"})
     else:
-        raise Exception("unlink account requires client 8.3.1 thru 8.3.16")
+        raise Exception("Error: unlink account requires client 8.3.1 thru 8.3.16")
 
 
 async def do_restart_account(client):
@@ -1036,6 +922,8 @@ async def main_async():
 
 
 def main():
+    if len(sys.argv) == 2 and sys.argv[1] == "help":
+        sys.argv[1] = "-h"
     try:
         asyncio.run(main_async())
     except (KeyboardInterrupt, EOFError):

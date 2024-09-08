@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import operator
 import re
@@ -10,6 +11,7 @@ import sys
 from functools import reduce
 from typing import Optional, Union
 from urllib.parse import urlparse
+from urllib.request import urlopen
 
 from .exceptions import FahClientGroupDoesNotExist
 
@@ -200,3 +202,15 @@ def format_seconds(secs: int) -> str:
     if d == 0:
         return f"{h}h {m:02d}m"
     return f"{d}d {h}h"
+
+
+def fetch_json(url):
+    data = None
+    with urlopen(url) as response:
+        if response.getcode() == 200:
+            data = json.loads(response.read().decode("utf-8"))
+    return data
+
+
+def fetch_causes():
+    return fetch_json("https://api.foldingathome.org/project/cause")
