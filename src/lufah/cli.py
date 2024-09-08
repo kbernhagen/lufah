@@ -335,8 +335,8 @@ def parse_args():
 Examples
 
 {PROGRAM} units
-{PROGRAM} -a /rg2 finish
-{PROGRAM} -a other.local/rg1 state
+{PROGRAM} -a //rg2 finish
+{PROGRAM} -a other.local state
 {PROGRAM} -a /mygpu1 config cpus 0
 {PROGRAM} config -h
 {PROGRAM} -a host1,host2,host3 units
@@ -355,7 +355,9 @@ Group names for fah 8.1 must:
 Group names on 8.3 can have spaces and special chars.
 Web Control 8.3 trims leading and trailing white space when creating groups.
 Group "/" is taken to mean the default group, which is "".
+
 For a group name actually starting with "/", use prefix "//".
+Example: lufah -a somehost//rg1 finish
 
 An error may not be shown if the initial connection times out.
 If group does not exist on 8.1, this script may hang until silent timeout.
