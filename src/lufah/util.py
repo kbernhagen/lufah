@@ -1,12 +1,17 @@
 """lufah utility functions"""
 
+from __future__ import annotations
+
 import logging
 import operator
 import re
 import socket
 import sys
 from functools import reduce
+from typing import Optional, Union
 from urllib.parse import urlparse
+
+from .exceptions import FahClientGroupDoesNotExist
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -15,16 +20,19 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def bool_from_string(value):
-    if value.lower() in ["true", "yes", "on", "1"]:
-        return True
-    if value.lower() in ["false", "no", "off", "0"]:
+def bool_from_string(value: Optional[str]) -> bool:
+    if value is None:
         return False
-    raise Exception(f"ERROR: not a bool string: {value}")
+    value = value.lower().strip()
+    if value in ["true", "yes", "on", "1"]:
+        return True
+    if value in ["false", "no", "off", "0"]:
+        return False
+    raise Exception(f"ERROR: not a bool string: '{value}'")
 
 
 # modified from bing chat answer
-def get_object_at_key_path(obj, key_path):
+def get_object_at_key_path(obj, key_path: Union[str, list]):
     if isinstance(key_path, str):
         key_path = key_path.split(".")
     try:
@@ -53,7 +61,7 @@ def diff_dicts(dict1, dict2):
     return diff
 
 
-def uri_and_group_for_peer(peer):
+def uri_and_group_for_peer(peer: Optional[str]) -> tuple[Optional[str], Optional[str]]:
     # do not strip right; 8.3 group names might not be stripped
     # create-group should strip what is specified, as web control does
     if peer:
@@ -78,7 +86,7 @@ def uri_and_group_for_peer(peer):
     u = urlparse(uri)
 
     if u.scheme not in ["ws", "wss"]:
-        _LOGGER.error("Scheme %s is not supported for peer %s", u.scheme, repr(peer))
+        _LOGGER.error("Scheme %s is not supported for address %s", u.scheme, repr(peer))
         return (None, None)
 
     userpass = ""
@@ -143,7 +151,7 @@ def uri_and_group_for_peer(peer):
     return (uri, group)
 
 
-def munged_group_name(group, snapshot):
+def munged_group_name(group: Optional[str], snapshot: Optional[dict]) -> Optional[str]:
     # return group name that exists, None, or raise
     # assume v8.3; old group names may persist from upgrade
     # NOTE: must have connected to have snapshot
@@ -151,11 +159,9 @@ def munged_group_name(group, snapshot):
     # expect always having first leading '/' removed from cli argument
     # expect user specified '//name' for actual '/name' (already stripped)
     if group is None:
-        return None  # no group specified
+        return None  # no group specified; this is common
     if snapshot is None:
-        _LOGGER.error("Snapshot is None")
-        return None
-    orig_group = group
+        raise Exception(f"Unable to look for group '{group}'. No client data.")
     # get array of actual group names else []
     groups = list(snapshot.get("groups", {}).keys())
     if not groups:
@@ -168,19 +174,17 @@ def munged_group_name(group, snapshot):
         # '' is always the default group and not checked here
         group0 = "/" + group
         if group0 in groups and group in groups:
-            raise Exception(f'ERROR: both "{group}" and "{group0}" exist')
+            raise Exception(
+                f"Ambiguous group name. Both '{group}' and '{group0}' exist."
+            )
         if group0 in groups and group not in groups:
             group = group0
     if group not in groups:
-        _LOGGER.error('Group "%s" is not in groups %s', group, groups)
-        return None
-    _LOGGER.debug("        groups: %s", groups)
-    _LOGGER.debug("original group: %s", repr(orig_group))
-    _LOGGER.debug("  munged group: %s", repr(group))
+        raise FahClientGroupDoesNotExist(f"Group '{group}' is not in groups {groups}")
     return group
 
 
-def format_seconds(secs: int):
+def format_seconds(secs: int) -> str:
     """Human-readable time interval"""
     secs = int(secs)  # it may not be int
     if secs < 0:

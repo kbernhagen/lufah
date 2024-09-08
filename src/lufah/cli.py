@@ -101,8 +101,8 @@ COMMANDS_HELP = {
     "finish": "",
     "log": "show log; use control-c to exit",
     "config": "get or set config values",
-    "start": 'start local client service',
-    "stop": 'stop local client service',
+    "start": "start local client service",
+    "stop": "stop local client service",
     "groups": "show json array of resource group names",
     "watch": "show incoming messages; use control-c to exit",
     "units": "show table of all units by group",
@@ -462,8 +462,8 @@ async def do_command_multi(**_):
         try:
             await client.connect()
             await client.send_command(OPTIONS.command)
-        except:  # noqa: E722
-            pass
+        except Exception as e:
+            raise Exception(f"FahClient('{client.name}'):{e}")
 
 
 # TODO: refactor into config_get(), config_set(), get_config(snapshot,group)
@@ -482,7 +482,10 @@ async def do_config(client):
     # just need to be mindful of possible config.available_cpus
 
     if (8, 3) <= ver:
-        group = munged_group_name(client.group, client.data)
+        try:
+            group = munged_group_name(client.group, client.data)
+        except Exception as e:
+            raise Exception(f"FahClient('{client.name}'):{e}")
     else:
         group = client.group
 
@@ -809,7 +812,9 @@ async def do_print_info_multi(**_):
 def do_start_or_stop_local_sevice(**_):
     if sys.platform == "darwin" and OPTIONS.command in ["start", "stop"]:
         if OPTIONS.peer not in [".", "localhost", "", None]:
-            raise Exception('commands start and stop only apply to local client service')
+            raise Exception(
+                "commands start and stop only apply to local client service"
+            )
         note = f"org.foldingathome.fahclient.nobody.{OPTIONS.command}"
         cmd = ["notifyutil", "-p", note]
         if OPTIONS.debug:

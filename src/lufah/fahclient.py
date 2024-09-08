@@ -226,7 +226,7 @@ class FahClient:
             if group is not None:
                 group = munged_group_name(group, self.data)
                 if group is None:
-                    return
+                    return # should not reach
                 msg["group"] = group
         await self.send(msg)
 
