@@ -4,6 +4,7 @@ import asyncio
 import datetime
 import json
 import logging
+from urllib.parse import urlparse
 
 from websockets import connect  # pip3 install websockets
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError
@@ -23,8 +24,6 @@ class FahClient:
     """Class to manage a remote client connection"""
 
     def __init__(self, peer, name=None):
-        if name is None:
-            name = peer
         self._name = None
         self._group = None
         self.ws = None
@@ -35,12 +34,16 @@ class FahClient:
         # peer is a pseuso-uri that needs munging
         # NOTE: this may raise
         self._uri, self._group = uri_and_group_for_peer(peer)
-        self._name = name if name else self._uri
+        self._name = name or urlparse(self._uri).hostname or peer
         _LOGGER.debug('Created FahClient("%s")', self._name)
 
     @property
     def name(self):
         return self._name
+
+    @property
+    def uri(self):
+        return self._uri
 
     @property
     def group(self):

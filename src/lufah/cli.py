@@ -193,7 +193,7 @@ def postprocess_parsed_args(args: argparse.Namespace):
             peer = peer.strip()
             if peer:
                 args.peers.append(peer)
-        _LOGGER.debug("  peers: %s", repr(args.peers))
+        _LOGGER.debug("addresses: %s", repr(args.peers))
         args.peer = None
     else:
         args.peers = [args.peer]
@@ -615,14 +615,12 @@ async def do_print_units(args: argparse.Namespace):
     if clients:
         print_units_header()
     for client in sorted(clients, key=lambda c: c.machine_name):
-        r = urlparse(client.name)
+        r = urlparse(client.uri)
         name = client.machine_name
         if not name:
             name = r.hostname
         if r.port and r.port != 7396:
             name += f":{r.port}"
-        if r.path and r.path.startswith("/api/websocket"):
-            name += r.path[len("/api/websocket") :]
         groups = client.groups
         if not groups:
             if not client.is_connected:
