@@ -3,6 +3,8 @@
 Little Utility for FAH v8
 """
 
+from __future__ import annotations
+
 import argparse
 import asyncio
 import copy
@@ -38,7 +40,6 @@ from .util import (
     format_seconds,
     get_object_at_key_path,
     munged_group_name,
-    uri_and_group_for_peer,
 )
 
 PROGRAM = os.path.basename(sys.argv[0])
@@ -49,15 +50,11 @@ if PROGRAM == "__main__":
 
 _LOGGER = logging.getLogger(__name__)
 
-OPTIONS = argparse.Namespace()
-
-_CLIENTS = {}
-
 # FIXME: default is not restricted
 # suggest only allow status, units, log, watch
 DEFAULT_COMMAND = "units"
 
-HIDDEN_COMMANDS = ["x"]  # experimental stuff
+HIDDEN_COMMANDS = []  # experimental stuff
 NO_CLIENT_COMMANDS = ["start", "stop", "x"]
 
 MULTI_PEER_COMMANDS = ["units", "info", "fold", "finish", "pause"]
@@ -171,43 +168,42 @@ VALID_KEYS_VALUES = {
 # in reality, most anything goes up to 100 bytes
 
 
-def validate():
-    if OPTIONS.debug:
-        OPTIONS.verbose = True
+def postprocess_parsed_args(args: argparse.Namespace):
+    if args.debug:
+        args.verbose = True
 
-    if OPTIONS.debug:
+    if args.debug:
         logging.basicConfig(level=logging.DEBUG)
-    elif OPTIONS.verbose:
+    elif args.verbose:
         logging.basicConfig(level=logging.INFO)
     else:
         logging.basicConfig(level=logging.WARNING)
 
-    if OPTIONS.command in [None, ""]:
-        OPTIONS.command = DEFAULT_COMMAND
+    if args.command in [None, ""]:
+        args.command = DEFAULT_COMMAND
     else:
-        OPTIONS.command = COMMAND_ALIASES.get(OPTIONS.command, OPTIONS.command)
+        args.command = COMMAND_ALIASES.get(args.command, args.command)
 
     # create peers from peer
-    OPTIONS.peers = []
-    if "," in OPTIONS.peer and "/" not in OPTIONS.peer:
+    args.peers = []
+    if "," in args.peer and "/" not in args.peer:
         # assume comma separated list of peers with no group
-        peers = OPTIONS.peer.split(",")
+        peers = args.peer.split(",")
         for peer in peers:
             peer = peer.strip()
             if peer:
-                OPTIONS.peers.append(peer)
-        _LOGGER.debug("  peers: %s", repr(OPTIONS.peers))
-        OPTIONS.peer = None
+                args.peers.append(peer)
+        _LOGGER.debug("  peers: %s", repr(args.peers))
+        args.peer = None
     else:
-        OPTIONS.peers = [OPTIONS.peer]
+        args.peers = [args.peer]
 
     # FIXME: dispatched functions should handle this
-    if OPTIONS.peer is None and OPTIONS.command not in MULTI_PEER_COMMANDS:
-        raise Exception(f"ERROR: {OPTIONS.command!r} cannot use multiple hosts")
+    if args.peer is None and args.command not in MULTI_PEER_COMMANDS:
+        raise Exception(f"Error: {args.command!r} cannot use multiple hosts")
 
 
-def parse_args():
-    global OPTIONS
+def parse_args() -> argparse.Namespace:
     epilog = f"""
 Examples
 
@@ -336,29 +332,31 @@ Config priority does not seem to work. Cores are probably setting priority.
     for cmd in HIDDEN_COMMANDS:
         subparsers.add_parser(cmd)
 
-    OPTIONS = parser.parse_args()
-    validate()
+    args = parser.parse_args()
+    postprocess_parsed_args(args)
+    return args
 
 
-async def do_state(client):
+async def do_state(args: argparse.Namespace):
+    client = args.client
     await client.connect()
     print(json.dumps(client.data, indent=2))
 
 
-async def do_command_multi(**_):
-    for client in _CLIENTS.values():
+async def do_command_multi(args: argparse.Namespace):
+    for client in args.clients:
         try:
             await client.connect()
-            await client.send_command(OPTIONS.command)
+            await client.send_command(args.command)
         except Exception as e:
             raise Exception(f"FahClient('{client.name}'):{e}") from e
 
 
-# TODO: refactor into config_get(), config_set(), get_config(snapshot,group)
-async def do_config(client):
+async def do_config(args: argparse.Namespace):
+    client = args.client
     await client.connect()
-    key = OPTIONS.key
-    value = OPTIONS.value
+    key = args.key
+    value = args.value
     ver = client.version
     # Note: account can be out-of-date, but does become "" when unlinked
     have_acct = 0 < len(client.data.get("info", {}).get("account", ""))
@@ -403,7 +401,7 @@ async def do_config(client):
         # available_cpus in fah v8.1.19 only
         maxcpus = client.data.get("config", {}).get("available_cpus", maxcpus0)
         if value > maxcpus:
-            raise Exception(f"ERROR: cpus is greater than available cpus {maxcpus}")
+            raise Exception(f"Error: cpus is greater than available cpus {maxcpus}")
         # FIXME: cpus are in groups on fah 8.3; need to sum cpus across groups
         # available_cpus = maxcpus - total_group_cpus
         # if value > (available_cpus - current_group_cpus)
@@ -413,9 +411,9 @@ async def do_config(client):
 
     if (8, 3) <= ver:
         if key in DEPRECATED_CONFIG_KEYS:
-            raise Exception(f'ERROR: key "{key0}" is deprecated in fah 8.3')
+            raise Exception(f'Error: key "{key0}" is deprecated in fah 8.3')
         if key not in VALID_CONFIG_SET_KEYS:
-            raise Exception(f'ERROR: setting "{key0}" is not supported in fah 8.3')
+            raise Exception(f'Error: setting "{key0}" is not supported in fah 8.3')
         if have_acct and key in GLOBAL_CONFIG_KEYS:
             _LOGGER.warning("Machine is linked to an account")
             _LOGGER.warning(' "%s" "%s" may be overwritten by account', key0, value)
@@ -426,7 +424,7 @@ async def do_config(client):
     if (8, 3) <= ver and key in GROUP_CONFIG_KEYS:
         if group is None:
             raise Exception(
-                f'ERROR: cannot set "{key0}" on unspecified group. There are {len(groups)} groups.'
+                f'Error: cannot set "{key0}" on unspecified group. There are {len(groups)} groups.'
             )
         # create appropriate 8.3 config.groups dict with all current groups
         groupsconf = {}
@@ -456,11 +454,12 @@ async def _print_log_lines(client, msg):
             await client.close()
 
 
-async def do_log(client):
+async def do_log(args: argparse.Namespace):
+    client = args.client
     client.register_callback(_print_log_lines)
     await client.connect()
     await client.send({"cmd": "log", "enable": True})
-    if OPTIONS.debug:
+    if args.debug:
         return
     if client.is_connected:
         try:
@@ -469,28 +468,16 @@ async def do_log(client):
             pass
 
 
-async def do_experimental(**_):
-    # ~1 sec delay if remote host ends with '.local'
-    client = FahClient(OPTIONS.peer)
-    await client.connect()
-    print(json.dumps(client.data, indent=2))
-    # ~10 sec delay exiting if don't close first; no async context manager?
-    # destructor is called immediately
-    await client.close()
-
-
-async def do_xpeer(**_):
-    print("uri_and_group_for_peer: ", uri_and_group_for_peer(OPTIONS.peer))
-
-
-async def do_show_groups(client):
+async def do_show_groups(args: argparse.Namespace):
+    client = args.client
     await client.connect()
     print(json.dumps(client.groups))
 
 
-async def do_get(client):
+async def do_get(args: argparse.Namespace):
+    client = args.client
     await client.connect()
-    value = get_object_at_key_path(client.data, OPTIONS.keypath)
+    value = get_object_at_key_path(client.data, args.keypath)
     print(json.dumps(value, indent=2))
 
 
@@ -500,11 +487,12 @@ async def _print_json_message(client, msg):
         print(json.dumps(msg))
 
 
-async def do_watch(client):
+async def do_watch(args: argparse.Namespace):
+    client = args.client
     client.register_callback(_print_json_message)
-    client.should_process_updates = OPTIONS.debug
+    client.should_process_updates = args.debug
     await client.connect()
-    if OPTIONS.debug:
+    if args.debug:
         snapshot0 = copy.deepcopy(client.data)
     print(json.dumps(client.data, indent=2))
     try:
@@ -512,7 +500,7 @@ async def do_watch(client):
     except (KeyboardInterrupt, asyncio.CancelledError):
         _LOGGER.debug("do_watch() caught KeyboardInterrupt or asyncio.CancelledError")
     finally:
-        if OPTIONS.debug:
+        if args.debug:
             diff = diff_dicts(snapshot0, client.data)
             print("\nChanges since connection opened:\n", json.dumps(diff, indent=2))
 
@@ -626,16 +614,17 @@ def client_machine_name(client):
     return client.data.get("info", {}).get("hostname", client.name)
 
 
-def clients_sorted_by_machine_name():
-    return sorted(list(_CLIENTS.values()), key=client_machine_name)
+def clients_sorted_by_machine_name(clients: list[FahClient]):
+    return sorted(clients, key=client_machine_name)
 
 
-async def do_print_units(**_):
-    for client in _CLIENTS.values():
+async def do_print_units(args: argparse.Namespace):
+    clients = args.clients
+    for client in clients:
         await client.connect()
-    if _CLIENTS:
+    if clients:
         print_units_header()
-    for client in clients_sorted_by_machine_name():
+    for client in clients_sorted_by_machine_name(args.clients):
         r = urlparse(client.name)
         name = client_machine_name(client)
         if not name:
@@ -684,10 +673,10 @@ def print_info(client):
     print(f'   CPU: {cores} cores, {cpu}, "{brand}"')
 
 
-async def do_print_info_multi(**_):
-    for client in _CLIENTS.values():
+async def do_print_info_multi(args: argparse.Namespace):
+    for client in args.clients:
         await client.connect()
-    clients = clients_sorted_by_machine_name()
+    clients = clients_sorted_by_machine_name(args.clients)
     multi = len(clients) > 1
     if multi:
         print()
@@ -697,27 +686,29 @@ async def do_print_info_multi(**_):
             print()
 
 
-def do_start_or_stop_local_sevice(**_):
-    if sys.platform == "darwin" and OPTIONS.command in ["start", "stop"]:
-        if OPTIONS.peer not in [".", "localhost", "", None]:
+def do_start_or_stop_local_sevice(args: argparse.Namespace):
+    if sys.platform == "darwin" and args.command in ["start", "stop"]:
+        if args.peer not in [".", "localhost", "", None]:
             raise Exception(
                 "commands start and stop only apply to local client service"
             )
-        note = f"org.foldingathome.fahclient.nobody.{OPTIONS.command}"
+        note = f"org.foldingathome.fahclient.nobody.{args.command}"
         cmd = ["notifyutil", "-p", note]
-        if OPTIONS.debug:
+        if args.debug:
             _LOGGER.debug("WOULD BE running: %s", " ".join(cmd))
             return
         _LOGGER.info("%s", " ".join(cmd))
         check_call(cmd)
 
 
-async def do_create_group(client):
+async def do_create_group(args: argparse.Namespace):
+    client = args.client
     await client.connect()
     await client.create_group(client.group)
 
 
-async def do_unlink_account(client):
+async def do_unlink_account(args: argparse.Namespace):
+    client = args.client
     await client.connect()
     if (8, 3, 1) <= client.version and client.version < (8, 3, 17):
         await client.send({"cmd": "reset"})
@@ -725,7 +716,8 @@ async def do_unlink_account(client):
         raise Exception("Error: unlink account requires client 8.3.1 thru 8.3.16")
 
 
-async def do_restart_account(client):
+async def do_restart_account(args: argparse.Namespace):
+    client = args.client
     await client.connect()
     if (8, 3, 17) <= client.version:
         await client.send({"cmd": "restart"})
@@ -733,19 +725,20 @@ async def do_restart_account(client):
         raise Exception("restart account requires client 8.3.17+")
 
 
-async def do_link_account(client):
+async def do_link_account(args: argparse.Namespace):
+    client = args.client
     await client.connect()
     if (8, 3, 1) <= client.version:
-        token = OPTIONS.account_token
-        name = OPTIONS.machine_name
+        token = args.account_token
+        name = args.machine_name
         if not token:
             token = client.data.get("info", {}).get("account", "")
         if not name:
             name = client.data.get("info", {}).get("mach_name", "")
-        if not name and OPTIONS.peer == ".":
+        if not name and args.peer == ".":
             name = platform.node()
         if not (token and name):
-            raise Exception("ERROR: unable to determine token and name")
+            raise Exception("Error: unable to determine token and name")
         msg = {"cmd": "link", "token": token, "name": name}
         await client.send(msg)
 
@@ -772,13 +765,14 @@ async def _close_if_paused(client, _):
     await client.close()
 
 
-async def do_wait_until_paused(client):
+async def do_wait_until_paused(args: argparse.Namespace):
+    client = args.client
     client.register_callback(_close_if_paused)
     client.should_process_updates = True
     await client.connect()
     if client.version < (8, 3, 17):
         raise Exception("wait-until-paused requires client 8.3.17+")
-    if OPTIONS.debug:
+    if args.debug:
         return
     # process initial connection snapshot
     await _close_if_paused(client, None)
@@ -786,7 +780,8 @@ async def do_wait_until_paused(client):
         await client.ws.wait_closed()
 
 
-async def do_enable_all_gpus(client):
+async def do_enable_all_gpus(args: argparse.Namespace):
+    client = args.client
     await client.connect()
     if client.version < (8, 3, 17):
         raise Exception("enable-all-gpus requires client 8.3.17+")
@@ -834,7 +829,8 @@ async def do_enable_all_gpus(client):
     await client.send({"cmd": "config", "config": conf})
 
 
-async def do_dump_all(client):
+async def do_dump_all(args: argparse.Namespace):
+    client = args.client
     await client.connect()
     if client.version < (8, 3):
         raise Exception("dump-all requires client 8.3+")
@@ -854,7 +850,7 @@ async def do_dump_all(client):
         print_units_header()
         for unit in units:
             print_unit(client, unit)
-    if not OPTIONS.force:
+    if not args.force:
         msg = f"{client.name}: to dump units, use option --force"
         if sys.stdout.isatty():
             print(msg)
@@ -873,7 +869,6 @@ COMMANDS_DISPATCH = {
     "log": do_log,
     "config": do_config,
     "groups": do_show_groups,
-    "x": do_xpeer,
     "watch": do_watch,
     "start": do_start_or_stop_local_sevice,
     "stop": do_start_or_stop_local_sevice,
@@ -891,34 +886,38 @@ COMMANDS_DISPATCH = {
 
 
 async def main_async():
-    parse_args()
+    args = parse_args()
 
-    if OPTIONS.command not in COMMANDS + HIDDEN_COMMANDS:
-        raise Exception(f"ERROR:Unknown command: {OPTIONS.command}")
+    if args.command not in COMMANDS + HIDDEN_COMMANDS:
+        raise Exception(f"Error:Unknown command: {args.command}")
 
-    func = COMMANDS_DISPATCH.get(OPTIONS.command)
+    func = COMMANDS_DISPATCH.get(args.command)
     if func is None:
-        raise Exception(f"ERROR:Command {OPTIONS.command} is not implemented")
+        raise Exception(f"Error:Command {args.command} is not implemented")
 
     client = None
-    if OPTIONS.command not in NO_CLIENT_COMMANDS:
-        for peer in OPTIONS.peers:
+    clients = []
+    if args.command not in NO_CLIENT_COMMANDS:
+        for peer in args.peers:
             c = FahClient(peer)
             if c is not None:
-                _CLIENTS[peer] = c
-        if len(_CLIENTS) == 1:
-            client = list(_CLIENTS.values())[0]
+                clients.append(c)
+        if len(clients) == 1:
+            client = clients[0]
+
+    args.client = client
+    args.clients = clients
 
     try:
         if asyncio.iscoroutinefunction(func):
-            await func(client=client)
+            await func(args)
         else:
-            func(client=client)
+            func(args)
     except ConnectionClosed:
         _LOGGER.info("Connection closed")
     finally:
-        for c in _CLIENTS.values():
-            await c.close()
+        for client in clients:
+            await client.close()
 
 
 def main():
