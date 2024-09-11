@@ -608,25 +608,15 @@ def units_for_group(client, group):
     return units
 
 
-def client_machine_name(client):
-    if client is None:
-        return ""
-    return client.data.get("info", {}).get("hostname", client.name)
-
-
-def clients_sorted_by_machine_name(clients: list[FahClient]):
-    return sorted(clients, key=client_machine_name)
-
-
 async def do_print_units(args: argparse.Namespace):
     clients = args.clients
     for client in clients:
         await client.connect()
     if clients:
         print_units_header()
-    for client in clients_sorted_by_machine_name(args.clients):
+    for client in sorted(clients, key=lambda c: c.machine_name):
         r = urlparse(client.name)
-        name = client_machine_name(client)
+        name = client.machine_name
         if not name:
             name = r.hostname
         if r.port and r.port != 7396:
@@ -676,7 +666,7 @@ def print_info(client):
 async def do_print_info_multi(args: argparse.Namespace):
     for client in args.clients:
         await client.connect()
-    clients = clients_sorted_by_machine_name(args.clients)
+    clients = sorted(args.clients, key=lambda c: c.machine_name)
     multi = len(clients) > 1
     if multi:
         print()

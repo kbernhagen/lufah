@@ -62,6 +62,11 @@ class FahClient:
             groups = [s for s in peers if s.startswith("/")]
         return groups
 
+    @property
+    def machine_name(self):
+        info = self.data.get("info", {})
+        return info.get("mach_name", info.get("hostname", self.name))
+
     def register_callback(self, callback):
         self._callbacks.append(callback)
 
@@ -226,7 +231,7 @@ class FahClient:
             if group is not None:
                 group = munged_group_name(group, self.data)
                 if group is None:
-                    return # should not reach
+                    return  # should not reach
                 msg["group"] = group
         await self.send(msg)
 
