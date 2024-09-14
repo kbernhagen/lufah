@@ -3,6 +3,8 @@
 Little Utility for FAH v8
 """
 
+from __future__ import annotations
+
 import argparse
 import asyncio
 import copy
@@ -13,15 +15,15 @@ import logging
 import math
 import os
 import platform
-import re
 import sys
 from subprocess import check_call
+from textwrap import dedent
 from urllib.parse import urlparse
-from urllib.request import urlopen
 
 from websockets.exceptions import ConnectionClosed
 
 from . import __version__
+from . import validate as valid
 from .const import (
     DEPRECATED_CONFIG_KEYS,
     GLOBAL_CONFIG_KEYS,
@@ -38,26 +40,21 @@ from .util import (
     format_seconds,
     get_object_at_key_path,
     munged_group_name,
-    uri_and_group_for_peer,
 )
 
 PROGRAM = os.path.basename(sys.argv[0])
 if PROGRAM.endswith(".py"):
     PROGRAM = PROGRAM[:-3]
+if PROGRAM == "__main__":
+    PROGRAM = "lufah"
 
 _LOGGER = logging.getLogger(__name__)
-
-OPTIONS = argparse.Namespace()
-OPTIONS.verbose = False
-OPTIONS.debug = False
-
-_CLIENTS = {}
 
 # FIXME: default is not restricted
 # suggest only allow status, units, log, watch
 DEFAULT_COMMAND = "units"
 
-HIDDEN_COMMANDS = ["x"]  # experimental stuff
+HIDDEN_COMMANDS = []  # experimental stuff
 NO_CLIENT_COMMANDS = ["start", "stop", "x"]
 
 MULTI_PEER_COMMANDS = ["units", "info", "fold", "finish", "pause"]
@@ -96,19 +93,20 @@ COMMAND_ALIASES = {
 
 COMMANDS_HELP = {
     "state": "show json snapshot of client state",
-    "pause": "",
-    "fold": "",
-    "finish": "",
+    "pause": "pause folding in specified group or all groups",
+    "fold": "start folding in specified group or all groups",
+    "finish": "finish folding and pause specified group or all groups",
     "log": "show log; use control-c to exit",
     "config": "get or set config values",
-    "start": 'start local client service',
-    "stop": 'stop local client service',
+    "start": "start local client service",
+    "stop": "stop local client service",
     "groups": "show json array of resource group names",
     "watch": "show incoming messages; use control-c to exit",
     "units": "show table of all units by group",
     "info": "show host and client info",
     "get": "show json value at dot-separated key path in client state",
     "link-account": "account-token [machine-name]",
+    "unlink-account": "unlink account requires client 8.3.1 thru 8.3.16",
     "restart-account": "restart account/node connection",
     "create-group": "create group if it does not exist",
     "wait-until-paused": "run until specified group or all groups are paused",
@@ -118,225 +116,100 @@ COMMANDS_HELP = {
 
 COMMANDS_DESC = {
     "config": f"""
-get or set config values
+        get or set config values
 
-Other than for account settings (user, team, passkey, cause),
-a group must be specified if there is more than one group. E.g.,
+        Other than for account settings (user, team, passkey, cause),
+        a group must be specified if there is more than one group. E.g.,
 
-  {PROGRAM} -a / config cpus 0
-""",
+          {PROGRAM} -a / config cpus 0
+        """,
     "dump-all": """
-dump all paused units in specified group or all groups
+        dump all paused units in specified group or all groups
 
-This command is not interactive.
-To dump units, use option "--force".
-You should only dump a WU if it will not be completed before its deadline.
-""",
+        This command is not interactive.
+        To dump units, use option "--force".
+        You should only dump a WU if it will not be completed before its deadline.
+        The ETA may not be accuarate until progress is a few percent done.
+        """,
     "link-account": """
-    Requested machine-name is currently ignored.
-    """,
+        Requested machine-name is currently ignored by client.
+        Changing machine-name must be done via Web Control.
+        """,
+    "restart-account": """
+        restart account/node connection
+        
+        This is useful if the client has lost its node connection
+        and is not automatically reconnecting.
+        """,
 }
 
 
-# allowed config keys
+# config keys and value validation info
 VALID_KEYS_VALUES = {
-    "fold-anon": {"type": bool_from_string},
-    "user": {
-        "default": "Anonymous",
-        "type": str.strip,
-        "re": r"^[^\t\n\r]{1,100}$",
-        "help": "If you are using unusual chars, please use Web Control.",
-    },
-    "team": {"default": 0, "type": int, "values": range(0, 0x7FFFFFFF)},
-    "passkey": {
-        "default": "",
-        "type": str.lower,
-        "re": r"^[0-9a-fA-F]{32}$",
-        "help": "passkey must be 32 hexadecimal characters",
-    },
-    "beta": {"type": bool_from_string},
-    # https://api.foldingathome.org/project/cause
-    "cause": {
-        "default": "any",
-        "type": str.lower,
-        "values": [
-            "any",
-            "alzheimers",
-            "cancer",
-            "huntingtons",
-            "parkinsons",
-            "influenza",
-            "diabetes",
-            "covid-19",
-        ],
-    },
-    "key": {"default": 0, "type": int, "values": range(0, 0xFFFFFFFFFFFFFFFF)},
-    "on-idle": {"type": bool_from_string},
-    "cpus": {"type": int, "values": range(0, 256)},
-    "checkpoint": {"default": 15, "type": int, "values": range(3, 30)},
-    "priority": {
-        "default": "idle",
-        "type": str.lower,
-        "values": ["idle", "low", "normal", "inherit"],
-    },
-    "on-battery": {"type": bool_from_string},
-    "keep-awake": {"type": bool_from_string},
-    "cuda": {"type": bool_from_string},
-    # no peer editing; peers not supported by v8.2+
-    # it would be an error to directly change gpus, paused, finish
-    # get-only config keys
-    "peers": {},
-    "gpus": {},
-    "paused": {},
-    "finish": {},
+    "user": {"type": valid.user, "help": valid.user.__doc__},
+    "team": {"type": valid.team, "help": valid.team.__doc__},
+    "passkey": {"type": valid.passkey, "help": valid.passkey.__doc__},
+    "cause": {"type": valid.cause, "help": valid.cause.__doc__},
+    "cpus": {"type": valid.cpus, "help": valid.cpus.__doc__},
+    "on-idle": {"type": bool_from_string, "help": "fold only when user is idle"},
+    "on-battery": {"type": bool_from_string, "help": "fold on battery power"},
+    "keep-awake": {"type": bool_from_string, "help": "prevent sleep while folding"},
+    "cuda": {"type": bool_from_string, "help": "allow CUDA cores in group"},
+    "beta": {"type": bool_from_string, "help": "for internal testing"},
+    "key": {"type": valid.key, "help": valid.key.__doc__},
+    "checkpoint": {"type": valid.checkpoint, "help": valid.checkpoint.__doc__},
+    "priority": {"type": valid.priority, "help": valid.priority.__doc__},
+    "fold-anon": {"type": bool_from_string, "help": "deprecated"},
 }
-# resource group r'^\/[\w.-]*$'
+# 8.1 resource group name r'^\/[\w.-]*$'
 # user recommended ^[0-9a-zA-Z_]+$
-# user not alleged reserved chars ^#|~ other disallowed \s
-# user email
+# user should not contain alleged reserved chars ^#|~  or \s
+# user email discouraged
+# in reality, most anything goes up to 100 bytes
 
 
-def _fetch_json(url):
-    data = None
-    with urlopen(url) as response:
-        if response.getcode() == 200:
-            data = json.loads(response.read().decode("utf-8"))
-    return data
+def postprocess_parsed_args(args: argparse.Namespace):
+    if args.debug:
+        args.verbose = True
 
-
-def _fetch_causes(**_):
-    data = _fetch_json("https://api.foldingathome.org/project/cause")
-    if _LOGGER.isEnabledFor(logging.INFO):
-        _LOGGER.info("Causes: %s", json.dumps(data, indent=2))
-    return data
-
-
-def validate():
-    if OPTIONS.debug:
-        OPTIONS.verbose = True
-
-    if OPTIONS.debug:
+    if args.debug:
         logging.basicConfig(level=logging.DEBUG)
-    elif OPTIONS.verbose:
+    elif args.verbose:
         logging.basicConfig(level=logging.INFO)
     else:
         logging.basicConfig(level=logging.WARNING)
 
-    if OPTIONS.peer in [None, ""]:
-        OPTIONS.peer = "."
-    OPTIONS.peer = OPTIONS.peer.lstrip()  # ONLY left strip
-    if not OPTIONS.peer:
-        raise Exception("ERROR: no address specified")
-    # true validation of peer is done by uri_and_group_for_peer()
-
-    if OPTIONS.command in [None, ""]:
-        OPTIONS.command = DEFAULT_COMMAND
+    if args.command in [None, ""]:
+        args.command = DEFAULT_COMMAND
     else:
-        OPTIONS.command = COMMAND_ALIASES.get(OPTIONS.command, OPTIONS.command)
+        args.command = COMMAND_ALIASES.get(args.command, args.command)
 
-    OPTIONS.peers = []
-    if "," in OPTIONS.peer and "/" not in OPTIONS.peer:
-        # assume comma separated list of peers
-        peers = OPTIONS.peer.split(",")
+    # create peers from peer
+    args.peers = []
+    if "," in args.peer and "/" not in args.peer:
+        # assume comma separated list of peers with no group
+        peers = args.peer.split(",")
         for peer in peers:
             peer = peer.strip()
             if peer:
-                OPTIONS.peers.append(peer)
-        _LOGGER.debug("  peers: %s", repr(OPTIONS.peers))
-        OPTIONS.peer = None
+                args.peers.append(peer)
+        _LOGGER.debug("addresses: %s", repr(args.peers))
+        args.peer = None
     else:
-        OPTIONS.peers = [OPTIONS.peer]
+        args.peers = [args.peer]
 
-    if OPTIONS.peer and re.match(r"^[^/]*,.*/.*$", OPTIONS.peer):
-        raise Exception("ERROR: host cannot have a comma")
-
-    if OPTIONS.peer is None and OPTIONS.command not in MULTI_PEER_COMMANDS:
-        raise Exception(f"ERROR: {OPTIONS.command!r} cannot use multiple hosts")
-
-    if OPTIONS.command == "link-account":
-        token = OPTIONS.account_token
-        name = OPTIONS.machine_name
-        # token is URL base64 encoding of 32 bytes, no padding '=', else ""
-        if token and not re.match(r"^[a-zA-Z0-9_\-]{43}$", token):
-            raise Exception("ERROR: token must be 43 url base64 characters")
-        if name and not re.match(r"^[\w\.-]{1,64}$", name):
-            raise Exception(
-                "ERROR: name must be 1 to 64 letters, numbers, "
-                "underscore, dash (-), dot(.)"
-            )
-        # empty/null token or name is handled after connecting
-        return
-
-    # validate config key value
-    if OPTIONS.command in ["config"]:
-        key = OPTIONS.key
-        value = OPTIONS.value
-        keys = VALID_KEYS_VALUES.keys()
-        info = VALID_KEYS_VALUES.get(key, {})
-        values = info.get("values")
-        regex = info.get("re")
-        conv = info.get("type")
-        default = info.get("default")
-
-        if _LOGGER.isEnabledFor(logging.DEBUG):
-            _LOGGER.debug("         key: %s", key)
-            _LOGGER.debug("       value: %s", value)
-            _LOGGER.debug("  valid keys: %s", " ".join(keys))
-            _LOGGER.debug("valid values: %s", values)
-            _LOGGER.debug("     default: %s", default)
-            _LOGGER.debug("       regex: %s", regex)
-            _LOGGER.debug("type convert: %s", conv)
-
-        if key not in keys:
-            k = " ".join(keys)
-            raise Exception(f"Unsupported config key: {key}\nKnown keys: {k}")
-
-        if value is None:
-            return
-
-        # validate value
-
-        if default is not None and value == "":
-            OPTIONS.value = default
-            return
-
-        value0 = value
-        if conv is not None and callable(conv):
-            OPTIONS.value = value = conv(value)
-
-        if conv == bool_from_string:
-            return
-
-        if "user" == key:
-            if len(value.encode("utf-8")) > 100:
-                raise Exception("ERROR: max user length is 100 bytes")
-            if value != value0:
-                _LOGGER.warning("Leading/trailing whitespace trimmed from user")
-
-        if values:
-            if value in values:
-                return
-            m = f"ERROR: invalid value for {key}: {value}\nvalid values: {values}"
-            raise Exception(m)
-        if regex:
-            if not re.match(regex, value):
-                m = f"ERROR: invalid {key} value: {value}"
-                help1 = info.get("help")
-                if help1:
-                    m += "\n" + help1
-                raise Exception(m)
-            return  # valid regex match
-        raise Exception(f"ERROR: config {key} is read-only")
+    # FIXME: dispatched functions should handle this
+    if args.peer is None and args.command not in MULTI_PEER_COMMANDS:
+        raise Exception(f"Error: {args.command!r} cannot use multiple hosts")
 
 
-def parse_args():
-    global OPTIONS
+def parse_args() -> argparse.Namespace:
     epilog = f"""
 Examples
 
 {PROGRAM} units
-{PROGRAM} -a /rg2 finish
-{PROGRAM} -a other.local/rg1 state
+{PROGRAM} -a //rg2 finish
+{PROGRAM} -a other.local state
 {PROGRAM} -a /mygpu1 config cpus 0
 {PROGRAM} config -h
 {PROGRAM} -a host1,host2,host3 units
@@ -355,27 +228,23 @@ Group names for fah 8.1 must:
 Group names on 8.3 can have spaces and special chars.
 Web Control 8.3 trims leading and trailing white space when creating groups.
 Group "/" is taken to mean the default group, which is "".
+
 For a group name actually starting with "/", use prefix "//".
+Example: lufah -a somehost//rg1 finish
 
 An error may not be shown if the initial connection times out.
 If group does not exist on 8.1, this script may hang until silent timeout.
-Config priority does not seem to work. Cores are probably setting priority.
 """
-
     if sys.platform == "darwin":
         epilog += "Commands start and stop are macOS-only."
-
-    if len(sys.argv) == 2 and sys.argv[1] == "help":
-        sys.argv[1] = "-h"
 
     parser = argparse.ArgumentParser(
         prog=PROGRAM,
         description=__doc__,
         epilog=epilog,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=argparse.RawTextHelpFormatter,
     )
 
-    parser.set_defaults(argparser=None)
     parser.set_defaults(key=None, value=None)  # do not remove this
     parser.set_defaults(peer="")  # in case peer is not required in future
     parser.set_defaults(peers=[])
@@ -387,15 +256,14 @@ Config priority does not seem to work. Cores are probably setting priority.
     parser.add_argument("-d", "--debug", action="store_true")
     parser.add_argument("--version", action="version", version=__version__)
 
-    help2 = """\
-[host][:port][/group]
-Use "." for localhost.
-Can be a comma-separated list of hosts for commands
-units, info, fold, finish, pause:
-host[:port],host[:port],...
-"""
     parser.add_argument(
-        "-a", "--address", metavar="ADDRESS", dest="peer", default=".", help=help2
+        "-a",
+        "--address",
+        metavar="ADDRESS",
+        dest="peer",
+        default=".",
+        type=valid.address,
+        help=dedent(valid.address.__doc__),
     )
 
     subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
@@ -404,25 +272,39 @@ host[:port],host[:port],...
         default_help = ""
         if cmd in COMMAND_ALIASES:
             default_help = "alias for " + COMMAND_ALIASES.get(cmd)
-        help1 = COMMANDS_HELP.get(cmd, default_help)
-        desc1 = COMMANDS_DESC.get(cmd, help1)
+        help1 = dedent(COMMANDS_HELP.get(cmd, default_help))
+        desc1 = dedent(COMMANDS_DESC.get(cmd, help1))
         par = subparsers.add_parser(
             cmd,
             description=desc1,
             help=help1,
-            formatter_class=argparse.RawDescriptionHelpFormatter,
+            formatter_class=argparse.RawTextHelpFormatter,
         )
         if cmd == "config":
-            # TODO: add subparser for each valid config key
-            par.add_argument(
-                "key", metavar="KEY", help=" ".join(VALID_KEYS_VALUES.keys())
+            config_parsers = par.add_subparsers(
+                dest="key", metavar="KEY", required=True
             )
-            par.add_argument(
-                "value",
-                nargs="?",
-                metavar="VALUE",
-                help="a valid config value for given key",
-            )
+            # add subparser for each valid config key
+            for key, info in VALID_KEYS_VALUES.items():
+                conv = info.get("type")
+                choices = info.get("values")
+                kdesc = dedent(info.get("help", ""))
+                khelp = kdesc  # TODO, maybe: util.firstline(kdesc).strip()
+                keyparser = config_parsers.add_parser(
+                    key,
+                    description=kdesc,
+                    help=khelp,
+                    formatter_class=argparse.RawTextHelpFormatter,
+                )
+                if conv or choices:
+                    keyparser.add_argument(
+                        "value",
+                        metavar="VALUE",
+                        nargs="?",
+                        help=khelp,
+                        type=conv,
+                        choices=choices,
+                    )
         elif cmd == "get":
             par.add_argument(
                 "keypath",
@@ -433,13 +315,15 @@ host[:port],host[:port],...
             par.add_argument(
                 "account_token",
                 metavar="ACCOUNT-TOKEN",
-                help='43 url base64 characters (32 bytes); use "" for current token',
+                type=valid.account_token,
+                help=valid.account_token.__doc__,
             )
             par.add_argument(
                 "machine_name",
                 nargs="?",
                 metavar="MACHINE-NAME",
-                help="1 to 64 letters, numbers, underscore, dash (-), dot(.)",
+                type=valid.machine_name,
+                help=valid.machine_name.__doc__,
             )
         elif cmd == "dump-all":
             par.add_argument("--force", action="store_true")
@@ -447,30 +331,31 @@ host[:port],host[:port],...
     for cmd in HIDDEN_COMMANDS:
         subparsers.add_parser(cmd)
 
-    OPTIONS = parser.parse_args()
-    OPTIONS.argparser = parser
-    validate()
+    args = parser.parse_args()
+    postprocess_parsed_args(args)
+    return args
 
 
-async def do_state(client):
+async def do_state(args: argparse.Namespace):
+    client = args.client
     await client.connect()
     print(json.dumps(client.data, indent=2))
 
 
-async def do_command_multi(**_):
-    for client in _CLIENTS.values():
+async def do_command_multi(args: argparse.Namespace):
+    for client in args.clients:
         try:
             await client.connect()
-            await client.send_command(OPTIONS.command)
-        except:  # noqa: E722
-            pass
+            await client.send_command(args.command)
+        except Exception as e:
+            raise Exception(f"FahClient('{client.name}'):{e}") from e
 
 
-# TODO: refactor into config_get(), config_set(), get_config(snapshot,group)
-async def do_config(client):
+async def do_config(args: argparse.Namespace):
+    client = args.client
     await client.connect()
-    key = OPTIONS.key
-    value = OPTIONS.value
+    key = args.key
+    value = args.value
     ver = client.version
     # Note: account can be out-of-date, but does become "" when unlinked
     have_acct = 0 < len(client.data.get("info", {}).get("account", ""))
@@ -482,7 +367,10 @@ async def do_config(client):
     # just need to be mindful of possible config.available_cpus
 
     if (8, 3) <= ver:
-        group = munged_group_name(client.group, client.data)
+        try:
+            group = munged_group_name(client.group, client.data)
+        except Exception as e:
+            raise Exception(f"FahClient('{client.name}'):{e}") from e
     else:
         group = client.group
 
@@ -512,7 +400,7 @@ async def do_config(client):
         # available_cpus in fah v8.1.19 only
         maxcpus = client.data.get("config", {}).get("available_cpus", maxcpus0)
         if value > maxcpus:
-            raise Exception(f"ERROR: cpus is greater than available cpus {maxcpus}")
+            raise Exception(f"Error: cpus is greater than available cpus {maxcpus}")
         # FIXME: cpus are in groups on fah 8.3; need to sum cpus across groups
         # available_cpus = maxcpus - total_group_cpus
         # if value > (available_cpus - current_group_cpus)
@@ -522,9 +410,9 @@ async def do_config(client):
 
     if (8, 3) <= ver:
         if key in DEPRECATED_CONFIG_KEYS:
-            raise Exception(f'ERROR: key "{key0}" is deprecated in fah 8.3')
+            raise Exception(f'Error: key "{key0}" is deprecated in fah 8.3')
         if key not in VALID_CONFIG_SET_KEYS:
-            raise Exception(f'ERROR: setting "{key0}" is not supported in fah 8.3')
+            raise Exception(f'Error: setting "{key0}" is not supported in fah 8.3')
         if have_acct and key in GLOBAL_CONFIG_KEYS:
             _LOGGER.warning("Machine is linked to an account")
             _LOGGER.warning(' "%s" "%s" may be overwritten by account', key0, value)
@@ -535,7 +423,7 @@ async def do_config(client):
     if (8, 3) <= ver and key in GROUP_CONFIG_KEYS:
         if group is None:
             raise Exception(
-                f'ERROR: cannot set "{key0}" on unspecified group. There are {len(groups)} groups.'
+                f'Error: cannot set "{key0}" on unspecified group. There are {len(groups)} groups.'
             )
         # create appropriate 8.3 config.groups dict with all current groups
         groupsconf = {}
@@ -565,11 +453,12 @@ async def _print_log_lines(client, msg):
             await client.close()
 
 
-async def do_log(client):
+async def do_log(args: argparse.Namespace):
+    client = args.client
     client.register_callback(_print_log_lines)
     await client.connect()
     await client.send({"cmd": "log", "enable": True})
-    if OPTIONS.debug:
+    if args.debug:
         return
     if client.is_connected:
         try:
@@ -578,28 +467,16 @@ async def do_log(client):
             pass
 
 
-async def do_experimental(**_):
-    # ~1 sec delay if remote host ends with '.local'
-    client = FahClient(OPTIONS.peer)
-    await client.connect()
-    print(json.dumps(client.data, indent=2))
-    # ~10 sec delay exiting if don't close first; no async context manager?
-    # destructor is called immediately
-    await client.close()
-
-
-async def do_xpeer(**_):
-    print("uri_and_group_for_peer: ", uri_and_group_for_peer(OPTIONS.peer))
-
-
-async def do_show_groups(client):
+async def do_show_groups(args: argparse.Namespace):
+    client = args.client
     await client.connect()
     print(json.dumps(client.groups))
 
 
-async def do_get(client):
+async def do_get(args: argparse.Namespace):
+    client = args.client
     await client.connect()
-    value = get_object_at_key_path(client.data, OPTIONS.keypath)
+    value = get_object_at_key_path(client.data, args.keypath)
     print(json.dumps(value, indent=2))
 
 
@@ -609,11 +486,12 @@ async def _print_json_message(client, msg):
         print(json.dumps(msg))
 
 
-async def do_watch(client):
+async def do_watch(args: argparse.Namespace):
+    client = args.client
     client.register_callback(_print_json_message)
-    client.should_process_updates = OPTIONS.debug
+    client.should_process_updates = args.debug
     await client.connect()
-    if OPTIONS.debug:
+    if args.debug:
         snapshot0 = copy.deepcopy(client.data)
     print(json.dumps(client.data, indent=2))
     try:
@@ -621,7 +499,7 @@ async def do_watch(client):
     except (KeyboardInterrupt, asyncio.CancelledError):
         _LOGGER.debug("do_watch() caught KeyboardInterrupt or asyncio.CancelledError")
     finally:
-        if OPTIONS.debug:
+        if args.debug:
             diff = diff_dicts(snapshot0, client.data)
             print("\nChanges since connection opened:\n", json.dumps(diff, indent=2))
 
@@ -729,30 +607,19 @@ def units_for_group(client, group):
     return units
 
 
-def client_machine_name(client):
-    if client is None:
-        return ""
-    return client.data.get("info", {}).get("hostname", client.name)
-
-
-def clients_sorted_by_machine_name():
-    return sorted(list(_CLIENTS.values()), key=client_machine_name)
-
-
-async def do_print_units(**_):
-    for client in _CLIENTS.values():
+async def do_print_units(args: argparse.Namespace):
+    clients = args.clients
+    for client in clients:
         await client.connect()
-    if _CLIENTS:
+    if clients:
         print_units_header()
-    for client in clients_sorted_by_machine_name():
-        r = urlparse(client.name)
-        name = client_machine_name(client)
+    for client in sorted(clients, key=lambda c: c.machine_name):
+        r = urlparse(client.uri)
+        name = client.machine_name
         if not name:
             name = r.hostname
         if r.port and r.port != 7396:
             name += f":{r.port}"
-        if r.path and r.path.startswith("/api/websocket"):
-            name += r.path[len("/api/websocket") :]
         groups = client.groups
         if not groups:
             if not client.is_connected:
@@ -793,10 +660,10 @@ def print_info(client):
     print(f'   CPU: {cores} cores, {cpu}, "{brand}"')
 
 
-async def do_print_info_multi(**_):
-    for client in _CLIENTS.values():
+async def do_print_info_multi(args: argparse.Namespace):
+    for client in args.clients:
         await client.connect()
-    clients = clients_sorted_by_machine_name()
+    clients = sorted(args.clients, key=lambda c: c.machine_name)
     multi = len(clients) > 1
     if multi:
         print()
@@ -806,33 +673,38 @@ async def do_print_info_multi(**_):
             print()
 
 
-def do_start_or_stop_local_sevice(**_):
-    if sys.platform == "darwin" and OPTIONS.command in ["start", "stop"]:
-        if OPTIONS.peer not in [".", "localhost", "", None]:
-            raise Exception('commands start and stop only apply to local client service')
-        note = f"org.foldingathome.fahclient.nobody.{OPTIONS.command}"
+def do_start_or_stop_local_sevice(args: argparse.Namespace):
+    if sys.platform == "darwin" and args.command in ["start", "stop"]:
+        if args.peer not in [".", "localhost", "", None]:
+            raise Exception(
+                "commands start and stop only apply to local client service"
+            )
+        note = f"org.foldingathome.fahclient.nobody.{args.command}"
         cmd = ["notifyutil", "-p", note]
-        if OPTIONS.debug:
+        if args.debug:
             _LOGGER.debug("WOULD BE running: %s", " ".join(cmd))
             return
         _LOGGER.info("%s", " ".join(cmd))
         check_call(cmd)
 
 
-async def do_create_group(client):
+async def do_create_group(args: argparse.Namespace):
+    client = args.client
     await client.connect()
     await client.create_group(client.group)
 
 
-async def do_unlink_account(client):
+async def do_unlink_account(args: argparse.Namespace):
+    client = args.client
     await client.connect()
     if (8, 3, 1) <= client.version and client.version < (8, 3, 17):
         await client.send({"cmd": "reset"})
     else:
-        raise Exception("unlink account requires client 8.3.1 thru 8.3.16")
+        raise Exception("Error: unlink account requires client 8.3.1 thru 8.3.16")
 
 
-async def do_restart_account(client):
+async def do_restart_account(args: argparse.Namespace):
+    client = args.client
     await client.connect()
     if (8, 3, 17) <= client.version:
         await client.send({"cmd": "restart"})
@@ -840,19 +712,20 @@ async def do_restart_account(client):
         raise Exception("restart account requires client 8.3.17+")
 
 
-async def do_link_account(client):
+async def do_link_account(args: argparse.Namespace):
+    client = args.client
     await client.connect()
     if (8, 3, 1) <= client.version:
-        token = OPTIONS.account_token
-        name = OPTIONS.machine_name
+        token = args.account_token
+        name = args.machine_name
         if not token:
             token = client.data.get("info", {}).get("account", "")
         if not name:
             name = client.data.get("info", {}).get("mach_name", "")
-        if not name and OPTIONS.peer == ".":
+        if not name and args.peer == ".":
             name = platform.node()
         if not (token and name):
-            raise Exception("ERROR: unable to determine token and name")
+            raise Exception("Error: unable to determine token and name")
         msg = {"cmd": "link", "token": token, "name": name}
         await client.send(msg)
 
@@ -879,13 +752,14 @@ async def _close_if_paused(client, _):
     await client.close()
 
 
-async def do_wait_until_paused(client):
+async def do_wait_until_paused(args: argparse.Namespace):
+    client = args.client
     client.register_callback(_close_if_paused)
     client.should_process_updates = True
     await client.connect()
     if client.version < (8, 3, 17):
         raise Exception("wait-until-paused requires client 8.3.17+")
-    if OPTIONS.debug:
+    if args.debug:
         return
     # process initial connection snapshot
     await _close_if_paused(client, None)
@@ -893,7 +767,8 @@ async def do_wait_until_paused(client):
         await client.ws.wait_closed()
 
 
-async def do_enable_all_gpus(client):
+async def do_enable_all_gpus(args: argparse.Namespace):
+    client = args.client
     await client.connect()
     if client.version < (8, 3, 17):
         raise Exception("enable-all-gpus requires client 8.3.17+")
@@ -941,7 +816,8 @@ async def do_enable_all_gpus(client):
     await client.send({"cmd": "config", "config": conf})
 
 
-async def do_dump_all(client):
+async def do_dump_all(args: argparse.Namespace):
+    client = args.client
     await client.connect()
     if client.version < (8, 3):
         raise Exception("dump-all requires client 8.3+")
@@ -961,7 +837,7 @@ async def do_dump_all(client):
         print_units_header()
         for unit in units:
             print_unit(client, unit)
-    if not OPTIONS.force:
+    if not args.force:
         msg = f"{client.name}: to dump units, use option --force"
         if sys.stdout.isatty():
             print(msg)
@@ -980,7 +856,6 @@ COMMANDS_DISPATCH = {
     "log": do_log,
     "config": do_config,
     "groups": do_show_groups,
-    "x": do_xpeer,
     "watch": do_watch,
     "start": do_start_or_stop_local_sevice,
     "stop": do_start_or_stop_local_sevice,
@@ -998,37 +873,43 @@ COMMANDS_DISPATCH = {
 
 
 async def main_async():
-    parse_args()
+    args = parse_args()
 
-    if OPTIONS.command not in COMMANDS + HIDDEN_COMMANDS:
-        raise Exception(f"ERROR:Unknown command: {OPTIONS.command}")
+    if args.command not in COMMANDS + HIDDEN_COMMANDS:
+        raise Exception(f"Error:Unknown command: {args.command}")
 
-    func = COMMANDS_DISPATCH.get(OPTIONS.command)
+    func = COMMANDS_DISPATCH.get(args.command)
     if func is None:
-        raise Exception(f"ERROR:Command {OPTIONS.command} is not implemented")
+        raise Exception(f"Error:Command {args.command} is not implemented")
 
     client = None
-    if OPTIONS.command not in NO_CLIENT_COMMANDS:
-        for peer in OPTIONS.peers:
+    clients = []
+    if args.command not in NO_CLIENT_COMMANDS:
+        for peer in args.peers:
             c = FahClient(peer)
             if c is not None:
-                _CLIENTS[peer] = c
-        if len(_CLIENTS) == 1:
-            client = list(_CLIENTS.values())[0]
+                clients.append(c)
+        if len(clients) == 1:
+            client = clients[0]
+
+    args.client = client
+    args.clients = clients
 
     try:
         if asyncio.iscoroutinefunction(func):
-            await func(client=client)
+            await func(args)
         else:
-            func(client=client)
+            func(args)
     except ConnectionClosed:
         _LOGGER.info("Connection closed")
     finally:
-        for c in _CLIENTS.values():
-            await c.close()
+        for client in clients:
+            await client.close()
 
 
 def main():
+    if len(sys.argv) == 2 and sys.argv[1] == "help":
+        sys.argv[1] = "-h"
     try:
         asyncio.run(main_async())
     except (KeyboardInterrupt, EOFError):

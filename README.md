@@ -43,9 +43,9 @@ positional arguments:
     state               show json snapshot of client state
     status              alias for state
     units               show table of all units by group
-    fold
-    finish
-    pause
+    fold                start folding in specified group or all groups
+    finish              finish folding and pause specified group or all groups
+    pause               pause folding in specified group or all groups
     unpause             alias for fold
     config              get or set config values
     groups              show json array of resource group names
@@ -54,7 +54,7 @@ positional arguments:
     log                 show log; use control-c to exit
     watch               show incoming messages; use control-c to exit
     get                 show json value at dot-separated key path in client state
-    unlink-account
+    unlink-account      unlink account requires client 8.3.1 thru 8.3.16
     link-account        account-token [machine-name]
     restart-account     restart account/node connection
     wait-until-paused   run until specified group or all groups are paused
@@ -69,17 +69,17 @@ options:
   -d, --debug
   --version             show program's version number and exit
   -a ADDRESS, --address ADDRESS
-                        [host][:port][/group]
+                        [host][:port][/group] or [host][:port],[host][:port]...
                         Use "." for localhost.
+                        Group name must not be url-encoded, but may need escaping from shell.
                         Can be a comma-separated list of hosts for commands
-                        units, info, fold, finish, pause:
-                        host[:port],host[:port],...
+                        units, info, fold, finish, pause
 
 Examples
 
 lufah units
-lufah -a /rg2 finish
-lufah -a other.local/rg1 state
+lufah -a //rg2 finish
+lufah -a other.local state
 lufah -a /mygpu1 config cpus 0
 lufah config -h
 lufah -a host1,host2,host3 units
@@ -98,11 +98,12 @@ Group names for fah 8.1 must:
 Group names on 8.3 can have spaces and special chars.
 Web Control 8.3 trims leading and trailing white space when creating groups.
 Group "/" is taken to mean the default group, which is "".
+
 For a group name actually starting with "/", use prefix "//".
+Example: lufah -a somehost//rg1 finish
 
 An error may not be shown if the initial connection times out.
 If group does not exist on 8.1, this script may hang until silent timeout.
-Config priority does not seem to work. Cores are probably setting priority.
 Commands start and stop are macOS-only.
 ```
 

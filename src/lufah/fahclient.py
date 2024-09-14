@@ -4,9 +4,12 @@ import asyncio
 import datetime
 import json
 import logging
+from urllib.parse import urlparse
 
 from websockets import connect  # pip3 install websockets
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError
+
+from lufah import validate as valid
 
 from .const import (
     COMMAND_FINISH,
@@ -23,8 +26,7 @@ class FahClient:
     """Class to manage a remote client connection"""
 
     def __init__(self, peer, name=None):
-        if name is None:
-            name = peer
+        peer = valid.address(peer, single=True)
         self._name = None
         self._group = None
         self.ws = None
@@ -35,12 +37,16 @@ class FahClient:
         # peer is a pseuso-uri that needs munging
         # NOTE: this may raise
         self._uri, self._group = uri_and_group_for_peer(peer)
-        self._name = name if name else self._uri
+        self._name = name or urlparse(self._uri).hostname or peer
         _LOGGER.debug('Created FahClient("%s")', self._name)
 
     @property
     def name(self):
         return self._name
+
+    @property
+    def uri(self):
+        return self._uri
 
     @property
     def group(self):
@@ -61,6 +67,11 @@ class FahClient:
             peers = self.data.get("peers", [])
             groups = [s for s in peers if s.startswith("/")]
         return groups
+
+    @property
+    def machine_name(self):
+        info = self.data.get("info", {})
+        return info.get("mach_name", info.get("hostname", self.name))
 
     def register_callback(self, callback):
         self._callbacks.append(callback)
@@ -128,6 +139,10 @@ class FahClient:
         v = snapshot.get("info", {}).get("version", "0")
         self._version = tuple(map(int, v.split(".")))
         self.data.update(snapshot)
+        if self._version < (8, 3):
+            _LOGGER.warning(
+                "Client v%s. Support for clients older than 8.3 is deprecated.", v
+            )
         asyncio.ensure_future(self.receive())
 
     async def close(self):
@@ -226,7 +241,7 @@ class FahClient:
             if group is not None:
                 group = munged_group_name(group, self.data)
                 if group is None:
-                    return
+                    return  # should not reach
                 msg["group"] = group
         await self.send(msg)
 
