@@ -9,6 +9,8 @@ from urllib.parse import urlparse
 from websockets import connect  # pip3 install websockets
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError
 
+from lufah import validate as valid
+
 from .const import (
     COMMAND_FINISH,
     COMMAND_FOLD,
@@ -24,6 +26,7 @@ class FahClient:
     """Class to manage a remote client connection"""
 
     def __init__(self, peer, name=None):
+        peer = valid.address(peer, single=True)
         self._name = None
         self._group = None
         self.ws = None
@@ -136,6 +139,10 @@ class FahClient:
         v = snapshot.get("info", {}).get("version", "0")
         self._version = tuple(map(int, v.split(".")))
         self.data.update(snapshot)
+        if self._version < (8, 3):
+            _LOGGER.warning(
+                "Client v%s. Support for clients older than 8.3 is deprecated.", v
+            )
         asyncio.ensure_future(self.receive())
 
     async def close(self):

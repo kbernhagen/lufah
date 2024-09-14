@@ -64,58 +64,45 @@ def diff_dicts(dict1, dict2):
 
 
 def uri_and_group_for_peer(peer: Optional[str]) -> tuple[Optional[str], Optional[str]]:
-    # do not strip right; 8.3 group names might not be stripped
-    # create-group should strip what is specified, as web control does
-    if peer:
-        peer = peer.lstrip()
-    if peer in [None, ""]:
-        return (None, None)
+    # assume 'valid' single host:port[/group] as returned by validate.address(peer, single=True)
+    # try to return a resolved host:port[/group]
+    # host should be left as-is if unresolvable; it might be later on reconnect attempt
+    if peer in [None, ""]:  # should never happen
+        return (None, None)  # this should be the only way None is returned
 
-    uri = peer
-    if peer.startswith(":"):
-        uri = "ws://." + peer
-    elif peer.startswith("/"):
-        uri = "ws://." + peer
+    group = None
+    i = peer.find("/")
+    if i == 0:
+        group = peer
+        peer = ""
+    if i > 0:
+        group = peer[i:]  # will have prefix "/"
+        peer = peer[:i]
+    peer = peer.strip()
 
-    scheme = urlparse(uri).scheme
-
-    if scheme == "":
-        uri = "ws://" + peer
-    elif scheme not in ["ws", "wss", "http", "https", "file"]:
-        # assume misparse of 'host:port'
-        uri = "ws://" + peer
-
-    u = urlparse(uri)
-
-    if u.scheme not in ["ws", "wss"]:
-        _LOGGER.error("Scheme %s is not supported for address %s", u.scheme, repr(peer))
-        return (None, None)
-
-    userpass = ""
-    user = u.username
-    password = u.password
-    if user and password:
-        userpass = f"{user}:{password}@"
-
-    host = u.hostname  # can be None
+    u = urlparse("ws://" + peer)
+    host = u.hostname
+    port = u.port or 7396
     if host:
         host = host.strip()
-    if host in [None, "", ".", "localhost", "localhost."]:
+    if host in [None, "", ".", "localhost", "localhost.", "127.0.0.1"]:
         host = "127.0.0.1"
     else:
-        # TODO: validate host regex; maybe disallow numeric IPv6 addresses
         # try to munge a resolvable host name
-        # remote in vm is on another subnet; need host.local resolved to ipv4
+        # remote in vmware is on another subnet; need host.local resolved to ipv4 addr
+        ext = ""
         if host.endswith("."):
             host = host[:-1]
         if host.endswith(".local"):
+            ext = ".local"
             host = host[:-6]
         if "." not in host:
+            # only attempt to resolve a single-segment host name
             try:
-                socket.gethostbyname(host)
+                socket.gethostbyname(host)  # this fails quickly when it does
             except socket.gaierror:
                 # cannot resolve, try again with '.local', if so use ipv4 addr
-                # this will be slow if host does not exist
+                # this will be slow if host.local does not exist
                 # note: we do not catch exception
                 # may cause lufah to always use ipv4 running on Windows w 'host.local'
                 try:
@@ -124,26 +111,22 @@ def uri_and_group_for_peer(peer: Optional[str]) -> tuple[Optional[str], Optional
                     _LOGGER.error(
                         "Unable to resolve %s or %s", repr(host), repr(host + ".local")
                     )
-                    return (None, None)
+                    # proceed with unresolved host
+                    host += ext  # add .local if it had it
 
-    port = u.port or 7396
-
-    uri = f"{u.scheme}://{userpass}{host}:{port}/api/websocket"
+    uri = f"ws://{host}:{port}/api/websocket"
 
     # validate and munge group, possibly modify uri for 8.1
     # for v8.3, allow "//" prefix, spaces, special chars
-    # None or '' is no group (aka all groups)
+    # group None is all groups
     # '/'  will be '' (default group)
     # '//' will be '/'
-    # '//*' will be '/*'
-    # 8.1 group name '/' requires using '//'
-    group = u.path
-    if group in [None, ""]:
-        group = None  # no group
-    elif group == "/":
-        group = ""  # default group
-    elif group.startswith("/"):
+    # '//.*' will be '/.*'
+    # 8.1 group name '/.*' requires using '//.*'
+    if group and group.startswith("/"):
         group = group[1:]  # strip "/"; can now be ''
+
+    # TODO: drop 8.1 support
     if group and re.match(r"^\/?[\w.-]*$", group):
         # might be connecting to fah 8.1, so append /group
         if not group.startswith("/"):
@@ -154,6 +137,7 @@ def uri_and_group_for_peer(peer: Optional[str]) -> tuple[Optional[str], Optional
 
 
 def munged_group_name(group: Optional[str], snapshot: Optional[dict]) -> Optional[str]:
+    # TODO: drop 8.1 support and require // if group begins / to remove ambiguity
     # return group name that exists, None, or raise
     # assume v8.3; old group names may persist from upgrade
     # NOTE: must have connected to have snapshot

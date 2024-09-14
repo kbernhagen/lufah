@@ -234,7 +234,6 @@ Example: lufah -a somehost//rg1 finish
 
 An error may not be shown if the initial connection times out.
 If group does not exist on 8.1, this script may hang until silent timeout.
-Config priority does not seem to work. Cores are probably setting priority.
 """
     if sys.platform == "darwin":
         epilog += "Commands start and stop are macOS-only."

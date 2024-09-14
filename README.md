@@ -71,6 +71,7 @@ options:
   -a ADDRESS, --address ADDRESS
                         [host][:port][/group] or [host][:port],[host][:port]...
                         Use "." for localhost.
+                        Group name must not be url-encoded, but may need escaping from shell.
                         Can be a comma-separated list of hosts for commands
                         units, info, fold, finish, pause
 

@@ -2,6 +2,11 @@
 
 import re
 from typing import Optional
+from urllib.parse import urlparse
+
+_DEFAULT_HOST = "localhost"
+_DEFAULT_PORT = 7396
+_DEFAULT_HOST_PORT = f"{_DEFAULT_HOST}:{_DEFAULT_PORT}"
 
 
 def account_token(value: Optional[str]) -> Optional[str]:
@@ -14,24 +19,53 @@ def account_token(value: Optional[str]) -> Optional[str]:
     return value
 
 
-def address(peer: Optional[str]) -> str:
+def address(peer: Optional[str], single=False) -> str:
     """\
     [host][:port][/group] or [host][:port],[host][:port]...
     Use "." for localhost.
+    Group name must not be url-encoded, but may need escaping from shell.
     Can be a comma-separated list of hosts for commands
     units, info, fold, finish, pause
     """
-    if peer in [None, "", ".", "localhost"]:
-        return "."
-    peer = peer.lstrip()  # ONLY left strip
-    if not peer:
-        raise Exception("Error: No address specified")
-    # raise if comma before / (group not allowed if multiple hosts)
-    if re.match(r"^[^/]*,.*/.*$", peer):
-        raise Exception("Error: Host name cannot have a comma")
-    # TODO: split on comma?; validate [host][:port][/group] or host[:port],...
-    # validate hostname or IPv4; validate port
-    # more validation of peer is done by uri_and_group_for_peer()
+    if peer is None:
+        return _DEFAULT_HOST_PORT
+    # separate "/group" from peer(s)
+    group = None
+    i = peer.find("/")
+    if i == 0:
+        group = peer
+        peer = ""
+    if i > 0:
+        group = peer[i:]  # will have prefix "/"
+        peer = peer[:i]
+    peer = peer.strip()
+    if peer in ["", ".", _DEFAULT_HOST, _DEFAULT_HOST_PORT]:
+        return _DEFAULT_HOST_PORT + (group or "")
+    is_multi = "," in peer  # multple hosts
+    if not is_multi:
+        if peer.startswith(":"):
+            peer = _DEFAULT_HOST + peer
+        u = urlparse("ws://" + peer)
+        host = u.hostname
+        if host in [None, "", "."]:
+            host = _DEFAULT_HOST
+        port = u.port or _DEFAULT_PORT
+        # TODO: validate host is hostname or IPv4, validate port is 1..maxport
+        peer = f"{host}:{port}"
+        if group:
+            peer += group
+    else:
+        if single:
+            raise Exception("Error: Cannot have multiple hosts")
+        if group:
+            raise Exception("Error: Cannot have multiple hosts with any group")
+        # split on comma and validate each single-host address, then join, unique
+        addresses = set()
+        for p in peer.split(","):
+            p = address(p, single=True)
+            addresses.add(p)
+        peer = ",".join(addresses)
+    # more validation is done by uri_and_group_for_peer(), plus resolution
     return peer
 
 
