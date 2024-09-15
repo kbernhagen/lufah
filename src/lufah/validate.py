@@ -4,6 +4,7 @@ import re
 from typing import Optional
 from urllib.parse import urlparse
 
+from lufah.const import KNOWN_CAUSES
 from lufah.util import split_address_and_group
 
 _DEFAULT_HOST = "localhost"
@@ -71,18 +72,8 @@ def cause(value: Optional[str]) -> Optional[str]:
     if value == "":
         return "any"
     value = value.strip().lower()
-    known_values = [
-        "any",
-        "alzheimers",
-        "cancer",
-        "huntingtons",
-        "parkinsons",
-        "influenza",
-        "diabetes",
-        "covid-19",
-    ]
-    if value not in known_values:
-        raise Exception(f"Error: cause must be one of: {' '.join(known_values)}")
+    if value not in KNOWN_CAUSES:
+        raise Exception(f"Error: cause must be one of: {' '.join(KNOWN_CAUSES)}")
     return value
 
 

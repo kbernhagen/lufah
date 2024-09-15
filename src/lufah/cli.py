@@ -215,7 +215,7 @@ def parse_args() -> argparse.Namespace:
         alias_help = None
         true_cmd = cmd
         if cmd in COMMAND_ALIASES:
-            true_cmd = COMMAND_ALIASES.get(cmd) 
+            true_cmd = COMMAND_ALIASES.get(cmd)
             alias_help = "alias for " + true_cmd
         # if an alias, we will get not_implemented, whicvh we use for desc
         func = COMMANDS_DISPATCH.get(cmd) or not_implemented

@@ -40,6 +40,17 @@ VALID_CONFIG_GET_KEYS = VALID_CONFIG_SET_KEYS + READ_ONLY_CONFIG_KEYS
 # removed in 8.3
 DEPRECATED_CONFIG_KEYS = ["fold_anon", "peers", "checkpoint", "priority"]
 
+KNOWN_CAUSES = [
+    "any",
+    "alzheimers",
+    "cancer",
+    "huntingtons",
+    "parkinsons",
+    "influenza",
+    "diabetes",
+    "covid-19",
+]
+
 # From Web Control
 # some of these are synthetic (not actual unit.state)
 # client can return pause_reason strings longer than 16 chars
