@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 import logging
 import operator
@@ -9,7 +10,7 @@ import re
 import socket
 import sys
 from functools import reduce
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
@@ -33,6 +34,39 @@ def bool_from_string(value: Optional[str]) -> bool:
     raise Exception(f"ERROR: not a bool string: '{value}'")
 
 
+def split_address_and_group(peer: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+    if peer is None:
+        return (None, None)
+    group = None
+    i = peer.find("/")
+    if i == 0:
+        group = peer
+        peer = ""
+    if i > 0:
+        group = peer[i:]  # will have prefix "/"
+        peer = peer[:i]
+    peer = peer.strip()
+    return (peer, group)
+
+
+def first_non_blank_line(s: Optional[str]) -> Optional[str]:
+    """
+    Returns the first non-blank line from a multi-line string.
+
+    A blank line is considered as one that contains only whitespace characters.
+    If the input is None or all lines are blank, the function returns None.
+
+    Parameters:
+    s (Optional[str]): The input multi-line string, or None.
+
+    Returns:
+    Optional[str]: The first non-blank line, or None if no such line exists or the input is None.
+    """
+    if s is None:
+        return None
+    return next((line for line in s.splitlines() if line.strip()), None)
+
+
 # modified from bing chat answer
 def get_object_at_key_path(obj, key_path: Union[str, list]):
     if isinstance(key_path, str):
@@ -44,8 +78,8 @@ def get_object_at_key_path(obj, key_path: Union[str, list]):
 
 
 # modified from bing chat answer
-# TODO: sparse chenges in list items
-def diff_dicts(dict1, dict2):
+# TODO: sparse changes in list items
+def diff_dicts(dict1: dict, dict2: dict) -> dict:
     diff = {}
     for key in dict1:
         if isinstance(dict1[key], dict) and isinstance(dict2.get(key), dict):
@@ -63,6 +97,14 @@ def diff_dicts(dict1, dict2):
     return diff
 
 
+# FIXME: hacky
+def func_module_docstring(func: Callable) -> str:
+    if not callable(func):
+        return ""
+    mod = importlib.import_module(func.__module__)
+    return mod.__doc__ or ""
+
+
 def uri_and_group_for_peer(peer: Optional[str]) -> tuple[Optional[str], Optional[str]]:
     # assume 'valid' single host:port[/group] as returned by validate.address(peer, single=True)
     # try to return a resolved host:port[/group]
@@ -70,15 +112,7 @@ def uri_and_group_for_peer(peer: Optional[str]) -> tuple[Optional[str], Optional
     if peer in [None, ""]:  # should never happen
         return (None, None)  # this should be the only way None is returned
 
-    group = None
-    i = peer.find("/")
-    if i == 0:
-        group = peer
-        peer = ""
-    if i > 0:
-        group = peer[i:]  # will have prefix "/"
-        peer = peer[:i]
-    peer = peer.strip()
+    peer, group = split_address_and_group(peer)
 
     u = urlparse("ws://" + peer)
     host = u.hostname
@@ -170,11 +204,11 @@ def munged_group_name(group: Optional[str], snapshot: Optional[dict]) -> Optiona
     return group
 
 
-def format_seconds(secs: int) -> str:
+def natural_delta_from_seconds(secs: int) -> str:
     """Human-readable time interval"""
     secs = int(secs)  # it may not be int
     if secs < 0:
-        return "-(" + format_seconds(-secs) + ")"
+        return "-(" + natural_delta_from_seconds(-secs) + ")"
     if secs < 60:
         return f"{secs:02d}s"
     m, s = divmod(secs, 60)
@@ -188,7 +222,7 @@ def format_seconds(secs: int) -> str:
     return f"{d}d {h}h"
 
 
-def fetch_json(url):
+def fetch_json(url: str):
     data = None
     with urlopen(url) as response:
         if response.getcode() == 200:
@@ -198,3 +232,11 @@ def fetch_json(url):
 
 def fetch_causes():
     return fetch_json("https://api.foldingathome.org/project/cause")
+
+
+def shorten_natural_delta(eta: str) -> str:
+    eta = eta.replace(" days", "d").replace(" day", "d")
+    eta = eta.replace(" hours", "h").replace(" hour", "h")
+    eta = eta.replace(" mins", "m").replace(" min", "m")
+    eta = eta.replace(" secs", "s").replace(" sec", "s")
+    return eta

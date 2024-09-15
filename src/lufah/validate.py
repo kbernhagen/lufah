@@ -4,6 +4,8 @@ import re
 from typing import Optional
 from urllib.parse import urlparse
 
+from lufah.util import split_address_and_group
+
 _DEFAULT_HOST = "localhost"
 _DEFAULT_PORT = 7396
 _DEFAULT_HOST_PORT = f"{_DEFAULT_HOST}:{_DEFAULT_PORT}"
@@ -30,15 +32,8 @@ def address(peer: Optional[str], single=False) -> str:
     if peer is None:
         return _DEFAULT_HOST_PORT
     # separate "/group" from peer(s)
-    group = None
-    i = peer.find("/")
-    if i == 0:
-        group = peer
-        peer = ""
-    if i > 0:
-        group = peer[i:]  # will have prefix "/"
-        peer = peer[:i]
-    peer = peer.strip()
+    peer, group = split_address_and_group(peer)
+
     if peer in ["", ".", _DEFAULT_HOST, _DEFAULT_HOST_PORT]:
         return _DEFAULT_HOST_PORT + (group or "")
     is_multi = "," in peer  # multple hosts

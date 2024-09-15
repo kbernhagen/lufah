@@ -40,30 +40,30 @@ Little Utility for FAH v8
 
 positional arguments:
   COMMAND
-    state               show json snapshot of client state
+    state               Show json snapshot of client state.
     status              alias for state
-    units               show table of all units by group
-    fold                start folding in specified group or all groups
-    finish              finish folding and pause specified group or all groups
-    pause               pause folding in specified group or all groups
+    units               Show table of all units by machine name and group.
+    fold                Start folding in specified group or all groups.
+    finish              Finish folding and pause specified group or all groups.
+    pause               Pause folding in specified group or all groups.
     unpause             alias for fold
-    config              get or set config values
-    groups              show json array of resource group names
-    create-group        create group if it does not exist
-    info                show host and client info
-    log                 show log; use control-c to exit
-    watch               show incoming messages; use control-c to exit
-    get                 show json value at dot-separated key path in client state
-    unlink-account      unlink account requires client 8.3.1 thru 8.3.16
-    link-account        account-token [machine-name]
-    restart-account     restart account/node connection
-    wait-until-paused   run until specified group or all groups are paused
-    enable-all-gpus     enable all unclaimed gpus in specified group
-    dump-all            dump all paused units in specified group or all groups
-    start               start local client service
-    stop                stop local client service
+    config              Get or set config values.
+    groups              Show json array of resource group names.
+    create-group        Create group if it does not exist.
+    info                Show host and client info.
+    log                 Show client log. Use control-c to exit.
+    watch               Show incoming messages. Use control-c to exit.
+    get                 Show json value at dot-separated key path in client state.
+    unlink-account      Unlink account. Requires client 8.3.1 thru 8.3.16.
+    link-account        Link to account by token.
+    restart-account     Restart account/node connection.
+    wait-until-paused   Run until specified group or all groups are paused.
+    enable-all-gpus     Enable all unclaimed gpus in specified group.
+    dump-all            Dump all paused units in specified group or all groups.
+    start               Start local client service.
+    stop                Stop local client service.
 
-options:
+optional arguments:
   -h, --help            show this help message and exit
   -v, --verbose
   -d, --debug
