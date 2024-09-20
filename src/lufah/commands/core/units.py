@@ -152,7 +152,10 @@ def print_unit(client, unit):
             atime = dt.datetime.fromisoformat(assign_time.replace("Z", "+00:00"))
             dtime = atime + dt.timedelta(seconds=deadline)
             deadline_secs = (dtime - now).total_seconds()
-            deadline_str = natural_delta_from_seconds(deadline_secs)
+            if deadline_secs <= 0:
+                deadline_str = "Expired"
+            else:
+                deadline_str = natural_delta_from_seconds(deadline_secs)
         except:  # noqa: E722
             pass
     print(
