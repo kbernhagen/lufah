@@ -95,6 +95,31 @@ def status_for_unit(client, unit):
     return STATUS_STRINGS.get(state, state)
 
 
+def _group_status(client, group_name):
+    "Human-readable group status string"
+    if client.version < (8, 3):
+        # NOT TESTED, will be deprecated soon anyway
+        group = client.data or {}
+    else:
+        group = client.data.get("groups", {}).get(group_name, {})
+    if group.get("config", {}).get("paused"):
+        return "Paused"
+    wait_str = group.get("wait", "")
+    if wait_str:
+        now = dt.datetime.now(dt.timezone.utc)
+        wait_time = dt.datetime.fromisoformat(wait_str.replace("Z", "+00:00"))
+        interval = (wait_time - now).total_seconds()
+        if interval > 1:
+            wait_str = "Wait " + natural_delta_from_seconds(interval)
+        else:
+            wait_str = ""
+    if group.get("config", {}).get("finish"):
+        status = "Finish " + wait_str
+    else:
+        status = "Run " + wait_str
+    return status
+
+
 def print_unit(client, unit):
     if unit is None:
         return
@@ -174,7 +199,8 @@ async def do_units(args: argparse.Namespace):
                 print_unit(client, unit)
         else:
             for group in groups:
-                print(f"{name}/{group}")
+                name_group = f"{name}/{group}"
+                print(f"{name_group:<25} ", _group_status(client, group))
                 units = units_for_group(client, group)
                 if not units:
                     continue

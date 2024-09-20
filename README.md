@@ -128,8 +128,11 @@ lufah -a .,panda units
 --------------------------------------------------------------------------------
 Project  CPUs  GPUs  Core  Status          Progress  PPD       ETA      Deadline
 --------------------------------------------------------------------------------
-Panda/
-12417    4     0     0xa8  Running          25.4%    162364    4h 7m    4d 22h  
-Sanctuary/
-18806    8     0     0xa9  Running          63.1%    261999    2h 53m   2d 21h  
+Panda/                     Run 
+18494    4     0     0xa8  Running          89.0%    178413    26m 39s  3d 8h   
+Sanctuary/                 Paused
+Sanctuary/tcore            Run Wait 16m 21s
+11901    2     0     0xfe  Dumped            0.0%    0         28m 48s  5h 59m  
+Sanctuary/aux              Finish 
+12421    8     0     0xa8  Finishing        48.1%    237945    14h 15m  4d 10h  
 ```
