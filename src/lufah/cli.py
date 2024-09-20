@@ -217,7 +217,7 @@ def parse_args() -> argparse.Namespace:
         if cmd in COMMAND_ALIASES:
             true_cmd = COMMAND_ALIASES.get(cmd)
             alias_help = "alias for " + true_cmd
-        # if an alias, we will get not_implemented, whicvh we use for desc
+        # if an alias, we will get not_implemented, which we use for desc
         func = COMMANDS_DISPATCH.get(cmd) or not_implemented
         # cmd will be hidden if help is None
         # help1 = dedent(alias_help or func.__doc__ or "")
@@ -242,7 +242,7 @@ def parse_args() -> argparse.Namespace:
                 conv = info.get("type")
                 choices = info.get("values")
                 kdesc = dedent(info.get("help", ""))
-                khelp = kdesc  # TODO, maybe: util.firstline(kdesc).strip()
+                khelp = (first_non_blank_line(kdesc) or "").strip()
                 keyparser = config_parsers.add_parser(
                     key,
                     description=kdesc,
@@ -269,14 +269,14 @@ def parse_args() -> argparse.Namespace:
                 "account_token",
                 metavar="ACCOUNT-TOKEN",
                 type=valid.account_token,
-                help=valid.account_token.__doc__,
+                help=(first_non_blank_line(valid.account_token.__doc__) or "").strip(),
             )
             par.add_argument(
                 "machine_name",
                 nargs="?",
                 metavar="MACHINE-NAME",
                 type=valid.machine_name,
-                help=valid.machine_name.__doc__,
+                help=(first_non_blank_line(valid.machine_name.__doc__) or "").strip(),
             )
         elif cmd == "dump-all":
             par.add_argument("--force", action="store_true")
