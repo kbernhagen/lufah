@@ -51,17 +51,35 @@ KNOWN_CAUSES = [
     "covid-19",
 ]
 
-# From Web Control
+# From Web Control src/unit.js
 # some of these are synthetic (not actual unit.state)
 # client can return pause_reason strings longer than 16 chars
 STATUS_STRINGS = {
-    "ASSIGN": "Requesting work",
-    "DOWNLOAD": "Downloading work",
-    "CORE": "Downloading core",
+    "ASSIGN": "Assigning",
+    "DOWNLOAD": "Downloading",
+    "CORE": "Core",
     "RUN": "Running",
     "FINISH": "Finishing",
     "UPLOAD": "Uploading",
-    "CLEAN": "Cleaning up",
+    "CLEAN": "Ended",
     "WAIT": "Waiting",
     "PAUSE": "Paused",
+    "DUMP": "Dumping",
+    "DUMPED": "Dumped",
+    "EXPIRED": "Expired",
+    "ABORTED": "Aborted",
+    "MISSING": "Missing Data",
+    "RETRIES": "Max Retries",
+    "FAILED": "Failed",
+    "REJECTED": "Rejected",
+    "CREDITED": "Credited",
+}
+
+WAIT_STATUS_STRINGS = {
+    "ASSIGN": "Assign Wait",
+    "DOWNLOAD": "Download Wait",
+    "CORE": "Core Wait",
+    "RUN": "Run Wait",
+    "UPLOAD": "Upload Wait",
+    "DUMP": "Dump Wait",
 }
