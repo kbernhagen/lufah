@@ -6,7 +6,7 @@ import logging
 import math
 from urllib.parse import urlparse
 
-from lufah.const import STATUS_STRINGS
+from lufah.const import STATUS_STRINGS, WAIT_STATUS_STRINGS
 from lufah.util import natural_delta_from_seconds, shorten_natural_delta
 
 LOGGER = logging.getLogger(__name__)
@@ -28,33 +28,70 @@ def units_for_group(client, group):
     return units
 
 
+def _wait_until(unit):
+    when_str = unit.get("wait")
+    return dt.datetime.fromisoformat(when_str.replace("Z", "+00:00"))
+
+
+def _waiting(unit):
+    now = dt.datetime.now(dt.timezone.utc)
+    return unit.get("wait") and now < _wait_until(unit)
+
+
+def _finish(client, unit):
+    if unit.get("state") != "RUN":
+        return False
+    if client.version < (8, 3):
+        finish = client.data.get("config", {}).get("finish", False)
+    else:
+        group = unit.get("group")
+        if group is not None:  # "" is the default group
+            gconfig = client.data.get("groups", {}).get(group, {}).get("config", {})
+        else:
+            gconfig = {}
+        finish = gconfig.get("finish", False)
+    return finish
+
+
+def _paused(client, unit):
+    if unit.get("pause_reason"):
+        return True
+    if client.version < (8, 3):
+        paused = client.data.get("config", {}).get("paused", False)
+    else:
+        group = unit.get("group", None)
+        if group is not None:
+            gconfig = client.data.get("groups", {}).get(group, {}).get("config", {})
+            paused = gconfig.get("paused", False)
+        else:
+            paused = True
+    return paused
+
+
+def _state(client, unit):
+    if _waiting(unit):
+        return "WAIT"
+    state = unit.get("state")
+    if state == "DONE":
+        result = unit.get("result")
+        if result:
+            return result.upper()
+    if _finish(client, unit):
+        return "FINISH"
+    if _paused(client, unit):
+        return "PAUSE"
+    return state or ""
+
+
 def status_for_unit(client, unit):
     "Human-readable Status string"
-    # FIXME: should exactly match what Web Control does
-    # FIXME: waiting is web control unitview.waiting
-    # if unit.get('waiting'): return STATUS_STRINGS.get('WAIT', state)
-    status = unit.get("pause_reason")
-    if status:
-        # assume paused if have pause_reason
-        return status
-    state = unit.get("state", "")  # is never FINISH
-    if state == "RUN":
-        if client.version < (8, 3):
-            paused = client.data.get("config", {}).get("paused", False)
-            finish = client.data.get("config", {}).get("finish", False)
-        else:
-            group = unit.get("group", None)
-            if group is not None:
-                gconfig = client.data.get("groups", {}).get(group, {}).get("config", {})
-                paused = gconfig.get("paused", False)
-                finish = gconfig.get("finish", False)
-            else:
-                paused = True
-                finish = False
-        if paused:
-            state = "PAUSE"
-        elif finish:
-            state = "FINISH"
+    if _waiting(unit):
+        state = unit.get("state", "")
+        return WAIT_STATUS_STRINGS.get(state) or STATUS_STRINGS.get(state, state)
+    reason = unit.get("pause_reason")
+    if reason:
+        return reason
+    state = _state(client, unit)
     return STATUS_STRINGS.get(state, state)
 
 
@@ -68,8 +105,11 @@ def print_unit(client, unit):
     status = status_for_unit(client, unit)
     cpus = unit.get("cpus", 0)
     gpus = len(unit.get("gpus", []))
-    # FIXME: there can also be wait_progress
-    progress = unit.get("wu_progress", unit.get("progress", 0))
+    progress = None
+    if _waiting(unit):
+        progress = unit.get("wait_progress")
+    if progress is None:
+        progress = unit.get("wu_progress", unit.get("progress", 0))
     progress = math.floor(progress * 1000) / 10.0
     progress = str(progress) + "%"
     ppd = unit.get("ppd", 0)
