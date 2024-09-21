@@ -114,12 +114,13 @@ def key(value: Optional[str]) -> Optional[int]:
 def machine_name(value: Optional[str]) -> Optional[str]:
     """
     machine-name is used to identify the machine.
-    Must be between 1 and 64 characters and cannot include any of <>;&'"
+    Must be between 1 and 64 characters and cannot include any of \\<>;&'"
+    or whitespace.
     """
     if value is None:
         return value
     value = value.strip()
-    if not value or not re.match(r"^[^<>;&'\"]{1,64}$", value):
+    if not value or not re.match(r"^[^\s\\<>;&'\"]{1,64}$", value):
         raise Exception(f"Error: {machine_name.__doc__}")
     return value
 
