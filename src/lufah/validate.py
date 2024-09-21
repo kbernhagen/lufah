@@ -13,7 +13,7 @@ _DEFAULT_HOST_PORT = f"{_DEFAULT_HOST}:{_DEFAULT_PORT}"
 
 
 def account_token(value: Optional[str]) -> Optional[str]:
-    """token must be 43 url base64 characters"""
+    """Account token must be 43 url base64 characters."""
     if value is None:
         return value
     # token is URL base64 encoding of 32 bytes, no padding '='
@@ -66,7 +66,7 @@ def address(peer: Optional[str], single=False) -> str:
 
 
 def cause(value: Optional[str]) -> Optional[str]:
-    """preferred cause"""
+    """Your preferred cause"""
     if value is None:
         return None
     if value == "":
@@ -78,7 +78,7 @@ def cause(value: Optional[str]) -> Optional[str]:
 
 
 def cpus(value: Optional[str]) -> Optional[int]:
-    """cpus to allocate to resource group"""
+    """Number of cpus to allocate to resource group"""
     if value is None:
         return None
     value = int(value)
@@ -88,7 +88,7 @@ def cpus(value: Optional[str]) -> Optional[int]:
 
 
 def checkpoint(value: Optional[str]) -> Optional[int]:
-    """requested cpu WU checkpoint frequency in minutes (deprecated)"""
+    """Requested cpu WU checkpoint frequency in minutes (deprecated)"""
     if value is None:
         return None
     if value == "":
@@ -100,7 +100,7 @@ def checkpoint(value: Optional[str]) -> Optional[int]:
 
 
 def key(value: Optional[str]) -> Optional[int]:
-    """project key for internal testing"""
+    """Project key used for internal testing"""
     if value is None:
         return None
     if value == "":
@@ -112,17 +112,23 @@ def key(value: Optional[str]) -> Optional[int]:
 
 
 def machine_name(value: Optional[str]) -> Optional[str]:
-    """name must be 1 to 64 letters, numbers, underscore, dash (-), dot (.)"""
+    """
+    machine-name is used to identify the machine.
+    Must be between 1 and 64 characters and cannot include any of <>;&'"
+    """
     if value is None:
         return value
     value = value.strip()
-    if not value or not re.match(r"^[\w\.-]{1,64}$", value):
+    if not value or not re.match(r"^[^<>;&'\"]{1,64}$", value):
         raise Exception(f"Error: {machine_name.__doc__}")
     return value
 
 
 def passkey(value: Optional[str]) -> Optional[str]:
-    """passkey must be "" or 32 hexadecimal characters"""
+    """
+    Your passkey for quick return bonus points
+    Passkey must be "" or 32 hexadecimal characters.
+    """
     if value is None:
         return None
     value = value.strip().lower()
@@ -132,7 +138,7 @@ def passkey(value: Optional[str]) -> Optional[str]:
 
 
 def priority(value: Optional[str]) -> Optional[str]:
-    """preferred core task priority (deprecated)"""
+    """Preferred core task priority (deprecated)"""
     if value is None:
         return None
     if value == "":
@@ -145,7 +151,7 @@ def priority(value: Optional[str]) -> Optional[str]:
 
 
 def team(value: Optional[str]) -> Optional[int]:
-    """an existing team number"""
+    """An existing team number"""
     if value is None:
         return None
     value = int(value, 0)
@@ -155,8 +161,8 @@ def team(value: Optional[str]) -> Optional[int]:
 
 
 def user(value: Optional[str]) -> Optional[str]:
-    """\
-    up to 100 bytes
+    """
+    Your folding user name, up to 100 bytes
     Leading/trailing whitespace will be trimmed.
     If you are using unusual chars, please use Web Control.
     """
