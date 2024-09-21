@@ -35,6 +35,7 @@ from lufah.commands.core.wait_until_paused import do_wait_until_paused
 from lufah.commands.core.watch import do_watch
 from lufah.exceptions import *  # noqa: F403
 from lufah.fahclient import FahClient
+from lufah.logger import logger, simple_log_handler
 from lufah.util import bool_from_string, eprint, first_non_blank_line
 
 PROGRAM = os.path.basename(sys.argv[0])
@@ -81,8 +82,6 @@ If group does not exist on 8.1, this script may hang until silent timeout.
 if sys.platform == "darwin":
     _EPILOG += "Commands start and stop are macOS-only."
 
-LOGGER = logging.getLogger(__name__)
-
 HIDDEN_COMMANDS = []  # experimental stuff
 NO_CLIENT_COMMANDS = ["start", "stop"]
 MULTI_PEER_COMMANDS = ["units", "info", "fold", "finish", "pause"]
@@ -119,7 +118,6 @@ COMMAND_ALIASES = {
     "status": "state",  # fahctl has state command
 }
 
-
 # config keys and value validation info
 VALID_KEYS_VALUES = {
     "user": {"type": valid.user, "help": valid.user.__doc__},
@@ -145,15 +143,17 @@ VALID_KEYS_VALUES = {
 
 
 def postprocess_parsed_args(args: argparse.Namespace):
-    if args.debug:
-        args.verbose = True
+    if args.debug and args.verbose:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logger.addHandler(simple_log_handler)
 
     if args.debug:
-        logging.basicConfig(level=logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
     elif args.verbose:
-        logging.basicConfig(level=logging.INFO)
+        logger.setLevel(logging.INFO)
     else:
-        logging.basicConfig(level=logging.WARNING)
+        logger.setLevel(logging.WARNING)
 
     if args.command in [None, ""]:
         args.command = DEFAULT_COMMAND
@@ -170,7 +170,7 @@ def postprocess_parsed_args(args: argparse.Namespace):
             peer = peer.strip()
             if peer:
                 args.peers.append(peer)
-        LOGGER.debug("addresses: %s", repr(args.peers))
+        logger.debug("addresses: %s", repr(args.peers))
         args.peer = None
     else:
         args.peers = [args.peer]
@@ -344,7 +344,7 @@ async def main_async():
         else:
             func(args)
     except ConnectionClosed:
-        LOGGER.info("Connection closed")
+        logger.info("Connection closed")
     finally:
         for client in clients:
             await client.close()

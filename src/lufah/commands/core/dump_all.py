@@ -3,12 +3,11 @@ dump all paused units in specified group or all groups
 """
 
 import argparse
-import logging
 import sys
 
-from .units import print_unit, print_units_header
+from lufah.logger import logger
 
-LOGGER = logging.getLogger(__name__)
+from .units import print_unit, print_units_header
 
 
 async def do_dump_all(args: argparse.Namespace):
@@ -33,7 +32,7 @@ async def do_dump_all(args: argparse.Namespace):
         if sys.stdout.isatty():
             print(msg)
         else:
-            LOGGER.info("%s", msg)
+            logger.info("%s", msg)
         return
     if sys.stdout.isatty():
         print("Units to dump:")
@@ -45,7 +44,7 @@ async def do_dump_all(args: argparse.Namespace):
         if sys.stdout.isatty():
             print(msg)
         else:
-            LOGGER.warning("%s", msg)
+            logger.warning("%s", msg)
         return
     for unit in units:
         await client.dump_unit(unit)

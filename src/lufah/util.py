@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import importlib
 import json
-import logging
 import operator
 import re
 import socket
@@ -15,8 +14,7 @@ from urllib.parse import urlparse
 from urllib.request import urlopen
 
 from .exceptions import FahClientGroupDoesNotExist
-
-_LOGGER = logging.getLogger(__name__)
+from .logger import logger
 
 
 def eprint(*args, **kwargs):
@@ -142,7 +140,7 @@ def uri_and_group_for_peer(peer: Optional[str]) -> tuple[Optional[str], Optional
                 try:
                     host = socket.gethostbyname(host + ".local")
                 except socket.gaierror:
-                    _LOGGER.error(
+                    logger.error(
                         "Unable to resolve %s or %s", repr(host), repr(host + ".local")
                     )
                     # proceed with unresolved host

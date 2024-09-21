@@ -4,11 +4,9 @@ import argparse
 import asyncio
 import copy
 import json
-import logging
 
+from lufah.logger import logger
 from lufah.util import diff_dicts
-
-LOGGER = logging.getLogger(__name__)
 
 
 async def _print_json_message(client, msg):
@@ -29,7 +27,7 @@ async def do_watch(args: argparse.Namespace):
     try:
         await client.ws.wait_closed()
     except (KeyboardInterrupt, asyncio.CancelledError):
-        LOGGER.debug("do_watch() caught KeyboardInterrupt or asyncio.CancelledError")
+        logger.debug("do_watch() caught KeyboardInterrupt or asyncio.CancelledError")
     finally:
         if args.debug:
             diff = diff_dicts(snapshot0, client.data)

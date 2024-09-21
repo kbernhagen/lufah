@@ -1,9 +1,8 @@
 "run until specified group or all groups are paused"
 
 import argparse
-import logging
 
-LOGGER = logging.getLogger(__name__)
+from lufah.logger import logger
 
 
 async def _close_if_paused(client, _):
@@ -23,7 +22,7 @@ async def _close_if_paused(client, _):
         if paused is False:
             return
         if paused is None:
-            LOGGER.warning('no value for paused in group "%s"', group)
+            logger.warning('no value for paused in group "%s"', group)
     # all target groups are assumed paused
     await client.close()
 

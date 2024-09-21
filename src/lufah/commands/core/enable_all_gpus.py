@@ -1,9 +1,8 @@
 "enable all unclaimed gpus in specified group"
 
 import argparse
-import logging
 
-LOGGER = logging.getLogger(__name__)
+from lufah.logger import logger
 
 
 async def do_enable_all_gpus(args: argparse.Namespace):
@@ -21,7 +20,7 @@ async def do_enable_all_gpus(args: argparse.Namespace):
         if all_gpus.get(gpuid, {}).get("supported") is True:
             all_supported.add(gpuid)
     if len(all_supported) == 0:
-        LOGGER.warning("no supported gpus found")
+        logger.warning("no supported gpus found")
         return
     # get set of already_enabled gpus across all groups
     already_enabled = set()
@@ -33,11 +32,11 @@ async def do_enable_all_gpus(args: argparse.Namespace):
                 already_enabled.add(gpuid)
 
     to_enable = all_supported - already_enabled
-    LOGGER.debug("all_supported: %s", repr(all_supported))
-    LOGGER.debug("already_enabled: %s", repr(already_enabled))
-    LOGGER.info("to_enable: %s", repr(to_enable))
+    logger.debug("all_supported: %s", repr(all_supported))
+    logger.debug("already_enabled: %s", repr(already_enabled))
+    logger.info("to_enable: %s", repr(to_enable))
     if len(to_enable) == 0:
-        LOGGER.warning("no gpus to enable")
+        logger.warning("no gpus to enable")
         return
     # create group config with to_enable gpus, {gpuid = {enabled = True}}
     # start with existing gpus, so we don't disable any in target group

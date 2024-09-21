@@ -10,6 +10,7 @@ from websockets import connect  # pip3 install websockets
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError
 
 from lufah import validate as valid
+from lufah.logger import logger
 
 from .const import (
     COMMAND_FINISH,
@@ -18,8 +19,6 @@ from .const import (
 )
 from .exceptions import FahClientUnknownCommand
 from .util import get_object_at_key_path, munged_group_name, uri_and_group_for_peer
-
-_LOGGER = logging.getLogger(__name__)
 
 
 class FahClient:
@@ -38,7 +37,7 @@ class FahClient:
         # NOTE: this may raise
         self._uri, self._group = uri_and_group_for_peer(peer)
         self._name = name or urlparse(self._uri).hostname or peer
-        _LOGGER.debug('Created FahClient("%s")', self._name)
+        logger.debug('Created FahClient("%s")', self._name)
 
     @property
     def name(self):
@@ -83,14 +82,14 @@ class FahClient:
         try:
             data = json.loads(message)
         except Exception as e:
-            _LOGGER.error(
+            logger.error(
                 "%s:_update():unable to convert message to json:%s", self._name, type(e)
             )
             return
         try:
             self._update(data)
         except Exception as e:
-            _LOGGER.error("%s:_update():%s", self._name, type(e))
+            logger.error("%s:_update():%s", self._name, type(e))
         for callback in self._callbacks:
             await callback(self, data)
 
@@ -100,12 +99,12 @@ class FahClient:
                 message = await self.ws.recv()
                 await self.process_message(message)
             except (ConnectionClosed, ConnectionClosedError):
-                _LOGGER.info("%s:Connection closed: %s", self._name, self._uri)
+                logger.info("%s:Connection closed: %s", self._name, self._uri)
                 break
             except (KeyboardInterrupt, asyncio.CancelledError):
                 # https://docs.python.org/3/library/asyncio-runner.html#handling-keyboard-interruption
                 # cancelled explicitly or KeyboardInterrupt happened in asyncio and cancelled us
-                _LOGGER.debug(
+                logger.debug(
                     "FahClient(%s).receive():Caught KeyboardInterrupt or asyncio.CancelledError",
                     self._name,
                 )
@@ -113,26 +112,26 @@ class FahClient:
                 break
             except Exception as e:
                 # note: asyncio.CancelledError is apparently not an Exception subclass
-                _LOGGER.debug("%s:Ignoring unexpected exception: %s", self._name, e)
+                logger.debug("%s:Ignoring unexpected exception: %s", self._name, e)
 
     async def connect(self):
         if self.is_connected:
             return
         if self._uri is None:
-            _LOGGER.error("%s:connect(): uri is None", self._name)
+            logger.error("%s:connect(): uri is None", self._name)
             return
         if not self.ws:
-            _LOGGER.info("%s:Opening %s", self._name, self._uri)
+            logger.info("%s:Opening %s", self._name, self._uri)
             try:
                 # client can send a huge message when log is first enabled
                 self.ws = await connect(
                     self._uri, ping_interval=None, max_size=16777216
                 )
-                _LOGGER.info("%s:Connected to %s", self._name, self._uri)
+                logger.info("%s:Connected to %s", self._name, self._uri)
             except Exception:
                 self.data = {}
                 self._version = (0, 0, 0)
-                _LOGGER.warning("%s:Failed to connect to %s", self._name, self._uri)
+                logger.warning("%s:Failed to connect to %s", self._name, self._uri)
                 return
         r = await self.ws.recv()
         snapshot = json.loads(r)
@@ -140,7 +139,7 @@ class FahClient:
         self._version = tuple(map(int, v.split(".")))
         self.data.update(snapshot)
         if self._version < (8, 3):
-            _LOGGER.warning(
+            logger.warning(
                 "Client v%s. Support for clients older than 8.3 is deprecated.", v
             )
         asyncio.ensure_future(self.receive())
@@ -204,7 +203,7 @@ class FahClient:
 
     async def send(self, message):
         if not self.is_connected:
-            _LOGGER.warning("%s:send(): websocket is not open", self._name)
+            logger.warning("%s:send(): websocket is not open", self._name)
             return
         msgstr = None
         if isinstance(message, dict):
@@ -220,11 +219,11 @@ class FahClient:
         elif isinstance(message, list):
             # currently, would be invalid
             msgstr = json.dumps(message)
-        if _LOGGER.isEnabledFor(logging.DEBUG):
-            _LOGGER.debug("%s:WOULD BE sending: %s", self._name, msgstr)
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("%s:WOULD BE sending: %s", self._name, msgstr)
             return
         if msgstr:
-            _LOGGER.info("%s:sending: %s", self._name, msgstr)
+            logger.info("%s:sending: %s", self._name, msgstr)
             await self.ws.send(msgstr)
 
     async def send_command(self, cmd, **kwargs):
@@ -258,7 +257,7 @@ class FahClient:
         # strip leading/trailing whitespace, as web control does
         group = group.strip()
         if group in self.groups:
-            _LOGGER.warning('%s: group "%s" already exists', self._name, group)
+            logger.warning('%s: group "%s" already exists', self._name, group)
             return
         # use side-effect that setting state on non-existant group creates it
         # FIXME: might break in future
@@ -266,7 +265,7 @@ class FahClient:
 
     async def dump_unit(self, unit):
         if unit is None:
-            _LOGGER.error("%s: unit to dump is None", self._name)
+            logger.error("%s: unit to dump is None", self._name)
             return
         if isinstance(unit, str):
             unit_id = unit
@@ -275,7 +274,7 @@ class FahClient:
         if unit_id:
             await self.send({"cmd": "dump", "unit": unit_id})
         else:
-            _LOGGER.error("%s: unit to dump has no id", self._name)
+            logger.error("%s: unit to dump has no id", self._name)
 
     def paused_units_in_group(self, group):
         units = []

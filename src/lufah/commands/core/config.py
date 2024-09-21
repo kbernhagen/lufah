@@ -2,7 +2,6 @@
 
 import argparse
 import json
-import logging
 
 from lufah.const import (
     DEPRECATED_CONFIG_KEYS,
@@ -10,9 +9,8 @@ from lufah.const import (
     GROUP_CONFIG_KEYS,
     VALID_CONFIG_SET_KEYS,
 )
+from lufah.logger import logger
 from lufah.util import munged_group_name
-
-LOGGER = logging.getLogger(__name__)
 
 
 async def do_config(args: argparse.Namespace):
@@ -86,8 +84,8 @@ async def do_config(args: argparse.Namespace):
         if key not in VALID_CONFIG_SET_KEYS:
             raise Exception(f'Error: setting "{key0}" is not supported in fah 8.3')
         if have_acct and key in GLOBAL_CONFIG_KEYS:
-            LOGGER.warning("Machine is linked to an account")
-            LOGGER.warning(' "%s" "%s" may be overwritten by account', key0, value)
+            logger.warning("Machine is linked to an account")
+            logger.warning(' "%s" "%s" may be overwritten by account', key0, value)
 
     # TODO: don't send if value == current_value
     conf = {key: value}

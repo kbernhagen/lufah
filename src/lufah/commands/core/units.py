@@ -2,19 +2,17 @@
 
 import argparse
 import datetime as dt
-import logging
 import math
 from urllib.parse import urlparse
 
 from lufah.const import STATUS_STRINGS, WAIT_STATUS_STRINGS
+from lufah.logger import logger
 from lufah.util import natural_delta_from_seconds, shorten_natural_delta
-
-LOGGER = logging.getLogger(__name__)
 
 
 def units_for_group(client, group):
     if client is None:
-        LOGGER.error(" units_for_group(client, group): client is None")
+        logger.error(" units_for_group(client, group): client is None")
         return []
     all_units = client.data.get("units", [])
     if group is None or client.version < (8, 3):

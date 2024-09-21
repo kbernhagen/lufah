@@ -1,14 +1,12 @@
 # pylint: disable=missing-module-docstring
 
 import argparse
-import logging
 import sys
 from subprocess import check_call
 from urllib.parse import urlparse
 
+from lufah.logger import logger
 from lufah.util import split_address_and_group
-
-LOGGER = logging.getLogger(__name__)
 
 
 def _start_or_stop_local_sevice(args: argparse.Namespace, command=None):
@@ -22,9 +20,9 @@ def _start_or_stop_local_sevice(args: argparse.Namespace, command=None):
         note = f"org.foldingathome.fahclient.nobody.{command or args.command}"
         cmd = ["notifyutil", "-p", note]
         if args.debug:
-            LOGGER.debug("WOULD BE running: %s", " ".join(cmd))
+            logger.debug("WOULD BE running: %s", " ".join(cmd))
             return
-        LOGGER.info("%s", " ".join(cmd))
+        logger.info("%s", " ".join(cmd))
         check_call(cmd)
 
 
