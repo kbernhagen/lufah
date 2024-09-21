@@ -69,6 +69,9 @@ def first_non_blank_line(s: Optional[str]) -> Optional[str]:
 def get_object_at_key_path(obj, key_path: Union[str, list]):
     if isinstance(key_path, str):
         key_path = key_path.split(".")
+        # courtesy of chatgpt 4o:
+        # Convert strings that are valid integers to integers for list indexing
+        key_path = [int(k) if k.isdigit() else k for k in key_path]
     try:
         return reduce(operator.getitem, key_path, obj)
     except (KeyError, IndexError, TypeError):
