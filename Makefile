@@ -65,8 +65,8 @@ publish: build  # build and publish to pypi.org
 
 .PHONY: clean
 clean:  # remove all build products
-	rm -rf dist build *.egg-info lufah/__pycache__ examples/__pycache__
-	rm -rf src/*.egg-info src/*/__pycache__
+	rm -rf dist build src/*.egg-info examples/__pycache__
+	find src -type d -name __pycache__ -print -exec rm -r {} \; -prune
 
 .PHONY: clean-venv
 clean-venv:  # remove venv
