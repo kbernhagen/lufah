@@ -10,9 +10,9 @@ async def do_enable_all_gpus(args: argparse.Namespace):
     client = args.client
     await client.connect()
     if client.version < (8, 3, 17):
-        raise Exception("enable-all-gpus requires client 8.3.17+")
+        raise Exception("Error: enable-all-gpus requires client 8.3.17+")
     if client.group is None or client.group not in client.groups:
-        raise Exception("an existing group must be specified for enable-all-gpus")
+        raise Exception("Error: an existing group must be specified for enable-all-gpus")
     all_gpus = client.data.get("info", {}).get("gpus", {})
     # get set of all_supported gpu ids, info.gpus id with "supported" True
     all_supported = set()

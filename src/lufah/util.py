@@ -29,7 +29,7 @@ def bool_from_string(value: Optional[str]) -> bool:
         return True
     if value in ["false", "no", "off", "0"]:
         return False
-    raise Exception(f"ERROR: not a bool string: '{value}'")
+    raise Exception(f"Error: not a bool string: '{value}'")
 
 
 def split_address_and_group(peer: Optional[str]) -> tuple[Optional[str], Optional[str]]:

@@ -15,4 +15,4 @@ async def do_restart_account(args: argparse.Namespace):
     if (8, 3, 17) <= client.version:
         await client.send({"cmd": "restart"})
     else:
-        raise Exception("restart account requires client 8.3.17+")
+        raise Exception("Error: restart account requires client 8.3.17+")

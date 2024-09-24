@@ -319,11 +319,11 @@ async def main_async():
     args = parse_args()
 
     if args.command not in COMMANDS + HIDDEN_COMMANDS:
-        raise Exception(f"Error:Unknown command: {args.command}")
+        raise Exception(f"Error: Unknown command: {args.command}")
 
     func = args.func
     if func is None:
-        raise Exception(f"Error:Command {args.command} is not implemented")
+        raise Exception(f"Error: Command {args.command} is not implemented")
 
     client = None
     clients = []

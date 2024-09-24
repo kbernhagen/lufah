@@ -12,8 +12,8 @@ class CustomFormatter(logging.Formatter):
     FORMATS = {
         logging.DEBUG: "%(levelname)s:%(filename)s:%(lineno)s: %(message)s",
         logging.INFO: "%(message)s",
-        logging.WARNING: "%(levelname)s: %(message)s",
-        logging.ERROR: "%(levelname)s: %(message)s",
+        logging.WARNING: "Warning: %(message)s",
+        logging.ERROR: "Error: %(message)s",
         logging.CRITICAL: "%(levelname)s: %(message)s",
     }
 

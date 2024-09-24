@@ -147,7 +147,7 @@ def priority(value: Optional[str]) -> Optional[str]:
     value = value.strip().lower()
     known_values = ["idle", "low", "normal", "inherit"]
     if value not in known_values:
-        raise Exception(f"priority must be one of: {' '.join(known_values)}")
+        raise Exception(f"Error: priority must be one of: {' '.join(known_values)}")
     return value
 
 

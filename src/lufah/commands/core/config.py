@@ -85,7 +85,7 @@ async def do_config(args: argparse.Namespace):
             raise Exception(f'Error: setting "{key0}" is not supported in fah 8.3')
         if have_acct and key in GLOBAL_CONFIG_KEYS:
             logger.warning("Machine is linked to an account")
-            logger.warning(' "%s" "%s" may be overwritten by account', key0, value)
+            logger.warning('"%s" "%s" may be overwritten by account', key0, value)
 
     # TODO: don't send if value == current_value
     conf = {key: value}

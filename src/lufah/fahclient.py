@@ -251,9 +251,9 @@ class FahClient:
 
     async def create_group(self, group):
         if self.version < (8, 3, 1):
-            raise Exception("create group requires client 8.3.1+")
+            raise Exception("Error: create group requires client 8.3.1+")
         if group is None:
-            raise Exception("no group specified")
+            raise Exception("Error: no group specified")
         # strip leading/trailing whitespace, as web control does
         group = group.strip()
         if group in self.groups:

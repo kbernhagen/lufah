@@ -34,7 +34,7 @@ async def do_wait_until_paused(args: argparse.Namespace):
     client.should_process_updates = True
     await client.connect()
     if client.version < (8, 3, 17):
-        raise Exception("wait-until-paused requires client 8.3.17+")
+        raise Exception("Error: wait-until-paused requires client 8.3.17+")
     if args.debug:
         return
     # process initial connection snapshot

@@ -9,7 +9,7 @@ async def _do_command_multi(args: argparse.Namespace, command=None):
             await client.connect()
             await client.send_command(command or args.command)
         except Exception as e:
-            raise Exception(f"FahClient('{client.name}'):{e}") from e
+            raise Exception(f"Error: FahClient('{client.name}'):{e}") from e
 
 
 async def do_finish(args: argparse.Namespace):

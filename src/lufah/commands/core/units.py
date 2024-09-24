@@ -12,7 +12,7 @@ from lufah.util import natural_delta_from_seconds, shorten_natural_delta
 
 def units_for_group(client, group):
     if client is None:
-        logger.error(" units_for_group(client, group): client is None")
+        logger.error("units_for_group(client, group): client is None")
         return []
     all_units = client.data.get("units", [])
     if group is None or client.version < (8, 3):
@@ -190,7 +190,7 @@ async def do_units(args: argparse.Namespace):
         groups = client.groups
         if not groups:
             if not client.is_connected:
-                print(name + "  NOT CONNECTED")
+                print(f"{name:<26} Disconnected")
                 continue
             print(name)
             units = units_for_group(client, None)

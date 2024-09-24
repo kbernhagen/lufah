@@ -14,9 +14,8 @@ def _start_or_stop_local_sevice(args: argparse.Namespace, command=None):
         addr, _ = split_address_and_group(args.peer)
         host = urlparse("ws://" + addr).hostname
         if host not in [".", "", None, "localhost", "127.0.0.1"]:
-            raise Exception(
-                "commands start and stop only apply to local client service"
-            )
+            logger.error("Commands start and stop only apply to local client service")
+            raise SystemExit
         note = f"org.foldingathome.fahclient.nobody.{command or args.command}"
         cmd = ["notifyutil", "-p", note]
         if args.debug:
