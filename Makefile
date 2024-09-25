@@ -14,6 +14,10 @@ help:
 install-user: $(VENV)  # install via pipx for current user; does not need setup
 	"$(PYTHON)" -m pipx install --force .
 
+.PHONY: uninstall-user
+uninstall-user: $(VENV)  # uninstall via pipx for current user; does not need setup
+	"$(PYTHON)" -m pipx uninstall lufah
+
 .PHONY: setup
 setup: $(VENV) $(UV)  # pipx install uv and sync --frozen; not required for 'make install-user'
 	"$(UV)" sync --frozen

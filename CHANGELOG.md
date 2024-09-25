@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added Uninstall to docs and Makefile
+
 ---
 
 ## [0.7.0] - 2024-09-24

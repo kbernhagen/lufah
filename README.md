@@ -13,8 +13,27 @@ work on macOS, Linux, and Windows.
 
 ## Install from PyPI
 
+Install in isolated user environment (preferred):
+```
+pip install pipx
+pipx install lufah
+```
+
+Or
 ```
 pip install lufah
+```
+
+## Uninstall
+
+```
+pip install pipx
+pipx uninstall lufah
+```
+
+Or
+```
+pip uninstall lufah
 ```
 
 ## Install from source
@@ -24,6 +43,14 @@ macOS / Linux / Windows
 git clone https://github.com/kbernhagen/lufah.git
 cd lufah
 make install-user
+```
+
+## Uninstall from source
+
+```
+git clone https://github.com/kbernhagen/lufah.git
+cd lufah
+make uninstall-user
 ```
 
 ## Usage
