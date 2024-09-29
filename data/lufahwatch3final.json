@@ -1,0 +1,142 @@
+{
+  "info": {
+    "version": "8.4.5",
+    "url": "https://v8-4.foldingathome.org/",
+    "os": "macosx",
+    "os_version": "14.7",
+    "cpu": "amd64",
+    "cpu_brand": "Intel(R) Xeon(R) W-3245 CPU @ 3.20GHz",
+    "cpus": 32,
+    "gpus": {
+      "gpu:09:00:00": {
+        "vendor": 4098,
+        "device": 26275,
+        "type": "amd",
+        "supported": false,
+        "description": "Vega 20"
+      }
+    },
+    "mach_name": "Sanctuary7",
+    "hostname": "Sanctuary",
+    "mode": "Debug",
+    "revision": "138cb1630cd1c3c81434438edc46757d07c1b09e",
+    "has_battery": true,
+    "on_battery": false,
+    "id": "1111111111111111111111111111111111111111111",
+    "account": ""
+  },
+  "config": {
+    "user": "calxalot",
+    "team": 1971,
+    "passkey": "",
+    "cause": "alzheimers"
+  },
+  "groups": {
+    "": {
+      "config": {
+        "on_idle": false,
+        "on_battery": false,
+        "keep_awake": true,
+        "paused": true,
+        "finish": false,
+        "beta": false,
+        "cuda": false,
+        "key": 0,
+        "cpus": 0,
+        "gpus": {
+          "gpu:09:00:00": {
+            "enabled": false
+          }
+        }
+      },
+      "wait": "2024-10-01T04:17:30Z"
+    },
+    "aux": {
+      "config": {
+        "on_idle": false,
+        "on_battery": false,
+        "keep_awake": true,
+        "paused": true,
+        "finish": false,
+        "beta": false,
+        "cuda": true,
+        "key": 0,
+        "cpus": 4,
+        "gpus": {
+          "gpu:09:00:00": {
+            "enabled": false
+          }
+        }
+      },
+      "wait": "2024-10-01T04:30:46Z"
+    },
+    "aux2": {
+      "config": {
+        "on_idle": false,
+        "on_battery": false,
+        "keep_awake": false,
+        "paused": true,
+        "finish": false,
+        "beta": false,
+        "cuda": true,
+        "key": 0,
+        "cpus": 16,
+        "gpus": {
+          "gpu:09:00:00": {
+            "enabled": false
+          }
+        }
+      },
+      "wait": "2024-10-01T06:32:19Z"
+    }
+  },
+  "units": [
+    {
+      "group": "aux",
+      "number": 1405523,
+      "cpus": 4,
+      "gpus": [],
+      "state": "RUN",
+      "paused": false,
+      "id": "Ty8NwvbqYNkNqG5gkJXj8E3g0_PnSEOM_zr3Am6431Q",
+      "progress": 0,
+      "assignment": {
+        "time": "2024-10-01T01:47:53Z",
+        "ws": "ds01.scs.illinois.edu",
+        "port": 443,
+        "project": 19228,
+        "deadline": 345600,
+        "timeout": 259200,
+        "credit": 17680,
+        "cpus": 4,
+        "min_cpus": 1,
+        "max_cpus": 64,
+        "core": {
+          "type": "0xa8",
+          "url": "https://cores2.foldingathome.org/fahcore-a8-osx-64bit-avx2_256-0.0.12.tar.bz2",
+          "sha256": "7e36d0874f5e87ba5b7aeaf66c08afd1ffa6d16fe21877b2b5f3d15a0a8a9f4a"
+        }
+      },
+      "wu": {
+        "time": "2024-10-01T01:47:53Z",
+        "cs": [
+          "ds03.scs.illinois.edu",
+          "highland3.seas.upenn.edu",
+          "vav24.fah.temple.edu",
+          "highland4.seas.upenn.edu"
+        ],
+        "server": 2158905674,
+        "run": 8362,
+        "clone": 3,
+        "gen": 4,
+        "sha256": "0VgqnOheIEVzc4sCN9oFe30Qe7swH12OqppfIOygMFM="
+      },
+      "wu_progress": 0.211,
+      "eta": "10h 9m",
+      "ppd": 77952,
+      "frames": 22,
+      "pause_reason": "Paused",
+      "run_time": 9770
+    }
+  ]
+}

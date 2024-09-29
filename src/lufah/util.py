@@ -9,7 +9,7 @@ import re
 import socket
 import sys
 from functools import reduce
-from typing import Callable, Optional, Union
+from typing import Callable, Generator, Optional, Union
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
@@ -241,3 +241,36 @@ def shorten_natural_delta(eta: str) -> str:
     eta = eta.replace(" mins", "m").replace(" min", "m")
     eta = eta.replace(" secs", "s").replace(" sec", "s")
     return eta
+
+
+def yield_json_objects_from_file(
+    path: str,
+) -> Generator[Union[dict, list, int, float, str, bool, None], None, None]:
+    """
+    Return a generator of JSON objects from file at path.
+
+    The file should contain multiple valid JSON objects, one per line or spanning multiple lines.
+    This is like JSON Lines but allowing multi-line values.
+    Parsing a multi-line value is very inefficient.
+
+    For expected use, the first object is the initial state dict, and the rest are periodic updates.
+    """
+    with open(path, "r", encoding="utf-8") as f:
+        buffer = ""
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            buffer += line
+            try:
+                obj = json.loads(buffer)
+                buffer = ""
+                yield obj
+            except json.JSONDecodeError:
+                # Continue reading until we have a complete JSON object
+                continue
+
+
+def load_json_objects_from_file(path: str) -> list:
+    """Return list of JSON obects from file at path."""
+    return list(yield_json_objects_from_file(path))

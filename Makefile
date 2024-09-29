@@ -46,8 +46,12 @@ sync-no-dev:  # uv sync --no-dev; for testing without dev deps
 
 .PHONY: lint
 lint:  # uv run pylint and ruff
-	"$(UV)" run pylint src/* examples/*
-	"$(UV)" run ruff check src/* examples/*
+	"$(UV)" run ruff check
+	"$(UV)" run pylint examples scripts src tests
+
+.PHONY: test
+test:  # uv run pytest -vv
+	"$(UV)" run pytest -vv
 
 .PHONY: build
 build: clean  # clean build and check; done as-needed by other targets

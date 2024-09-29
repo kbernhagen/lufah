@@ -38,8 +38,10 @@ path = "src/lufah/__init__.py"
 
 [tool.uv]
 dev-dependencies = [
+    "argh",
     "pipx",
     "pylint",
+    "pytest",
     "ruff",
     "twine",
 ]
