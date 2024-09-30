@@ -348,6 +348,7 @@ async def main_async():
     finally:
         for client in clients:
             await client.close()
+        await asyncio.sleep(0)
 
 
 def main():
