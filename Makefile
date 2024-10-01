@@ -1,6 +1,6 @@
 VENV := .venv
 PYTHON := $(VENV)/bin/python
-UV := $(HOME)/.local/bin/uv
+UV := ${HOME}/.local/bin/uv
 
 .PHONY: help
 help:
@@ -31,7 +31,9 @@ $(VENV):
 	@echo "You may want to use \"source $(VENV)/bin/activate\""
 
 $(UV): $(VENV)
-	"$(PYTHON)" -m pipx install uv
+	@if [ ! -x "$(UV)" ]; then \
+	    "$(PYTHON)" -m pipx install uv; \
+	fi
 
 upgrade-uv: $(UV)  # pipx install and upgrade uv
 	"$(PYTHON)" -m pipx upgrade uv
@@ -54,7 +56,7 @@ test:  # uv run pytest -vv
 	"$(UV)" run pytest -vv
 
 .PHONY: build
-build: clean  # clean build and check; done as-needed by other targets
+build: clean lint test  # clean build and check; done as-needed by other targets
 	# uv build requires uv >= 0.4.5; if build fails, try 'make upgrade-uv'
 	"$(UV)" build
 	"$(UV)" run twine check dist/*
