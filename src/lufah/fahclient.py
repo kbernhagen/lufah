@@ -6,11 +6,12 @@ import json
 import logging
 from urllib.parse import urlparse
 
-from websockets import connect  # pip3 install websockets
-from websockets.exceptions import ConnectionClosed, ConnectionClosedError
+import websockets
+from websockets.exceptions import ConnectionClosed
 
 from lufah import validate as valid
 from lufah.logger import logger
+from lufah.updatable import Updatable
 
 from .const import (
     COMMAND_FINISH,
@@ -18,21 +19,21 @@ from .const import (
     COMMAND_PAUSE,
 )
 from .exceptions import FahClientUnknownCommand
-from .util import get_object_at_key_path, munged_group_name, uri_and_group_for_peer
+from .util import munged_group_name, uri_and_group_for_peer
 
 
 class FahClient:
     """Class to manage a remote client connection"""
 
-    def __init__(self, peer, name=None):
+    def __init__(self, peer, name=None, should_process_updates=True):
         peer = valid.address(peer, single=True)
         self._name = None
         self._group = None
         self.ws = None
-        self.data = {}  # snapshot
+        self.data = Updatable()  # client state
         self._version = (0, 0, 0)  # data.info.version as tuple after connect
         self._callbacks = []  # message callbacks
-        self.should_process_updates = False
+        self._should_process_updates = should_process_updates
         # peer is a pseuso-uri that needs munging
         # NOTE: this may raise
         self._uri, self._group = uri_and_group_for_peer(peer)
@@ -78,40 +79,52 @@ class FahClient:
     def unregister_callback(self, callback):
         self._callbacks.remove(callback)
 
-    async def process_message(self, message):
+    async def _process_message(self, message):
         try:
             data = json.loads(message)
         except Exception as e:
             logger.error(
-                "%s:_update():unable to convert message to json:%s", self._name, type(e)
+                "%s:_process_message():unable to convert message to json:%s:%s",
+                self._name,
+                e,
+                message,
             )
             return
         try:
-            self._update(data)
+            if self._should_process_updates and isinstance(data, (list, str)):
+                self.data.do_update(data)
         except Exception as e:
-            logger.error("%s:_update():%s", self._name, type(e))
+            logger.error("%s:Updatable.do_update() exception:%s", self._name, type(e))
         for callback in self._callbacks:
-            await callback(self, data)
+            try:
+                await callback(self, data)
+            except Exception as e:
+                logger.error(
+                    "%s:_process_message() ignoring callback exception:%s:%s",
+                    self._name,
+                    e,
+                    callback,
+                )
 
-    async def receive(self):
+    async def _receive_messages(self):
         while True:
             try:
                 message = await self.ws.recv()
-                await self.process_message(message)
-            except (ConnectionClosed, ConnectionClosedError):
+                await self._process_message(message)
+            except ConnectionClosed:
                 logger.info("%s:Connection closed: %s", self._name, self._uri)
                 break
             except (KeyboardInterrupt, asyncio.CancelledError):
                 # https://docs.python.org/3/library/asyncio-runner.html#handling-keyboard-interruption
                 # cancelled explicitly or KeyboardInterrupt happened in asyncio and cancelled us
                 logger.debug(
-                    "FahClient(%s).receive():Caught KeyboardInterrupt or asyncio.CancelledError",
+                    "FahClient(%s)._receive_messages():Interrupted or Cancelled",
                     self._name,
                 )
                 await self.close()
-                break
+                raise  # MUST re-raise asyncio.CancelledError
             except Exception as e:
-                # note: asyncio.CancelledError is apparently not an Exception subclass
+                # note: asyncio.CancelledError is not an Exception subclass
                 logger.debug("%s:Ignoring unexpected exception: %s", self._name, e)
 
     async def connect(self):
@@ -124,12 +137,17 @@ class FahClient:
             logger.info("%s:Opening %s", self._name, self._uri)
             try:
                 # client can send a huge message when log is first enabled
-                self.ws = await connect(
+                self.ws = await websockets.connect(
                     self._uri, ping_interval=None, max_size=16777216
                 )
                 logger.info("%s:Connected to %s", self._name, self._uri)
+            except (KeyboardInterrupt, asyncio.CancelledError):
+                self.data = Updatable()
+                self._version = (0, 0, 0)
+                logger.warning("%s:connect cancelled to %s", self._name, self._uri)
+                raise
             except Exception:
-                self.data = {}
+                self.data = Updatable()
                 self._version = (0, 0, 0)
                 logger.warning("%s:Failed to connect to %s", self._name, self._uri)
                 return
@@ -137,69 +155,17 @@ class FahClient:
         snapshot = json.loads(r)
         v = snapshot.get("info", {}).get("version", "0")
         self._version = tuple(map(int, v.split(".")))
-        self.data.update(snapshot)
-        if self._version < (8, 3):
+        old = self._version < (8, 3)
+        self.data = Updatable(snapshot, compat_mode=old)
+        if old:
             logger.warning(
                 "Client v%s. Support for clients older than 8.3 is deprecated.", v
             )
-        asyncio.ensure_future(self.receive())
+        asyncio.ensure_future(self._receive_messages())
 
     async def close(self):
         if self.ws is not None:
             await self.ws.close()
-
-    def _update(self, data):  # data: json array or dict or string
-        if not self.should_process_updates:
-            return
-        if isinstance(data, list):
-            # last list element is value, prior elements are a key path
-            # if value is None, delete destination
-            if len(data) < 2:
-                return
-            value = data[len(data) - 1]
-
-            x = get_object_at_key_path(self.data, data[:-2])
-            # expect x is None, dict, or list
-            if x is None:
-                return
-            key = data[len(data) - 2]  # final key
-
-            if isinstance(x, list) and isinstance(key, int):
-                if key == -1:
-                    # append value to dest list x
-                    if value is not None:
-                        x.append(value)
-
-                if key == -2:
-                    # append values to dest list x
-                    if value is not None:
-                        for v in value:
-                            x.append(v)
-
-                if 0 <= key and key < len(x):
-                    if value is None:
-                        del x[key]
-                    else:
-                        x[key] = value
-
-                if len(x) <= key and value is not None:
-                    x.append(value)
-
-                return
-
-            if isinstance(x, dict) and isinstance(key, str):
-                if value is None:
-                    del x[key]
-                else:
-                    x[key] = value  # is this ever merge?
-                return
-
-        elif isinstance(data, dict):
-            # currently, this should not happen
-            # FIXME: maybe use deepmerge module
-            # self.data.update(data)
-            pass
-        # else ignore "ping"
 
     async def send(self, message):
         if not self.is_connected:
