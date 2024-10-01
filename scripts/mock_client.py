@@ -205,7 +205,7 @@ def serve(  # pylint: disable=too-many-arguments,too-many-branches
     port: int = 8765,
     delay: int = 1,
     name: str = None,
-    data_file="data/lufahwatch2.jsonl",
+    data_file="data/lufahwatch3.jsonl",
 ):
     """Setup and start the mock client websocket server."""
 
