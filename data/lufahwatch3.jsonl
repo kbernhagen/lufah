@@ -139,6 +139,7 @@
     }
   ]
 }
+"ping"
 ["units", 0, "eta", "2m 56s"]
 ["units", 0, "eta", "2m 55s"]
 ["units", 0, "eta", "2m 54s"]
@@ -199,26 +200,32 @@
 ["units", 0, "eta", "2m 2s"]
 ["units", 0, "eta", "2m 1s"]
 ["units", 0, "eta", "2m 0s"]
+"ping"
 ["groups", "aux", "config", "paused", false]
 ["groups", "aux2", "config", "paused", false]
+"ping"
 ["units", 1, {"group": "aux", "number": 1405523, "cpus": 4, "gpus": [], "state": "ASSIGN"}]
 ["units", 2, {"group": "aux2", "number": 1405524, "cpus": 4, "gpus": [], "state": "ASSIGN"}]
 ["units", 1, "paused", false]
 ["units", 2, "paused", false]
 ["units", 1, "id", "Ty8NwvbqYNkNqG5gkJXj8E3g0_PnSEOM_zr3Am6431Q"]
 ["units", 2, "id", "He-YxAbgPJzmr6PhLAuK_jbN958zjmr_-voMBiI7YL0"]
+"ping"
 ["units", 1, "state", "DOWNLOAD"]
 ["units", 2, "state", "DOWNLOAD"]
 ["units", 0, "eta", "1m 59s"]
 ["units", 0, "eta", "1m 58s"]
+"ping"
 ["units", 1, "state", "CORE"]
 ["units", 1, "progress", 1]
 ["units", 1, "gpus", []]
+"ping"
 ["units", 1, "state", "RUN"]
 ["units", 1, "progress", 0]
 ["units", 2, "state", "CORE"]
 ["units", 2, "progress", 1]
 ["units", 2, "gpus", []]
+"ping"
 ["units", 2, "state", "RUN"]
 ["units", 2, "progress", 0]
 ["units", 1, "start_time", "2024-10-01T01:47:56Z"]
@@ -250,6 +257,7 @@
 ["units", 0, "eta", "1m 43s"]
 ["units", 0, "wu_progress", 0.996]
 ["units", 2, "frames", 1]
+"ping"
 ["units", 0, "eta", "1m 42s"]
 ["units", 0, "eta", "1m 41s"]
 ["units", 0, "eta", "1m 40s"]
@@ -303,9 +311,11 @@
 ["units", 0, "eta", "56s"]
 ["units", 0, "wu_progress", 0.998]
 ["units", 0, "eta", "55s"]
+"ping"
 ["groups", "", "config", "finish", true]
 ["groups", "aux", "config", "finish", true]
 ["groups", "aux2", "config", "finish", true]
+"ping"
 ["units", 0, "eta", "54s"]
 ["units", 1, "eta", "14h 22m"]
 ["units", 0, "eta", "53s"]
@@ -390,15 +400,20 @@
 ["units", 0, "ppd", 226663]
 ["units", 0, "run_time", 23109]
 ["units", 0, "start_time", null]
+"ping"
 ["units", 0, "state", "UPLOAD"]
 ["units", 0, "end_time", "2024-10-01T01:50:15Z"]
+"ping"
 ["units", 0, "result", "credited"]
 ["units", 0, "state", "DONE"]
 ["groups", "", "wait", "2024-10-01T01:50:15Z"]
+"ping"
 ["units", 0, null]
+"ping"
 ["groups", "", "config", "paused", true]
 ["groups", "", "config", "finish", false]
 ["groups", "", "wait", "2024-10-01T01:50:16Z"]
+"ping"
 ["units", 1, "wu_progress", 0.003]
 "ping"
 ["units", 0, "eta", "14h 20m"]
@@ -1607,6 +1622,7 @@
 "ping"
 ["units", 0, "wu_progress", 0.199]
 ["units", 0, "eta", "10h 2m"]
+"ping"
 ["groups", "aux2", "config", "cpus", 16]
 ["groups", "aux2", "wait", "2024-10-01T04:17:21Z"]
 ["groups", "", "wait", "2024-10-01T04:17:21Z"]
@@ -1614,9 +1630,11 @@
 ["groups", "", "wait", "2024-10-01T04:17:30Z"]
 ["groups", "aux2", "wait", "2024-10-01T04:17:30Z"]
 ["groups", "aux2", "config", "paused", false]
+"ping"
 ["units", 1, "cpus", 16]
 ["units", 1, "pause_reason", null]
 ["units", 1, "start_time", "2024-10-01T04:17:40Z"]
+"ping"
 ["units", 1, "eta", "4h 49m"]
 ["units", 1, "ppd", 106652]
 ["units", 1, "wu_progress", 0.34]
@@ -1689,6 +1707,7 @@
 ["units", 0, "wu_progress", 0.207]
 ["units", 1, "eta", "4h 32m"]
 ["units", 1, "wu_progress", 0.363]
+"ping"
 ["groups", "aux2", "config", "finish", true]
 "ping"
 ["units", 0, "eta", "9h 57m"]
@@ -1841,10 +1860,12 @@
 ["units", 1, "eta", "4h 13m"]
 ["units", 1, "ppd", 115716]
 ["units", 1, "wu_progress", 0.39]
+"ping"
 ["groups", "aux", "config", "paused", true]
 ["groups", "aux", "config", "finish", false]
 ["groups", "aux", "wait", "2024-10-01T04:30:41Z"]
 ["units", 0, "pause_reason", "Paused"]
+"ping"
 ["units", 1, "frames", 40]
 ["units", 1, "wu_progress", 0.391]
 ["units", 0, "run_time", 9770]
@@ -5357,14 +5378,20 @@
 ["units", 1, "eta", "0s"]
 ["units", 1, "ppd", 204900]
 ["units", 1, "wu_progress", 1]
+"ping"
 ["units", 1, "run_time", 17017]
 ["units", 1, "start_time", null]
+"ping"
 ["units", 1, "state", "UPLOAD"]
 ["units", 1, "end_time", "2024-10-01T06:32:19Z"]
+"ping"
 ["units", 1, "result", "credited"]
 ["units", 1, "state", "DONE"]
 ["groups", "aux2", "wait", "2024-10-01T06:32:19Z"]
+"ping"
+"ping"
 ["units", 1, null]
+"ping"
 ["groups", "aux2", "config", "paused", true]
 ["groups", "aux2", "config", "finish", false]
 "ping"
