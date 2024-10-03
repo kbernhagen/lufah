@@ -47,6 +47,10 @@ def address(peer: Optional[str], single=False) -> str:
             host = _DEFAULT_HOST
         port = u.port or _DEFAULT_PORT
         # TODO: validate host is hostname or IPv4, validate port is 1..maxport
+        if host.endswith("."):
+            host = host[:-1]
+        if host != _DEFAULT_HOST and '.' not in host:
+            host += ".local"  # generally needed, but this may be an error
         peer = f"{host}:{port}"
         if group:
             peer += group
@@ -61,7 +65,6 @@ def address(peer: Optional[str], single=False) -> str:
             p = address(p, single=True)
             addresses.add(p)
         peer = ",".join(addresses)
-    # more validation is done by uri_and_group_for_peer(), plus resolution
     return peer
 
 

@@ -116,39 +116,12 @@ def uri_and_group_for_peer(peer: Optional[str]) -> tuple[Optional[str], Optional
     peer, group = split_address_and_group(peer)
 
     u = urlparse("ws://" + peer)
-    host = u.hostname
+    host = u.hostname or "localhost"
     port = u.port or 7396
     if host:
         host = host.strip()
     if host in [None, "", ".", "localhost", "localhost.", "127.0.0.1"]:
-        host = "127.0.0.1"
-    else:
-        # try to munge a resolvable host name
-        # remote in vmware is on another subnet; need host.local resolved to ipv4 addr
-        ext = ""
-        if host.endswith("."):
-            host = host[:-1]
-        if host.endswith(".local"):
-            ext = ".local"
-            host = host[:-6]
-        if "." not in host:
-            # only attempt to resolve a single-segment host name
-            try:
-                socket.gethostbyname(host)  # this fails quickly when it does
-            except socket.gaierror:
-                # cannot resolve, try again with '.local', if so use ipv4 addr
-                # this will be slow if host.local does not exist
-                # note: we do not catch exception
-                # may cause lufah to always use ipv4 running on Windows w 'host.local'
-                try:
-                    host = socket.gethostbyname(host + ".local")
-                except socket.gaierror:
-                    logger.error(
-                        "Unable to resolve %s or %s", repr(host), repr(host + ".local")
-                    )
-                    # proceed with unresolved host
-                    host += ext  # add .local if it had it
-
+        host = "localhost"
     uri = f"ws://{host}:{port}/api/websocket"
 
     # validate and munge group, possibly modify uri for 8.1
@@ -169,6 +142,34 @@ def uri_and_group_for_peer(peer: Optional[str]) -> tuple[Optional[str], Optional
         uri += group
 
     return (uri, group)
+
+
+def ipv4_uri_for_uri(uri: Optional[str]) -> Optional[str]:
+    "Replace host with IPv4 address in uri"
+    if not uri:
+        return None
+    u = urlparse(uri)
+    scheme = u.scheme or "ws"
+    host = u.hostname or "localhost"
+    port = u.port or 7396
+    path = u.path or ""
+    if host.endswith("."):
+        host = host[:-1]
+    try:
+        # this will be slow if host.local does not exist
+        host = socket.gethostbyname(host)
+    except socket.gaierror:
+        logger.error("Unable to resolve %s", repr(host))
+        # cannot resolve, try again without '.local'
+        if host.endswith(".local"):
+            host2 = host[:-6]
+            try:
+                host = socket.gethostbyname(host2)
+            except socket.gaierror:
+                logger.error("Unable to resolve %s", repr(host2))
+    uri2 = f"{scheme}://{host}:{port}{path}"
+    logger.debug("Resolved %s to %s", uri, uri2)
+    return uri2
 
 
 def munged_group_name(group: Optional[str], snapshot: Optional[dict]) -> Optional[str]:

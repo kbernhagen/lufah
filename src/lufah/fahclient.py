@@ -19,7 +19,11 @@ from .const import (
     COMMAND_PAUSE,
 )
 from .exceptions import FahClientUnknownCommand
-from .util import munged_group_name, uri_and_group_for_peer
+from .util import (
+    ipv4_uri_for_uri,
+    munged_group_name,
+    uri_and_group_for_peer,
+)
 
 
 class FahClient:
@@ -28,7 +32,6 @@ class FahClient:
     def __init__(self, peer, name=None, should_process_updates=True):
         peer = valid.address(peer, single=True)
         self._name = None
-        self._group = None
         self.ws = None
         self.data = Updatable()  # client state
         self._version = (0, 0, 0)  # data.info.version as tuple after connect
@@ -37,7 +40,9 @@ class FahClient:
         # peer is a pseuso-uri that needs munging
         # NOTE: this may raise
         self._uri, self._group = uri_and_group_for_peer(peer)
-        self._name = name or urlparse(self._uri).hostname or peer
+        self._connected_uri = None
+        u = urlparse(self._uri)
+        self._name = name or u.netloc or peer
         logger.debug('Created FahClient("%s")', self._name)
 
     @property
@@ -112,7 +117,7 @@ class FahClient:
                 message = await self.ws.recv()
                 await self._process_message(message)
             except ConnectionClosed:
-                logger.info("%s:Connection closed: %s", self._name, self._uri)
+                logger.info("%s:Connection closed.", self._name)
                 break
             except (KeyboardInterrupt, asyncio.CancelledError):
                 # https://docs.python.org/3/library/asyncio-runner.html#handling-keyboard-interruption
@@ -135,21 +140,26 @@ class FahClient:
             return
         if not self.ws:
             logger.info("%s:Opening %s", self._name, self._uri)
+            uri = ipv4_uri_for_uri(self._uri)
+            self._connected_uri = None
             try:
                 # client can send a huge message when log is first enabled
                 self.ws = await websockets.connect(
-                    self._uri, ping_interval=None, max_size=16777216
+                    uri,
+                    ping_interval=None,
+                    max_size=16777216,
                 )
-                logger.info("%s:Connected to %s", self._name, self._uri)
+                self._connected_uri = uri
+                logger.info("%s:Connected to %s", self._name, uri)
             except (KeyboardInterrupt, asyncio.CancelledError):
                 self.data = Updatable()
                 self._version = (0, 0, 0)
-                logger.warning("%s:connect cancelled to %s", self._name, self._uri)
+                logger.warning("%s:connect cancelled to %s", self._name, uri)
                 raise
             except Exception:
                 self.data = Updatable()
                 self._version = (0, 0, 0)
-                logger.warning("%s:Failed to connect to %s", self._name, self._uri)
+                logger.warning("%s:Failed to connect to %s", self._name, uri)
                 return
         r = await self.ws.recv()
         snapshot = json.loads(r)
@@ -166,6 +176,7 @@ class FahClient:
     async def close(self):
         if self.ws is not None:
             await self.ws.close()
+            self._connected_uri = None
 
     async def send(self, message):
         if not self.is_connected:
