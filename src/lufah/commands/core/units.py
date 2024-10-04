@@ -186,7 +186,10 @@ def units_table_lines(clients: list[FahClient]) -> list[str]:
         return []
     lines = []
     lines.extend(_units_header_lines())
-    for client in sorted(clients, key=lambda c: c.machine_name):
+    # sort by case insensitive machine_name, with all connected clients first
+    for client in sorted(
+        clients, key=lambda c: (not c.is_connected, c.machine_name.casefold())
+    ):
         r = urlparse(client.uri)
         name = client.machine_name
         if not name:
