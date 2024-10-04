@@ -124,6 +124,7 @@ class FahClient:
                 await self._process_message(message)
             except ConnectionClosed:
                 logger.info("%s:Connection closed.", self._name)
+                await self.close()
                 break
             except (KeyboardInterrupt, asyncio.CancelledError):
                 # https://docs.python.org/3/library/asyncio-runner.html#handling-keyboard-interruption
@@ -194,7 +195,7 @@ class FahClient:
             self._connection_state = "Disconnecting"
             await self.ws.close()
             self._connected_uri = None
-            self._connection_state = "Disconnected"
+        self._connection_state = "Disconnected"
 
     async def send(self, message):
         if not self.is_connected:
@@ -219,7 +220,11 @@ class FahClient:
             return
         if msgstr:
             logger.info("%s:sending: %s", self._name, msgstr)
-            await self.ws.send(msgstr)
+            try:
+                await self.ws.send(msgstr)
+            except ConnectionClosed:
+                await self.close()
+                raise
 
     async def send_command(self, cmd, **kwargs):
         if cmd not in [COMMAND_FOLD, COMMAND_FINISH, COMMAND_PAUSE]:
