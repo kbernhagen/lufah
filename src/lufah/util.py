@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 import json
 import operator
@@ -144,7 +145,16 @@ def uri_and_group_for_peer(peer: Optional[str]) -> tuple[Optional[str], Optional
     return (uri, group)
 
 
-def ipv4_uri_for_uri(uri: Optional[str]) -> Optional[str]:
+async def resolve_ipv4(hostname: str):
+    # Use loop.getaddrinfo to resolve IPv4 address
+    loop = asyncio.get_event_loop()
+    addr_info = await loop.getaddrinfo(hostname, None, family=socket.AF_INET)
+    # Extract the first IPv4 address from the result
+    ipv4_addr = addr_info[0][4][0]
+    return ipv4_addr
+
+
+async def ipv4_uri_for_uri(uri: Optional[str]) -> Optional[str]:
     "Replace host with IPv4 address in uri"
     if not uri:
         return None
@@ -157,16 +167,16 @@ def ipv4_uri_for_uri(uri: Optional[str]) -> Optional[str]:
         host = host[:-1]
     try:
         # this will be slow if host.local does not exist
-        host = socket.gethostbyname(host)
+        host = await resolve_ipv4(host)
     except socket.gaierror:
-        logger.error("Unable to resolve %s", repr(host))
+        logger.debug("Unable to resolve %s", repr(host))
         # cannot resolve, try again without '.local'
         if host.endswith(".local"):
             host2 = host[:-6]
             try:
-                host = socket.gethostbyname(host2)
+                host = await resolve_ipv4(host2)
             except socket.gaierror:
-                logger.error("Unable to resolve %s", repr(host2))
+                logger.debug("Unable to resolve %s", repr(host2))
     uri2 = f"{scheme}://{host}:{port}{path}"
     logger.debug("Resolved %s to %s", uri, uri2)
     return uri2

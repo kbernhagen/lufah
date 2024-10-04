@@ -140,7 +140,7 @@ class FahClient:
             return
         if not self.ws:
             logger.info("%s:Opening %s", self._name, self._uri)
-            uri = ipv4_uri_for_uri(self._uri)
+            uri = await ipv4_uri_for_uri(self._uri)
             self._connected_uri = None
             try:
                 # client can send a huge message when log is first enabled
