@@ -1,6 +1,7 @@
 "show host and client info"
 
 import argparse
+import asyncio
 
 
 def _print_info(client):
@@ -24,13 +25,12 @@ def _print_info(client):
 
 async def do_info(args: argparse.Namespace):
     "Show host and client info."
-    for client in args.clients:
-        await client.connect()
+    await asyncio.gather(*[c.connect() for c in args.clients])
     clients = sorted(args.clients, key=lambda c: c.machine_name)
     multi = len(clients) > 1
     if multi:
         print()
     for client in clients:
         _print_info(client)
-        if multi:
+        if multi and client.is_connected:
             print()

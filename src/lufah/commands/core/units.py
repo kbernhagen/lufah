@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import datetime as dt
 import math
 from urllib.parse import urlparse
@@ -229,8 +230,6 @@ def print_units_header():
 
 async def do_units(args: argparse.Namespace):
     "Show table of all units by machine name and group."
-    clients = args.clients
-    for client in clients:
-        await client.connect()
-    for line in units_table_lines(clients):
+    await asyncio.gather(*[c.connect() for c in args.clients])
+    for line in units_table_lines(args.clients):
         print(line)
