@@ -196,7 +196,7 @@ def units_table_lines(clients: list[FahClient]) -> list[str]:
         groups = client.groups
         if not groups:
             if not client.is_connected:
-                lines.append(f"{name:<26} Disconnected")
+                lines.append(f"{name:<26} {client.state}")
                 continue
             lines.append(name)
             units = units_for_group(client, None)
