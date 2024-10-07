@@ -1,13 +1,15 @@
 # pylint: disable=missing-module-docstring
 
 import argparse
+import asyncio
 
 
 async def _do_command_multi(args: argparse.Namespace, command=None):
+    await asyncio.gather(*[c.connect() for c in args.clients])
     for client in args.clients:
         try:
-            await client.connect()
-            await client.send_command(command or args.command)
+            if client.is_connected:
+                await client.send_command(command or args.command)
         except Exception as e:
             raise Exception(f"Error: FahClient('{client.name}'):{e}") from e
 

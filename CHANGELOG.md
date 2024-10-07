@@ -5,6 +5,7 @@
 ### Added
 
 - Added Uninstall to docs and Makefile
+- Added `top` command
 
 ---
 

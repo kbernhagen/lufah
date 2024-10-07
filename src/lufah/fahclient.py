@@ -19,7 +19,11 @@ from .const import (
     COMMAND_PAUSE,
 )
 from .exceptions import FahClientUnknownCommand
-from .util import munged_group_name, uri_and_group_for_peer
+from .util import (
+    ipv4_uri_for_uri,
+    munged_group_name,
+    uri_and_group_for_peer,
+)
 
 
 class FahClient:
@@ -28,8 +32,8 @@ class FahClient:
     def __init__(self, peer, name=None, should_process_updates=True):
         peer = valid.address(peer, single=True)
         self._name = None
-        self._group = None
         self.ws = None
+        self._connection_state = ""
         self.data = Updatable()  # client state
         self._version = (0, 0, 0)  # data.info.version as tuple after connect
         self._callbacks = []  # message callbacks
@@ -37,7 +41,9 @@ class FahClient:
         # peer is a pseuso-uri that needs munging
         # NOTE: this may raise
         self._uri, self._group = uri_and_group_for_peer(peer)
-        self._name = name or urlparse(self._uri).hostname or peer
+        self._connected_uri = None
+        u = urlparse(self._uri)
+        self._name = name or u.netloc or peer
         logger.debug('Created FahClient("%s")', self._name)
 
     @property
@@ -72,6 +78,11 @@ class FahClient:
     def machine_name(self):
         info = self.data.get("info", {})
         return info.get("mach_name", info.get("hostname", self.name))
+
+    @property
+    def state(self):
+        "Human-readable connection state"
+        return self._connection_state
 
     def register_callback(self, callback):
         self._callbacks.append(callback)
@@ -112,7 +123,8 @@ class FahClient:
                 message = await self.ws.recv()
                 await self._process_message(message)
             except ConnectionClosed:
-                logger.info("%s:Connection closed: %s", self._name, self._uri)
+                logger.info("%s:Connection closed.", self._name)
+                await self.close()
                 break
             except (KeyboardInterrupt, asyncio.CancelledError):
                 # https://docs.python.org/3/library/asyncio-runner.html#handling-keyboard-interruption
@@ -135,21 +147,36 @@ class FahClient:
             return
         if not self.ws:
             logger.info("%s:Opening %s", self._name, self._uri)
+            self._connection_state = "Connecting.."  # Resolving
+            uri = await ipv4_uri_for_uri(self._uri)
+            self._connected_uri = None
             try:
-                # client can send a huge message when log is first enabled
+                self._connection_state = "Connecting..."
                 self.ws = await websockets.connect(
-                    self._uri, ping_interval=None, max_size=16777216
+                    uri,
+                    ping_interval=None,  # client will ping us, and may not pong
+                    max_size=16777216,  # first log message can be huge
+                    #open_timeout=5,
                 )
-                logger.info("%s:Connected to %s", self._name, self._uri)
+                self._connected_uri = uri
+                self._connection_state = "Connected"
+                logger.info("%s:Connected to %s", self._name, uri)
             except (KeyboardInterrupt, asyncio.CancelledError):
                 self.data = Updatable()
                 self._version = (0, 0, 0)
-                logger.warning("%s:connect cancelled to %s", self._name, self._uri)
+                self._connection_state = "Disconnected"
+                logger.warning("%s:connect cancelled to %s", self._name, uri)
                 raise
-            except Exception:
+            except Exception as e:
                 self.data = Updatable()
                 self._version = (0, 0, 0)
-                logger.warning("%s:Failed to connect to %s", self._name, self._uri)
+                if isinstance(e, (OSError, asyncio.TimeoutError)):
+                    self._connection_state = "Unreachable"
+                elif isinstance(e, websockets.exceptions.InvalidURI):
+                    self._connection_state = "Invalid address"
+                else:
+                    self._connection_state = type(e)  # "Disconnected"
+                logger.warning("%s:Failed to connect to %s", self._name, uri)
                 return
         r = await self.ws.recv()
         snapshot = json.loads(r)
@@ -165,7 +192,10 @@ class FahClient:
 
     async def close(self):
         if self.ws is not None:
+            self._connection_state = "Disconnecting"
             await self.ws.close()
+            self._connected_uri = None
+        self._connection_state = "Disconnected"
 
     async def send(self, message):
         if not self.is_connected:
@@ -190,7 +220,11 @@ class FahClient:
             return
         if msgstr:
             logger.info("%s:sending: %s", self._name, msgstr)
-            await self.ws.send(msgstr)
+            try:
+                await self.ws.send(msgstr)
+            except ConnectionClosed:
+                await self.close()
+                raise
 
     async def send_command(self, cmd, **kwargs):
         if cmd not in [COMMAND_FOLD, COMMAND_FINISH, COMMAND_PAUSE]:

@@ -29,6 +29,7 @@ from lufah.commands.core.not_implemented import not_implemented
 from lufah.commands.core.restart_account import do_restart_account
 from lufah.commands.core.start_stop import do_start, do_stop
 from lufah.commands.core.state import do_state
+from lufah.commands.core.top import HAVE_CURSES, do_top
 from lufah.commands.core.units import do_units
 from lufah.commands.core.unlink_account import do_unlink_account
 from lufah.commands.core.wait_until_paused import do_wait_until_paused
@@ -44,8 +45,6 @@ if PROGRAM.endswith(".py"):
 if PROGRAM == "__main__":
     PROGRAM = "lufah"
 
-# FIXME: default is not restricted
-# suggest only allow status, units, log, watch
 DEFAULT_COMMAND = "units"
 
 _EPILOG = f"""
@@ -84,7 +83,7 @@ if sys.platform == "darwin":
 
 HIDDEN_COMMANDS = []  # experimental stuff
 NO_CLIENT_COMMANDS = ["start", "stop"]
-MULTI_PEER_COMMANDS = ["units", "info", "fold", "finish", "pause"]
+MULTI_PEER_COMMANDS = ["units", "info", "fold", "finish", "pause", "top"]
 
 # allowed cli commands; all visible
 COMMANDS = [
@@ -109,6 +108,8 @@ COMMANDS = [
     "enable-all-gpus",
     "dump-all",
 ]
+if HAVE_CURSES:
+    COMMANDS += ["top"]
 if sys.platform == "darwin":
     COMMANDS += ["start", "stop"]
 
@@ -135,11 +136,6 @@ VALID_KEYS_VALUES = {
     "priority": {"type": valid.priority, "help": valid.priority.__doc__},
     "fold-anon": {"type": bool_from_string, "help": "deprecated"},
 }
-# 8.1 resource group name r'^\/[\w.-]*$'
-# user recommended ^[0-9a-zA-Z_]+$
-# user should not contain alleged reserved chars ^#|~  or \s
-# user email discouraged
-# in reality, most anything goes up to 100 bytes
 
 
 def postprocess_parsed_args(args: argparse.Namespace):
@@ -217,11 +213,8 @@ def parse_args() -> argparse.Namespace:
         if cmd in COMMAND_ALIASES:
             true_cmd = COMMAND_ALIASES.get(cmd)
             alias_help = "alias for " + true_cmd
-        # if an alias, we will get not_implemented, which we use for desc
+        # if an alias, we will get not_implemented, which we use for description
         func = COMMANDS_DISPATCH.get(cmd) or not_implemented
-        # cmd will be hidden if help is None
-        # help1 = dedent(alias_help or func.__doc__ or "")
-        # desc1 = dedent(alias_help or _mod_doc_of_func(func) or help1)
         desc1 = dedent(alias_help or func.__doc__ or "")
         help1 = (first_non_blank_line(desc1) or "").strip()
         par = subparsers.add_parser(
@@ -230,7 +223,7 @@ def parse_args() -> argparse.Namespace:
             help=help1,
             formatter_class=argparse.RawTextHelpFormatter,
         )
-        # get true dispatch func, whether alias or not
+        # get true dispatch func, un-aliased
         func = COMMANDS_DISPATCH.get(true_cmd) or not_implemented
         par.set_defaults(func=func)
         if cmd == "config":
@@ -312,6 +305,7 @@ COMMANDS_DISPATCH = {
     "wait-until-paused": do_wait_until_paused,
     "enable-all-gpus": do_enable_all_gpus,
     "dump-all": do_dump_all,
+    "top": do_top,
 }
 
 
@@ -352,13 +346,12 @@ async def main_async():
 
 
 def main():
-    if len(sys.argv) == 2 and sys.argv[1] == "help":
-        sys.argv[1] = "-h"
     try:
         asyncio.run(main_async())
     except (KeyboardInterrupt, EOFError):
         pass
     except BrokenPipeError:
+        # This is common if piping to 'head' or 'more'
         # Python flushes standard streams on exit; redirect remaining output
         # to devnull to avoid another BrokenPipeError at shutdown
         devnull = os.open(os.devnull, os.O_WRONLY)

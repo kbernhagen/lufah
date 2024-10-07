@@ -1,11 +1,15 @@
 "show table of all units by group"
 
+from __future__ import annotations
+
 import argparse
+import asyncio
 import datetime as dt
 import math
 from urllib.parse import urlparse
 
 from lufah.const import STATUS_STRINGS, WAIT_STATUS_STRINGS
+from lufah.fahclient import FahClient
 from lufah.logger import logger
 from lufah.util import natural_delta_from_seconds, shorten_natural_delta
 
@@ -118,9 +122,10 @@ def _group_status(client, group_name):
     return status
 
 
-def print_unit(client, unit):
+def _unit_lines(client, unit) -> list[str]:
+    lines = []
     if unit is None:
-        return
+        return []
     # TODO: unit dataclass
     assignment = unit.get("assignment", {})
     project = assignment.get("project", "")
@@ -156,54 +161,78 @@ def print_unit(client, unit):
                 deadline_str = natural_delta_from_seconds(deadline_secs)
         except:  # noqa: E722
             pass
-    print(
+    lines.append(
         f"{project:<7}  {cpus:<4}  {gpus:<4}  {core:<4}  {status:<16}{progress:^8}"
         f"  {ppd:<8}  {eta:<7}  {deadline_str:<8}"
     )
+    return lines
 
 
-def print_units_header():
+def _units_header_lines() -> list[str]:
     empty = ""
     width = 70
     hd = "Project  CPUs  GPUs  Core  Status          Progress  PPD       ETA    "
     hd += "  Deadline"
     width = len(hd)
-    print(f"{empty:-<{width}}")
-    print(hd)
-    print(f"{empty:-<{width}}")
+    lines = []
+    lines.append(f"{empty:-<{width}}")
+    lines.append(hd)
+    lines.append(f"{empty:-<{width}}")
+    return lines
 
 
-async def do_units(args: argparse.Namespace):
-    "Show table of all units by machine name and group."
-    clients = args.clients
-    for client in clients:
-        await client.connect()
-    if clients:
-        print_units_header()
-    for client in sorted(clients, key=lambda c: c.machine_name):
+def units_table_lines(clients: list[FahClient]) -> list[str]:
+    if clients is None:
+        return []
+    lines = []
+    lines.extend(_units_header_lines())
+    # sort by case insensitive machine_name, with all connected clients first
+    for client in sorted(
+        clients, key=lambda c: (not c.is_connected, c.machine_name.casefold())
+    ):
         r = urlparse(client.uri)
         name = client.machine_name
         if not name:
             name = r.hostname
         if r.port and r.port != 7396:
             name += f":{r.port}"
+        if not client.is_connected:
+            lines.append(f"{name:<26} {client.state}")
+            continue
         groups = client.groups
         if not groups:
-            if not client.is_connected:
-                print(f"{name:<26} Disconnected")
-                continue
-            print(name)
+            lines.append(name)
             units = units_for_group(client, None)
             if not units:
                 continue
             for unit in units:
-                print_unit(client, unit)
+                lines.extend(_unit_lines(client, unit))
         else:
             for group in groups:
                 name_group = f"{name}/{group}"
-                print(f"{name_group:<25} ", _group_status(client, group))
+                lines.append(f"{name_group:<25}  " + _group_status(client, group))
                 units = units_for_group(client, group)
                 if not units:
                     continue
                 for unit in units:
-                    print_unit(client, unit)
+                    lines.extend(_unit_lines(client, unit))
+    return lines
+
+
+def print_unit(client, unit):
+    if unit is None:
+        return
+    for line in _unit_lines(client, unit):
+        print(line)
+
+
+def print_units_header():
+    for line in _units_header_lines():
+        print(line)
+
+
+async def do_units(args: argparse.Namespace):
+    "Show table of all units by machine name and group."
+    await asyncio.gather(*[c.connect() for c in args.clients])
+    for line in units_table_lines(args.clients):
+        print(line)

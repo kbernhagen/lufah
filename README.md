@@ -87,6 +87,7 @@ positional arguments:
     wait-until-paused   Run until specified group or all groups are paused.
     enable-all-gpus     Enable all unclaimed gpus in specified group.
     dump-all            Dump all paused units in specified group or all groups.
+    top                 Show top-like updating units table. Type 'q' to quit, space to force redraw.
     start               Start local client service.
     stop                Stop local client service.
 
@@ -134,22 +135,13 @@ If group does not exist on 8.1, this script may hang until silent timeout.
 Commands start and stop are macOS-only.
 ```
 
-## Tricks
-
-On macOS, if you have [Homebrew](https://brew.sh/) installed,
-you can install `watch` to have an inefficient top-like units display.
-On Linux, you probably already have `watch` installed.
-
-```
-brew install watch
-
-watch -n 10 lufah -a $(hostname) units
-```
+The `top` command is glitchy on Windows when the window is resized.
+Type space to force a redraw.
 
 ## Example Output
 
 ```
-lufah -a .,panda units
+lufah -a .,panda.local units
 ```
 ```
 --------------------------------------------------------------------------------
