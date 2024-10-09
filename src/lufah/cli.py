@@ -126,15 +126,24 @@ VALID_KEYS_VALUES = {
     "passkey": {"type": valid.passkey, "help": valid.passkey.__doc__},
     "cause": {"type": valid.cause, "help": valid.cause.__doc__},
     "cpus": {"type": valid.cpus, "help": valid.cpus.__doc__},
-    "on-idle": {"type": bool_from_string, "help": "fold only when user is idle"},
-    "on-battery": {"type": bool_from_string, "help": "fold on battery power"},
-    "keep-awake": {"type": bool_from_string, "help": "prevent sleep while folding"},
-    "cuda": {"type": bool_from_string, "help": "allow CUDA cores in group"},
-    "beta": {"type": bool_from_string, "help": "for internal testing"},
+    "on-idle": {"type": bool_from_string, "help": "Only fold while user is idle."},
+    "on-battery": {"type": bool_from_string, "help": "Fold even if on battery."},
+    "keep-awake": {
+        "type": bool_from_string,
+        "help": "Prevent system sleep while folding and not on battery.",
+    },
+    "cuda": {
+        "type": bool_from_string,
+        "help": "Enable CUDA for WUs in specified group.",
+    },
+    "beta": {
+        "type": bool_from_string,
+        "help": "Enable beta work units. No points will be awarded.",
+    },
     "key": {"type": valid.key, "help": valid.key.__doc__},
     "checkpoint": {"type": valid.checkpoint, "help": valid.checkpoint.__doc__},
     "priority": {"type": valid.priority, "help": valid.priority.__doc__},
-    "fold-anon": {"type": bool_from_string, "help": "deprecated"},
+    "fold-anon": {"type": bool_from_string, "help": "Fold anonymously. (deprecated)"},
 }
 
 

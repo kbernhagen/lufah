@@ -49,7 +49,7 @@ def address(peer: Optional[str], single=False) -> str:
         # TODO: validate host is hostname or IPv4, validate port is 1..maxport
         if host.endswith("."):
             host = host[:-1]
-        if host != _DEFAULT_HOST and '.' not in host:
+        if host != _DEFAULT_HOST and "." not in host:
             host += ".local"  # generally needed, but this may be an error
         peer = f"{host}:{port}"
         if group:
@@ -69,7 +69,7 @@ def address(peer: Optional[str], single=False) -> str:
 
 
 def cause(value: Optional[str]) -> Optional[str]:
-    """Your preferred cause"""
+    """Set cause preference."""
     if value is None:
         return None
     if value == "":
@@ -81,7 +81,11 @@ def cause(value: Optional[str]) -> Optional[str]:
 
 
 def cpus(value: Optional[str]) -> Optional[int]:
-    """Number of cpus to allocate to resource group"""
+    """
+    Set number of cpus to allocate to resource group.
+
+    A group must be specified via -a option if there is more than one group.
+    """
     if value is None:
         return None
     value = int(value)
@@ -91,7 +95,7 @@ def cpus(value: Optional[str]) -> Optional[int]:
 
 
 def checkpoint(value: Optional[str]) -> Optional[int]:
-    """Requested cpu WU checkpoint frequency in minutes (deprecated)"""
+    """Set requested CPU WU checkpoint frequency in minutes."""
     if value is None:
         return None
     if value == "":
@@ -103,7 +107,7 @@ def checkpoint(value: Optional[str]) -> Optional[int]:
 
 
 def key(value: Optional[str]) -> Optional[int]:
-    """Project key used for internal testing"""
+    """Set project key for internal beta testing of new projects."""
     if value is None:
         return None
     if value == "":
@@ -130,7 +134,8 @@ def machine_name(value: Optional[str]) -> Optional[str]:
 
 def passkey(value: Optional[str]) -> Optional[str]:
     """
-    Your passkey for quick return bonus points
+    Set passkey token for quick return bonus points.
+
     Passkey must be "" or 32 hexadecimal characters.
     """
     if value is None:
@@ -142,7 +147,11 @@ def passkey(value: Optional[str]) -> Optional[str]:
 
 
 def priority(value: Optional[str]) -> Optional[str]:
-    """Preferred core task priority (deprecated)"""
+    """
+    Set preferred core task priority.
+
+    This never worked because cores set their own priority.
+    """
     if value is None:
         return None
     if value == "":
@@ -155,7 +164,7 @@ def priority(value: Optional[str]) -> Optional[str]:
 
 
 def team(value: Optional[str]) -> Optional[int]:
-    """An existing team number"""
+    """Set team number. Team must already exist."""
     if value is None:
         return None
     value = int(value, 0)
@@ -166,7 +175,8 @@ def team(value: Optional[str]) -> Optional[int]:
 
 def user(value: Optional[str]) -> Optional[str]:
     """
-    Your folding user name, up to 100 bytes
+    Set folding user name, up to 100 bytes.
+
     Leading/trailing whitespace will be trimmed.
     If you are using unusual chars, please use Web Control.
     """
