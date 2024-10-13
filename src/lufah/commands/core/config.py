@@ -55,7 +55,12 @@ async def do_config(args: argparse.Namespace):
 
     if value is None:
         # print value for key
-        if (8, 3) <= ver and key in GROUP_CONFIG_KEYS and group is not None:
+        if (8, 3) <= ver and key in GROUP_CONFIG_KEYS:
+            if group is None:
+                raise Exception(
+                    f'Error: cannot get "{key0}" on unspecified group.'
+                    f" There are {len(groups)} groups."
+                )
             # client.data.groups.{group}.config
             conf = client.data.get("groups", {}).get(group, {}).get("config", {})
             print(json.dumps(conf.get(key)))
