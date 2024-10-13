@@ -22,9 +22,9 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def bool_from_string(value: Optional[str]) -> bool:
+def bool_from_string(value: Optional[str]) -> Optional[bool]:
     if value is None:
-        return False
+        return None
     value = value.lower().strip()
     if value in ["true", "yes", "on", "1"]:
         return True
