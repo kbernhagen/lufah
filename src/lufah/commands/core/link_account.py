@@ -10,8 +10,8 @@ async def do_link_account(args: argparse.Namespace):
     """
     Link to account by token.
 
-    Requested machine-name is currently ignored by client.
-    Changing machine-name must be done via Web Control.
+    Requested machine-name change may be ignored by client or delayed.
+    Changing machine-name is best done via Web Control.
     """
     client = args.client
     await client.connect()
