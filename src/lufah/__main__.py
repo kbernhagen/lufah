@@ -3,6 +3,6 @@
 try:
     from lufah.cli_typer import main
 except ImportError:
-    from lufah.cli import main
+    from lufah.cli_argparse import main
 
 main()
