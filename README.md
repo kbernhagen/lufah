@@ -2,14 +2,11 @@
 
 Little Utility for FAH v8
 
-This is a python command line utility script that should
-work on macOS, Linux, and Windows.
-
+A python command line utility for macOS, Linux, Windows
 
 ## Requirements
 
 - python 3.8 or later
-
 
 ## Install from PyPI
 
@@ -61,79 +58,117 @@ This has security implications if you enable direct remote access on a client.
 See [HOWTO: Allow v8 Client Remote Control](https://foldingforum.org/viewtopic.php?t=39050)
 
 ```
-usage: lufah [-h] [-v] [-d] [--version] [-a ADDRESS] COMMAND ...
+lufah -h
+```
 
-Little Utility for FAH v8
+```
+Usage: lufah [OPTIONS] COMMAND [ARGS]...
 
-positional arguments:
-  COMMAND
-    state               Show json snapshot of client state.
-    status              alias for state
-    units               Show table of all units by machine name and group.
-    fold                Start folding in specified group or all groups.
-    finish              Finish folding and pause specified group or all groups.
-    pause               Pause folding in specified group or all groups.
-    unpause             alias for fold
-    config              Get or set config values.
-    groups              Show json array of resource group names.
-    create-group        Create group if it does not exist.
-    info                Show host and client info.
-    log                 Show client log. Use control-c to exit.
-    watch               Show incoming messages. Use control-c to exit.
-    get                 Show json value at dot-separated key path in client state.
-    unlink-account      Unlink account. Requires client 8.3.1 thru 8.3.16.
-    link-account        Link to account by token.
-    restart-account     Restart account/node connection.
-    wait-until-paused   Run until specified group or all groups are paused.
-    enable-all-gpus     Enable all unclaimed gpus in specified group.
-    dump-all            Dump all paused units in specified group or all groups.
-    top                 Show top-like updating units table. Type 'q' to quit, space to force redraw.
-    start               Start local client service.
-    stop                Stop local client service.
+  Little Utility for FAH v8
 
-optional arguments:
-  -h, --help            show this help message and exit
+Options:
+  -a, --address ADDRESS  [host][:port][/group] or
+                         [host][:port],[host][:port]... Use "." for localhost.
+                         Group name must not be url-encoded, but may need
+                         escaping from shell. Can be a comma-separated list of
+                         hosts for commands units, info, fold, finish, pause
+                         [default: localhost:7396]
   -v, --verbose
   -d, --debug
-  --version             show program's version number and exit
-  -a ADDRESS, --address ADDRESS
-                        [host][:port][/group] or [host][:port],[host][:port]...
-                        Use "." for localhost.
-                        Group name must not be url-encoded, but may need escaping from shell.
-                        Can be a comma-separated list of hosts for commands
-                        units, info, fold, finish, pause
+  --version              Show version and exit.
+  --install-completion   Install completion for the current shell.
+  --show-completion      Show completion for the current shell, to copy it or
+                         customize the installation.
+  -h, --help             Show this message and exit.
 
-Examples
+Commands:
+  fold               Start folding in specified group or all groups.
+  finish             Finish folding and pause specified group or all groups.
+  pause              Pause folding in specified group or all groups.
+  unpause            (Deprecated) alias for fold
+  wait-until-paused  Run until specified group or all groups are paused.
+  config             Get or set config values.
+  create-group       Create group if it does not exist.
+  dump-all           Dump all paused units in specified group or all groups.
+  enable-all-gpus    Enable all unclaimed gpus in specified group.
+  state              Show json snapshot of client state.
+  status             (Deprecated) alias for state
+  get                Show json value at dot-separated key path in client...
+  groups             Show json array of resource group names.
+  info               Show host and client info.
+  log                Show client log.
+  top                Show top-like updating units table.
+  units              Show table of all units by machine name and group.
+  watch              Show incoming messages.
+  link-account       Link to account by token.
+  unlink-account     Unlink account.
+  restart-account    Restart account/node connection.
+  start              Start local client service.
+  stop               Stop local client service.
+```
 
+```
+lufah config -h
+```
+
+```
+Usage: lufah config [OPTIONS] COMMAND [ARGS]...
+
+  Get or set config values.
+
+  Other than for account settings (user, team, passkey, cause), a group must
+  be specified if there is more than one group.
+
+  Example: lufah -a / config cpus 0
+
+Options:
+  -h, --help  Show this message and exit.
+
+Commands:
+  beta        Enable beta work units.
+  cause       Set cause preference.
+  checkpoint  (Deprecated) Set requested CPU WU checkpoint frequency in
+              minutes.
+  cpus        Set number of cpus to allocate to resource group.
+  cuda        Enable CUDA for WUs in specified group.
+  fold-anon   (Deprecated) Fold anonymously.
+  keep-awake  Prevent system sleep while folding and not on battery.
+  key         Set project key for internal beta testing of new projects.
+  on-battery  Fold even if on battery.
+  on-idle     Only fold while user is idle.
+  passkey     Set passkey token for quick return bonus points.
+  priority    (Deprecated) Set preferred core task priority.
+  team        Set team number.
+  user        Set folding user name, up to 100 bytes.
+```
+
+## Examples
+
+```
 lufah units
 lufah -a //rg2 finish
-lufah -a other.local state
 lufah -a /mygpu1 config cpus 0
-lufah config -h
 lufah -a host1,host2,host3 units
 lufah -a host1,host2,host3 info
+```
 
-Notes
+## Notes
 
-If not given, the default command is 'units'.
+If not given, the default command is "units".
 
-In 8.3+, if there are multiple groups, config requires a group name,
+If there are multiple groups, config requires a group name,
 except for account settings (user, team, passkey, cause).
-In 8.3, -a /group config cpus <n> is not limited to unused cpus across groups.
 
-Group names for fah 8.1 must:
-  begin "/", have only letters, numbers, period, underscore, hyphen
-Group names on 8.3 can have spaces and special chars.
-Web Control 8.3 trims leading and trailing white space when creating groups.
+For command `lufah -a /groupname config cpus N`, N is not limited to unused cpus across groups.
+
 Group "/" is taken to mean the default group, which is "".
 
 For a group name actually starting with "/", use prefix "//".
-Example: lufah -a somehost//rg1 finish
+Example: `lufah -a somehost//rg1 finish`
 
-An error may not be shown if the initial connection times out.
-If group does not exist on 8.1, this script may hang until silent timeout.
+An error may not be shown if connection times out.
+
 Commands start and stop are macOS-only.
-```
 
 The `top` command is glitchy on Windows when the window is resized.
 Type space to force a redraw.
