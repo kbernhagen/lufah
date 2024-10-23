@@ -375,8 +375,6 @@ def cli_root(
     if len(clients) == 1:
         args.client = clients[0]
 
-    logger.debug("Args: %s", vars(args))
-
     ctx.obj = args
     if ctx.invoked_subcommand is None:
         # need to give args if calling directly

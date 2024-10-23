@@ -127,16 +127,9 @@ class FahClient:
                 await self.close()
                 break
             except (KeyboardInterrupt, asyncio.CancelledError):
-                # https://docs.python.org/3/library/asyncio-runner.html#handling-keyboard-interruption
-                # cancelled explicitly or KeyboardInterrupt happened in asyncio and cancelled us
-                logger.debug(
-                    "FahClient(%s)._receive_messages():Interrupted or Cancelled",
-                    self._name,
-                )
                 await self.close()
                 raise  # MUST re-raise asyncio.CancelledError
             except Exception as e:
-                # note: asyncio.CancelledError is not an Exception subclass
                 logger.debug("%s:Ignoring unexpected exception: %s", self._name, e)
 
     async def connect(self):
