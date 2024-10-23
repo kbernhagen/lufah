@@ -107,6 +107,7 @@ app = typer.Typer(
     # without explicit "rich", some escaped help is improperly rendered
     rich_markup_mode="rich" if _HAVE_RICH else None,
     # rich_help_panel=None,
+    epilog="For notes and examples, see https://pypi.org/project/lufah/",
 )
 app.add_typer(config.app, name="config")
 
