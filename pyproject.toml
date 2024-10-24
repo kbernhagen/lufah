@@ -14,7 +14,6 @@ requires-python = ">=3.8.1"
 dependencies = [
     "shellingham",
     "typer-slim",
-    "typing-extensions",
     "websockets>=13.0.1",
     "windows-curses; platform_system=='Windows'",
 ]
@@ -49,9 +48,5 @@ dev-dependencies = [
     "pylint",
     "pytest",
     "ruff",
-    "textual",
-    "textual-dev",
-    "trogon>=0.6.0",
-    "typer",
     "twine",
 ]
