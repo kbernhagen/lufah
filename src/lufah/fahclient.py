@@ -7,19 +7,20 @@ import logging
 from urllib.parse import urlparse
 
 import websockets
+import websockets.asyncio.client
+import websockets.protocol
 from websockets.exceptions import ConnectionClosed
 
 from lufah import validate as valid
-from lufah.logger import logger
-from lufah.updatable import Updatable
-
-from .const import (
+from lufah.const import (
     COMMAND_FINISH,
     COMMAND_FOLD,
     COMMAND_PAUSE,
 )
-from .exceptions import FahClientUnknownCommand
-from .util import (
+from lufah.exceptions import FahClientUnknownCommand
+from lufah.logger import logger
+from lufah.updatable import Updatable
+from lufah.util import (
     ipv4_uri_for_uri,
     munged_group_name,
     uri_and_group_for_peer,
@@ -60,7 +61,7 @@ class FahClient:
 
     @property
     def is_connected(self):
-        return self.ws is not None and self.ws.open
+        return self.ws is not None and self.ws.state == websockets.protocol.State.OPEN
 
     @property
     def version(self):
@@ -145,11 +146,10 @@ class FahClient:
             self._connected_uri = None
             try:
                 self._connection_state = "Connecting..."
-                self.ws = await websockets.connect(
+                self.ws = await websockets.asyncio.client.connect(
                     uri,
                     ping_interval=None,  # client will ping us, and may not pong
                     max_size=16777216,  # first log message can be huge
-                    #open_timeout=5,
                 )
                 self._connected_uri = uri
                 self._connection_state = "Connected"

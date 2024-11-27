@@ -4,6 +4,14 @@
 
 ---
 
+## [0.8.1] - 2024-11-27
+
+### Fixed
+
+- Use websockets.asyncio.client for websockets 14 compatability
+
+---
+
 ## [0.8.0] - 2024-10-27
 
 ### Added
@@ -43,7 +51,8 @@ Support for FAH older than v8.3 is deprecated.
 - Allow configuring group options without specifying group if there is only one group
 
 
-[unreleased]: https://github.com/kbernhagen/lufah/compare/0.8.0...HEAD
+[unreleased]: https://github.com/kbernhagen/lufah/compare/0.8.1...HEAD
+[0.8.1]: https://github.com/kbernhagen/lufah/compare/0.8.0...0.8.1
 [0.8.0]: https://github.com/kbernhagen/lufah/compare/0.7.0...0.8.0
 [0.7.0]: https://github.com/kbernhagen/lufah/compare/0.6.0...0.7.0
 [0.6.0]: https://github.com/kbernhagen/lufah/compare/0.5.0...0.6.0
