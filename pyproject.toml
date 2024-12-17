@@ -15,7 +15,6 @@ dependencies = [
     "shellingham",
     "typer-slim",
     "websockets>=13.0.1",
-    "windows-curses; platform_system=='Windows'",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",

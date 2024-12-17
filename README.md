@@ -172,6 +172,7 @@ Commands start and stop are macOS-only.
 
 The `top` command is glitchy on Windows when the window is resized.
 Type space to force a redraw.
+To use `lufah top` on Windows, you may need to manually install `windows-curses`.
 
 ## Example Output
 

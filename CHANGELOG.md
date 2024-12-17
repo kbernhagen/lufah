@@ -4,6 +4,14 @@
 
 ---
 
+## [0.8.2] - 2024-12-17
+
+### Changed
+
+- Removed `windows-curses` as a required dependency
+
+---
+
 ## [0.8.1] - 2024-11-27
 
 ### Fixed
@@ -51,7 +59,8 @@ Support for FAH older than v8.3 is deprecated.
 - Allow configuring group options without specifying group if there is only one group
 
 
-[unreleased]: https://github.com/kbernhagen/lufah/compare/0.8.1...HEAD
+[unreleased]: https://github.com/kbernhagen/lufah/compare/0.8.2...HEAD
+[0.8.2]: https://github.com/kbernhagen/lufah/compare/0.8.1...0.8.2
 [0.8.1]: https://github.com/kbernhagen/lufah/compare/0.8.0...0.8.1
 [0.8.0]: https://github.com/kbernhagen/lufah/compare/0.7.0...0.8.0
 [0.7.0]: https://github.com/kbernhagen/lufah/compare/0.6.0...0.7.0
