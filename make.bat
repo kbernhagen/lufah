@@ -25,8 +25,8 @@ if "%1" == "install-user" (
 )
 
 if "%1" == "uninstall-user" (
-	echo. py -m venv %VENV%
-	py -m venv %VENV%
+	echo. python -m venv %VENV%
+	python -m venv %VENV%
 	%PYTHON% -m ensurepip
 	%PYTHON% -m pip install pipx
 	%PYTHON% -m pipx uninstall lufah
