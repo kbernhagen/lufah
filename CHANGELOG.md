@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Builds osx start/stop notification strings from launchd.plist values
+- Updated user name validation to match Web Control
+
 ---
 
 ## [0.8.2] - 2024-12-17

@@ -185,8 +185,9 @@ def user(value: Optional[str]) -> Optional[str]:
     if value == "":
         return "Anonymous"
     value = value.strip()
-    if len(value.encode("utf-8")) > 100:
-        raise Exception("Error: Max user length is 100 bytes")
-    if not re.match(r"^[^\t\n\r]{1,100}$", value):
-        raise Exception("Error: unexpected white space characters")
+    n = len(value.encode("utf-8"))
+    if not 2 <= n <= 100:
+        raise Exception("Error: user name must be empty or between 2 and 100 bytes")
+    if not re.match(r"^[^<>;&:\t\n\r]{2,100}$", value):
+        raise Exception("Error: user name cannot contain any of the following: <>;&: or tab")
     return value
