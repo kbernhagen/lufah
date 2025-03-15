@@ -60,6 +60,12 @@ def validate_passkey(ctx: typer.Context, value: str) -> str:
     return valid.passkey(value)
 
 
+def validate_user(ctx: typer.Context, value: str) -> str:
+    if ctx.resilient_parsing:
+        return None
+    return valid.user(value, force=ctx.obj.force)
+
+
 async def _wrap_do_config_async(args: argparse.Namespace, akey: str, value: Any):
     args.key = akey
     args.value = value
@@ -261,6 +267,9 @@ def team(
 @app.command(help=valid.user.__doc__)
 def user(
     ctx: typer.Context,
-    value: Optional[str] = typer.Argument(None, callback=valid.user),
+    value: Optional[str] = typer.Argument(None),
+    force: bool = typer.Option(False, "--force", help="Allow legacy characters"),
 ):
+    ctx.obj.force = force
+    value = validate_user(ctx, value)
     _wrap_do_config(ctx.obj, "user", value)

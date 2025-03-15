@@ -361,6 +361,7 @@ def cli_root(
     args.peer = peer
     args.peers = peers
     args.command = ctx.invoked_subcommand or "units"
+    args.force = False
 
     if peer is None and args.command not in MULTI_PEER_COMMANDS:
         raise SystemExit(f"Error: {args.command!r} does not support multiple clients")

@@ -173,12 +173,15 @@ def team(value: Optional[str]) -> Optional[int]:
     return value
 
 
-def user(value: Optional[str]) -> Optional[str]:
+def user(value: Optional[str], force: bool = False) -> Optional[str]:
     """
-    Set folding user name, up to 100 bytes.
+    Set folding user name, "" or 2 to 100 bytes.
 
     Leading/trailing whitespace will be trimmed.
     If you are using unusual chars, please use Web Control.
+    User name cannot contain any of the following: <>;&: or tab.
+    Use --force to allow legacy characters for an existing old name.
+    The empty string "" will become "Anonymous".
     """
     if value is None:
         return None
@@ -188,6 +191,11 @@ def user(value: Optional[str]) -> Optional[str]:
     n = len(value.encode("utf-8"))
     if not 2 <= n <= 100:
         raise Exception("Error: user name must be empty or between 2 and 100 bytes")
-    if not re.match(r"^[^<>;&:\t\n\r]{2,100}$", value):
-        raise Exception("Error: user name cannot contain any of the following: <>;&: or tab")
+    if force and not re.match(r"^[^\t\n\r]{2,100}$", value):
+        raise Exception("Error: user name cannot contain tab")
+    if not force and not re.match(r"^[^<>;&:\t\n\r]{2,100}$", value):
+        raise Exception(
+            "Error: user name cannot contain any of the following: <>;&: or tab"
+            + "\nUse --force to allow legacy characters"
+        )
     return value
