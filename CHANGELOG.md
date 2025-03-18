@@ -7,6 +7,8 @@
 - Builds osx start/stop notification strings from launchd.plist values
 - Updated user name validation to match Web Control
 - Added --force option to config user to allow legacy names
+- Added PPD total after units table when multiple units
+- Added thousands separator to PPD
 
 ---
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import datetime as dt
+import locale
 import math
 from urllib.parse import urlparse
 
@@ -163,7 +164,7 @@ def _unit_lines(client, unit) -> list[str]:
             pass
     lines.append(
         f"{project:<7}  {cpus:<4}  {gpus:<4}  {core:<4}  {status:<16}{progress:^8}"
-        f"  {ppd:<8}  {eta:<7}  {deadline_str:<8}"
+        f"  {ppd:<10n} {eta:<7}  {deadline_str:<7}"
     )
     return lines
 
@@ -171,8 +172,8 @@ def _unit_lines(client, unit) -> list[str]:
 def _units_header_lines() -> list[str]:
     empty = ""
     width = 70
-    hd = "Project  CPUs  GPUs  Core  Status          Progress  PPD       ETA    "
-    hd += "  Deadline"
+    hd = "Project  CPUs  GPUs  Core  Status          Progress  PPD        ETA    "
+    hd += " Deadline"
     width = len(hd)
     lines = []
     lines.append(f"{empty:-<{width}}")
@@ -184,8 +185,11 @@ def _units_header_lines() -> list[str]:
 def units_table_lines(clients: list[FahClient]) -> list[str]:
     if clients is None:
         return []
+    locale.setlocale(locale.LC_ALL, "")
     lines = []
     lines.extend(_units_header_lines())
+    ppd_total = 0
+    units_count = 0
     # sort by case insensitive machine_name, with all connected clients first
     for client in sorted(
         clients, key=lambda c: (not c.is_connected, c.machine_name.casefold())
@@ -207,6 +211,8 @@ def units_table_lines(clients: list[FahClient]) -> list[str]:
                 continue
             for unit in units:
                 lines.extend(_unit_lines(client, unit))
+                units_count += 1
+                ppd_total += unit.get("ppd", 0)
         else:
             for group in groups:
                 name_group = f"{name}/{group}"
@@ -216,6 +222,11 @@ def units_table_lines(clients: list[FahClient]) -> list[str]:
                     continue
                 for unit in units:
                     lines.extend(_unit_lines(client, unit))
+                    units_count += 1
+                    ppd_total += unit.get("ppd", 0)
+    if 1 < units_count:
+        lines.append("")
+        lines.append(f"Total PPD: {ppd_total:n}")
     return lines
 
 
