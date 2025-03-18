@@ -31,6 +31,18 @@ def units_for_group(client, group):
     return units
 
 
+def _is_gpu(unit) -> bool:
+    gpus = unit.get("gpus", [])
+    if isinstance(gpus, list) and 0 < len(gpus):
+        return True
+    if 0 == unit.get("assignment", {}).get("min_cpus", -1):
+        return True
+    core_type = unit.get("assignment", {}).get("core", {}).get("type", "")
+    if core_type.startswith("0x2"):
+        return True
+    return False
+
+
 def _wait_until(unit):
     when_str = unit.get("wait")
     return dt.datetime.fromisoformat(when_str.replace("Z", "+00:00"))
@@ -188,7 +200,7 @@ def units_table_lines(clients: list[FahClient]) -> list[str]:
     locale.setlocale(locale.LC_ALL, "")
     lines = []
     lines.extend(_units_header_lines())
-    ppd_total = 0
+    ppd_total = ppd_total_cpu = ppd_total_gpu = 0
     units_count = 0
     # sort by case insensitive machine_name, with all connected clients first
     for client in sorted(
@@ -212,7 +224,12 @@ def units_table_lines(clients: list[FahClient]) -> list[str]:
             for unit in units:
                 lines.extend(_unit_lines(client, unit))
                 units_count += 1
-                ppd_total += unit.get("ppd", 0)
+                ppd = unit.get("ppd", 0)
+                ppd_total += ppd
+                if _is_gpu(unit):
+                    ppd_total_gpu += ppd
+                else:
+                    ppd_total_cpu += ppd
         else:
             for group in groups:
                 name_group = f"{name}/{group}"
@@ -223,10 +240,18 @@ def units_table_lines(clients: list[FahClient]) -> list[str]:
                 for unit in units:
                     lines.extend(_unit_lines(client, unit))
                     units_count += 1
-                    ppd_total += unit.get("ppd", 0)
+                    ppd = unit.get("ppd", 0)
+                    ppd_total += ppd
+                    if _is_gpu(unit):
+                        ppd_total_gpu += ppd
+                    else:
+                        ppd_total_cpu += ppd
     if 1 < units_count:
         lines.append("")
-        lines.append(f"Total PPD: {ppd_total:n}")
+        line = f"Total PPD: {ppd_total:n}"
+        if 0 < ppd_total_cpu and 0 < ppd_total_gpu:
+            line += f"  CPU: {ppd_total_cpu:n}  GPU: {ppd_total_gpu:n}"
+        lines.append(line)
     return lines
 
 
