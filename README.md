@@ -132,6 +132,7 @@ Commands:
   cpus        Set number of cpus to allocate to resource group.
   cuda        Enable CUDA for WUs in specified group.
   fold-anon   (Deprecated) Fold anonymously.
+  hip         Enable HIP for WUs in specified group.
   keep-awake  Prevent system sleep while folding and not on battery.
   key         Set project key for internal beta testing of new projects.
   on-battery  Fold even if on battery.
@@ -139,7 +140,7 @@ Commands:
   passkey     Set passkey token for quick return bonus points.
   priority    (Deprecated) Set preferred core task priority.
   team        Set team number.
-  user        Set folding user name, up to 100 bytes.
+  user        Set folding user name, "" or 2 to 100 bytes.
 ```
 
 ## Examples
@@ -181,13 +182,13 @@ lufah -a .,panda.local units
 ```
 ```
 --------------------------------------------------------------------------------
-Project  CPUs  GPUs  Core  Status          Progress  PPD       ETA      Deadline
+Project  CPUs  GPUs  Core  Status          Progress  PPD        ETA     Deadline
 --------------------------------------------------------------------------------
 Panda/                     Run 
-18494    4     0     0xa8  Running          89.0%    178413    26m 39s  3d 8h   
-Sanctuary/                 Paused
-Sanctuary/tcore            Run Wait 16m 21s
-11901    2     0     0xfe  Dumped            0.0%    0         28m 48s  5h 59m  
-Sanctuary/aux              Finish 
-12421    8     0     0xa8  Finishing        48.1%    237945    14h 15m  4d 10h  
+12462    4     0     0xa8  Running          97.6%    118,692    6m 28s   3d 7h  
+Sanctuary/                 Run 
+18806    12    0     0xa9  Running          49.7%    385,809    3h 2m    2d 23h 
+Sanctuary/aux              Paused
+
+Total PPD: 504,501
 ```

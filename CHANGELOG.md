@@ -10,6 +10,7 @@
 - Added PPD total after units table when multiple units
 - Added thousands separator to PPD
 - Added CPU and GPU PPD totals when both are greater than 0
+- Added group config hip
 
 ---
 

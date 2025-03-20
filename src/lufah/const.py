@@ -25,6 +25,7 @@ GROUP_CONFIG_KEYS = [
     "on_battery",
     "keep_awake",
     "cuda",
+    "hip",
 ]
 
 # peers is v8.1.x only, but possibly remains as cruft

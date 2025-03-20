@@ -173,6 +173,24 @@ def fold_anon(
 
 
 @app.command()
+def hip(
+    ctx: typer.Context,
+    value: Optional[str] = typer.Argument(
+        None,
+        callback=bool_from_string,
+        autocompletion=complete_bool,
+        help="bool string",
+    ),
+):
+    """
+    Enable HIP for WUs in specified group.
+
+    Value is a boolean string (true,false,1,0).
+    """
+    _wrap_do_config(ctx.obj, "hip", value)
+
+
+@app.command()
 def keep_awake(
     ctx: typer.Context,
     value: Optional[str] = typer.Argument(
