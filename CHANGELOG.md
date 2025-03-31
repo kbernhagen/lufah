@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+---
+
+## [0.9.0] - 2025-03-31
+
 ### Changed
 
 - Builds osx start/stop notification strings from launchd.plist values
@@ -69,7 +73,8 @@ Support for FAH older than v8.3 is deprecated.
 - Allow configuring group options without specifying group if there is only one group
 
 
-[unreleased]: https://github.com/kbernhagen/lufah/compare/0.8.2...HEAD
+[unreleased]: https://github.com/kbernhagen/lufah/compare/0.9.0...HEAD
+[0.9.0]: https://github.com/kbernhagen/lufah/compare/0.8.2...0.9.0
 [0.8.2]: https://github.com/kbernhagen/lufah/compare/0.8.1...0.8.2
 [0.8.1]: https://github.com/kbernhagen/lufah/compare/0.8.0...0.8.1
 [0.8.0]: https://github.com/kbernhagen/lufah/compare/0.7.0...0.8.0
