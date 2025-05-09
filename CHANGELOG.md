@@ -4,6 +4,14 @@
 
 ---
 
+## [0.9.1] - 2025-05-09
+
+### Fixed
+
+- Fixed intermittent bugs with timeout, deadline display
+
+---
+
 ## [0.9.0] - 2025-03-31
 
 ### Changed
@@ -73,7 +81,8 @@ Support for FAH older than v8.3 is deprecated.
 - Allow configuring group options without specifying group if there is only one group
 
 
-[unreleased]: https://github.com/kbernhagen/lufah/compare/0.9.0...HEAD
+[unreleased]: https://github.com/kbernhagen/lufah/compare/0.9.1...HEAD
+[0.9.1]: https://github.com/kbernhagen/lufah/compare/0.9.0...0.9.1
 [0.9.0]: https://github.com/kbernhagen/lufah/compare/0.8.2...0.9.0
 [0.8.2]: https://github.com/kbernhagen/lufah/compare/0.8.1...0.8.2
 [0.8.1]: https://github.com/kbernhagen/lufah/compare/0.8.0...0.8.1

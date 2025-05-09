@@ -227,10 +227,14 @@ def natural_delta_from_seconds(secs: int) -> str:
     h, m = divmod(m, 60)
     d, h = divmod(h, 24)
     # return f'{d}:{h:02d}:{m:02d}:{s:02d}'
-    if h == 0:
+    if d == h == 0:
         return f"{m:02d}m {s:02d}s"
     if d == 0:
         return f"{h}h {m:02d}m"
+    if d > 99:
+        return f"{d}d"
+    if h == 0 and m > 0:
+        return f"{d}d {m}m"
     return f"{d}d {h}h"
 
 
