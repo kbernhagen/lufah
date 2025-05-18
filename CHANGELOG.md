@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Added units columns PRCG, TPF, Timeout; removed Project column
+
 ---
 
 ## [0.9.1] - 2025-05-09

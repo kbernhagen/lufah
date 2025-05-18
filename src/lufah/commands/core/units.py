@@ -7,6 +7,7 @@ import asyncio
 import datetime as dt
 import locale
 import math
+import shutil
 from urllib.parse import urlparse
 
 from lufah.const import STATUS_STRINGS, WAIT_STATUS_STRINGS
@@ -135,6 +136,31 @@ def _group_status(client, group_name):
     return status
 
 
+def run_time_secs(unit) -> int:
+    t = unit.get("run_time", 0)
+    ststr = unit.get("start_time")
+    if unit.get("state") == "RUN" and ststr:
+        stime = dt.datetime.fromisoformat(ststr.replace("Z", "+00:00"))
+        now = dt.datetime.now(dt.timezone.utc)
+        t += (now - stime).total_seconds()
+    return int(t)
+
+
+def tpf_secs(unit) -> int:
+    frames = unit.get("wu_progress", 0) * 100
+    if not frames:
+        return 0
+    run_time = run_time_secs(unit)
+    return int(run_time / frames)
+
+
+def tpf(unit) -> str:
+    s = tpf_secs(unit)
+    if not s:
+        return ""
+    return natural_delta_from_seconds(s)
+
+
 def _unit_lines(client, unit) -> list[str]:
     lines = []
     if unit is None:
@@ -142,6 +168,11 @@ def _unit_lines(client, unit) -> list[str]:
     # TODO: unit dataclass
     assignment = unit.get("assignment", {})
     project = assignment.get("project", "")
+    wu = unit.get("wu", {})
+    run = wu.get("run", "")
+    clone = wu.get("clone", "")
+    gen = wu.get("gen", "")
+    prcg = f"{project} {run},{clone},{gen}"
     core = assignment.get("core", {}).get("type", "")
     status = status_for_unit(client, unit)
     cpus = unit.get("cpus", 0)
@@ -161,9 +192,11 @@ def _unit_lines(client, unit) -> list[str]:
         eta = shorten_natural_delta(eta)
     assign_time = assignment.get("time")  # str iso UTC
     deadline_str = ""
+    timeout_str = ""
     if assign_time:
         try:
             deadline = assignment.get("deadline", 0)  # secs from assign time
+            timeout = assignment.get("timeout", 0)  # secs from assign time
             now = dt.datetime.now(dt.timezone.utc)
             atime = dt.datetime.fromisoformat(assign_time.replace("Z", "+00:00"))
             dtime = atime + dt.timedelta(seconds=deadline)
@@ -172,20 +205,25 @@ def _unit_lines(client, unit) -> list[str]:
                 deadline_str = "Expired"
             else:
                 deadline_str = natural_delta_from_seconds(deadline_secs)
+            ttime = atime + dt.timedelta(seconds=timeout)
+            timeout_secs = (ttime - now).total_seconds()
+            if timeout_secs <= 0:
+                timeout_str = "Expired"
+            else:
+                timeout_str = natural_delta_from_seconds(timeout_secs)
         except:  # noqa: E722
             pass
     lines.append(
-        f"{project:<7}  {cpus:<4}  {gpus:<4}  {core:<4}  {status:<16}{progress:^8}"
-        f"  {ppd:<10n} {eta:<7}  {deadline_str:<7}"
+        f"{prcg:<20} {cpus:<4} {gpus:<4} {core:<4} {status:<16}{progress:^8}"
+        f" {ppd:<11n} {tpf(unit):<7}  {eta:<7}  {timeout_str:<7}  {deadline_str:<7}"
     )
     return lines
 
 
 def _units_header_lines() -> list[str]:
     empty = ""
-    width = 70
-    hd = "Project  CPUs  GPUs  Core  Status          Progress  PPD        ETA    "
-    hd += " Deadline"
+    hd = "PRCG                 CPUs GPUs Core Status          Progress "
+    hd += "PPD         TPF      ETA     Timeout Deadline"
     width = len(hd)
     lines = []
     lines.append(f"{empty:-<{width}}")
@@ -213,7 +251,7 @@ def units_table_lines(clients: list[FahClient]) -> list[str]:
         if r.port and r.port != 7396:
             name += f":{r.port}"
         if not client.is_connected:
-            lines.append(f"{name:<26} {client.state}")
+            lines.append(f"{name:<35} {client.state}")
             continue
         groups = client.groups
         if not groups:
@@ -233,7 +271,7 @@ def units_table_lines(clients: list[FahClient]) -> list[str]:
         else:
             for group in groups:
                 name_group = f"{name}/{group}"
-                lines.append(f"{name_group:<25}  " + _group_status(client, group))
+                lines.append(f"{name_group:<35} " + _group_status(client, group))
                 units = units_for_group(client, group)
                 if not units:
                     continue
@@ -270,5 +308,6 @@ def print_units_header():
 async def do_units(args: argparse.Namespace):
     "Show table of all units by machine name and group."
     await asyncio.gather(*[c.connect() for c in args.clients])
+    width = shutil.get_terminal_size((400, 40)).columns
     for line in units_table_lines(args.clients):
-        print(line)
+        print(line[:width])
