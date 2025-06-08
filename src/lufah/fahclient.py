@@ -222,6 +222,10 @@ class FahClient:
     async def send_command(self, cmd, **kwargs):
         if cmd not in [COMMAND_FOLD, COMMAND_FINISH, COMMAND_PAUSE]:
             raise FahClientUnknownCommand(f'Unknown client command: "{cmd}"')
+        if kwargs.get("force") and cmd == "finish" and self.version >= (8, 4):
+            await self._send_finish_force()
+            # fall thru to also do standard finish for any other groups
+            # (harmless to our targeted groups)
         if self.version < (8, 3):
             if cmd == "fold":
                 cmd = "unpause"
@@ -236,6 +240,40 @@ class FahClient:
                     return  # should not reach
                 msg["group"] = group
         await self.send(msg)
+
+    async def _send_finish_force(self):
+        # gather set of paused groups with units in RUN state
+        target_groups = set()
+        for unit in self.data.get("units", []):
+            if unit.get("state") == "RUN":
+                groupname = unit.get("group")
+                if groupname is None:
+                    continue
+                # units can be migrated to "" if their group was deleted
+                if groupname not in self.groups:
+                    groupname = ""
+                group = self.data.get("groups", {}).get(groupname, {})
+                if group.get("config", {}).get("paused"):
+                    target_groups.add(groupname)
+        # create config with hack for each target group
+        # but if a client group was specified, only hack that group
+        all_groups_conf = {g: {} for g in self.groups}
+        group = munged_group_name(self.group, self.data)
+        if group is not None:
+            if group in target_groups:
+                # only group specified is a valid target
+                target_groups = [group]
+            else:
+                # group specified is not a candidate
+                target_groups = []
+        # replace empty conf with hack conf for tageted groups
+        for group in target_groups:
+            if group in all_groups_conf:  # a little paranoia here
+                all_groups_conf[group] = {"paused": False, "finish": True}
+        if target_groups:
+            await self.send({"cmd": "config", "config": {"groups": all_groups_conf}})
+        else:
+            logger.debug("no groups to force finish")
 
     # async def send_config(self, config, **kwargs):
     # default_group=self.group
