@@ -5,6 +5,9 @@
 ### Changed
 
 - Added units columns PRCG, TPF, Timeout; removed Project column
+- Added --force option to finish command,
+ which tries to change paused groups with active units directly to Finishing on fah 8.4+.
+ This may break in the future.
 
 ---
 

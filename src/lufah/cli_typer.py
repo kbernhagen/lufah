@@ -164,7 +164,15 @@ def enable_all_gpus(ctx: typer.Context):
 
 
 @app.command(help=do_finish.__doc__)
-def finish(ctx: typer.Context):
+def finish(
+    ctx: typer.Context,
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Try to change paused groups with active units directly to Finishing",
+    ),
+):
+    ctx.obj.force = force
     _wrap_do_command(do_finish, ctx.obj)
 
 
