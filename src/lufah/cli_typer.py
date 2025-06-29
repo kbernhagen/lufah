@@ -153,7 +153,7 @@ def create_group(ctx: typer.Context):
 
 
 @app.command(help=do_dump_all.__doc__)
-def dump_all(ctx: typer.Context, force: bool = typer.Option(False, "--force")):
+def dump_all(ctx: typer.Context, force: bool = typer.Option(False, "-f", "--force")):
     ctx.obj.force = force
     _wrap_do_command(do_dump_all, ctx.obj)
 
@@ -168,6 +168,7 @@ def finish(
     ctx: typer.Context,
     force: bool = typer.Option(
         False,
+        "-f",
         "--force",
         help="Try to change paused groups with active units directly to Finishing",
     ),

@@ -286,7 +286,7 @@ def team(
 def user(
     ctx: typer.Context,
     value: Optional[str] = typer.Argument(None),
-    force: bool = typer.Option(False, "--force", help="Allow legacy characters"),
+    force: bool = typer.Option(False, "-f", "--force", help="Allow legacy characters"),
 ):
     ctx.obj.force = force
     value = validate_user(ctx, value)
