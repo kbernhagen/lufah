@@ -136,12 +136,14 @@ def passkey(value: Optional[str]) -> Optional[str]:
     """
     Set passkey token for quick return bonus points.
 
-    Passkey must be "" or 32 hexadecimal characters.
+    Passkey must be "" or 30-32 hexadecimal characters.
+    New passkeys are 32 characters. Do not make it up.
+    Get your passkey at https://apps.foldingathome.org/getpasskey 
     """
     if value is None:
         return None
     value = value.strip().lower()
-    if value and not re.match(r"^[0-9a-f]{32}$", value):
+    if value and not re.match(r"^[0-9a-f]{30,32}$", value):
         raise Exception(passkey.__doc__)
     return value
 

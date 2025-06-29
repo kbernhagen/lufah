@@ -9,6 +9,7 @@
  which tries to change paused groups with active units directly to Finishing on fah 8.4+.
  This may break in the future.
 - Added short option -f for --force
+- Allow legacy passkeys of 30 or 31 characters.
 
 ---
 
