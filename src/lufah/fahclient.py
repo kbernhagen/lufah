@@ -294,6 +294,39 @@ class FahClient:
         # FIXME: might break in future
         await self.send({"state": "pause", "cmd": "state", "group": group})
 
+    async def delete_group(self, group):
+        if self.version < (8, 3, 1):
+            raise Exception("Error: delete group requires client 8.3.1+")
+        if group is None:
+            raise Exception("Error: no group specified")
+        # strip leading/trailing whitespace, as web control does
+        group = group.strip()
+        if group == "":
+            raise Exception("Error: default group cannot be deleted")
+        if group not in self.groups:
+            raise Exception(f'Error: group "{group}" does not exist')
+        # TODO: require group is paused and has no units
+        paused = (
+            self.data.get("groups", {})
+            .get(group, {})
+            .get("config", {})
+            .get("paused", False)
+        )
+        count = len(self.units_in_group(group))
+        if not paused or count:
+            m = f'Error: group "{group}" cannot be deleted'
+            if not paused:
+                m += "; group is not paused"
+            if count:
+                m += f"; group has {count} unit"
+                if count != 1:
+                    m += "s"
+            raise Exception(m)
+        # delete group by omitting it from groups config
+        groups_conf = {g: {} for g in self.groups}
+        del groups_conf[group]
+        await self.send({"cmd": "config", "config": {"groups": groups_conf}})
+
     async def dump_unit(self, unit):
         if unit is None:
             logger.error("%s: unit to dump is None", self._name)
@@ -306,6 +339,16 @@ class FahClient:
             await self.send({"cmd": "dump", "unit": unit_id})
         else:
             logger.error("%s: unit to dump has no id", self._name)
+
+    def units_in_group(self, group):
+        # Note that this will not include orphaned units as belonging to "" group
+        units = []
+        if group is None:
+            return units
+        for unit in self.data.get("units", []):
+            if group == unit.get("group"):
+                units.append(unit)
+        return units
 
     def paused_units_in_group(self, group):
         units = []

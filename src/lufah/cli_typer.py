@@ -36,7 +36,7 @@ except:  # noqa: E722
 from lufah import __version__
 from lufah import validate as valid
 from lufah.commands import config  # typer subcommand
-from lufah.commands.core.create_group import do_create_group
+from lufah.commands.core.create_group import do_create_group, do_delete_group
 from lufah.commands.core.dump_all import do_dump_all
 from lufah.commands.core.enable_all_gpus import do_enable_all_gpus
 from lufah.commands.core.finish_fold_pause import do_finish, do_fold, do_pause
@@ -66,6 +66,7 @@ COMMANDS_ORDER = [
     "wait-until-paused",
     "config",
     "create-group",
+    "delete-group",
     "dump-all",
     "enable-all-gpus",
     "state",
@@ -150,6 +151,11 @@ def version_callback(ctx: typer.Context, value: bool):
 @app.command(help=do_create_group.__doc__)
 def create_group(ctx: typer.Context):
     _wrap_do_command(do_create_group, ctx.obj)
+
+
+@app.command(help=do_delete_group.__doc__)
+def delete_group(ctx: typer.Context):
+    _wrap_do_command(do_delete_group, ctx.obj)
 
 
 @app.command(help=do_dump_all.__doc__)
