@@ -10,6 +10,7 @@
  This may break in the future.
 - Added short option -f for --force
 - Allow legacy passkeys of 30 or 31 characters.
+- Added delete-group command
 
 ---
 
