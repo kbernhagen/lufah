@@ -57,7 +57,6 @@ test:  # uv run pytest -vv
 
 .PHONY: build
 build: clean lint test  # clean build and check; done as-needed by other targets
-	# uv build requires uv >= 0.4.5; if build fails, try 'make upgrade-uv'
 	"$(UV)" build
 	"$(UV)" run twine check dist/*
 

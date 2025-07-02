@@ -2,9 +2,14 @@
 
 ## [Unreleased]
 
+---
+
+## [0.10.0] - 2025-07-03
+
 ### Changed
 
-- Added units columns PRCG, TPF, Timeout; removed Project column
+- Added units columns PRCG, TPF, Timeout; removed Project column.
+ Table width is 106 characters, clipped to terminal width.
 - Added --force option to finish command,
  which tries to change paused groups with active units directly to Finishing on fah 8.4+.
  This may break in the future.
@@ -91,7 +96,8 @@ Support for FAH older than v8.3 is deprecated.
 - Allow configuring group options without specifying group if there is only one group
 
 
-[unreleased]: https://github.com/kbernhagen/lufah/compare/0.9.1...HEAD
+[unreleased]: https://github.com/kbernhagen/lufah/compare/0.10.0...HEAD
+[0.10.0]: https://github.com/kbernhagen/lufah/compare/0.9.1...0.10.0
 [0.9.1]: https://github.com/kbernhagen/lufah/compare/0.9.0...0.9.1
 [0.9.0]: https://github.com/kbernhagen/lufah/compare/0.8.2...0.9.0
 [0.8.2]: https://github.com/kbernhagen/lufah/compare/0.8.1...0.8.2

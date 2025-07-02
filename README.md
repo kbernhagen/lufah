@@ -89,6 +89,7 @@ Commands:
   wait-until-paused  Run until specified group or all groups are paused.
   config             Get or set config values.
   create-group       Create group if it does not exist.
+  delete-group       Delete group if it exists, is not "", is paused, and...
   dump-all           Dump all paused units in specified group or all groups.
   enable-all-gpus    Enable all unclaimed gpus in specified group.
   state              Show json snapshot of client state.
@@ -181,14 +182,14 @@ To use `lufah top` on Windows, you may need to manually install `windows-curses`
 lufah -a .,panda.local units
 ```
 ```
---------------------------------------------------------------------------------
-Project  CPUs  GPUs  Core  Status          Progress  PPD        ETA     Deadline
---------------------------------------------------------------------------------
-Panda/                     Run 
-12462    4     0     0xa8  Running          97.6%    118,692    6m 28s   3d 7h  
-Sanctuary/                 Run 
-18806    12    0     0xa9  Running          49.7%    385,809    3h 2m    2d 23h 
-Sanctuary/aux              Paused
+----------------------------------------------------------------------------------------------------------
+PRCG                 CPUs GPUs Core Status          Progress PPD         TPF      ETA     Timeout Deadline
+----------------------------------------------------------------------------------------------------------
+Panda/                              Run 
+18240 1190,0,463     4    0    0xa8 Running          12.8%   156,073     01m 30s  2h 11m   1d 23h   4d 23h 
+Sanctuary/                          Paused
+Sanctuary/aux                       Run 
+18806 17,14,474      12   0    0xa9 Running          62.7%   397,835     03m 33s  2h 12m   2d 20h   2d 22h 
 
-Total PPD: 504,501
+Total PPD: 553,908
 ```
