@@ -161,6 +161,17 @@ def tpf(unit) -> str:
     return natural_delta_from_seconds(s)
 
 
+def progress(unit) -> str:
+    prog = None
+    if _waiting(unit):
+        prog = unit.get("wait_progress")
+    if prog is None:
+        prog = unit.get("wu_progress", unit.get("progress", 0))
+    prog = math.floor(prog * 1000) / 10.0
+    prog = str(prog) + "%"
+    return prog
+
+
 def _unit_lines(client, unit) -> list[str]:
     lines = []
     if unit is None:
@@ -177,13 +188,6 @@ def _unit_lines(client, unit) -> list[str]:
     status = status_for_unit(client, unit)
     cpus = unit.get("cpus", 0)
     gpus = len(unit.get("gpus", []))
-    progress = None
-    if _waiting(unit):
-        progress = unit.get("wait_progress")
-    if progress is None:
-        progress = unit.get("wu_progress", unit.get("progress", 0))
-    progress = math.floor(progress * 1000) / 10.0
-    progress = str(progress) + "%"
     ppd = unit.get("ppd", 0)
     eta = unit.get("eta", "")
     if isinstance(eta, int):
@@ -214,7 +218,7 @@ def _unit_lines(client, unit) -> list[str]:
         except:  # noqa: E722
             pass
     lines.append(
-        f"{prcg:<20} {cpus:<4} {gpus:<4} {core:<4} {status:<16}{progress:^8}"
+        f"{prcg:<20} {cpus:<4} {gpus:<4} {core:<4} {status:<16}{progress(unit):^8}"
         f" {ppd:<11n} {tpf(unit):<7}  {eta:<7}  {timeout_str:<7}  {deadline_str:<7}"
     )
     return lines

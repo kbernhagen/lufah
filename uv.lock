@@ -566,6 +566,8 @@ name = "lufah"
 source = { editable = "." }
 dependencies = [
     { name = "shellingham" },
+    { name = "tabulate2", version = "1.9.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
+    { name = "tabulate2", version = "1.10.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "typer-slim" },
     { name = "websockets", version = "13.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
     { name = "websockets", version = "15.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
@@ -586,6 +588,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "shellingham" },
+    { name = "tabulate2", specifier = ">=1.9.2" },
     { name = "typer-slim" },
     { name = "websockets", specifier = ">=13.0.1" },
 ]
@@ -1026,6 +1029,39 @@ wheels = [
 ]
 
 [[package]]
+name = "tabulate2"
+version = "1.9.2"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.9'",
+]
+dependencies = [
+    { name = "wcwidth", marker = "python_full_version < '3.9'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7d/de/7221a2275ebd1f2c0879823262141869804350256920e6ede7e9f6f6f769/tabulate2-1.9.2.tar.gz", hash = "sha256:95f9d99cf933a9a5e0dac54d7c505b8d914d57519e8e9e6bbddc8f4f4ac5a172", size = 87730, upload-time = "2024-10-06T02:22:33.071Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/64/fd/807295011b81b5987f2a348799be0c9d32751a50f8ccd79123dff0712403/tabulate2-1.9.2-py3-none-any.whl", hash = "sha256:f7a47bbf8f3e3537e7749df96eeeb72f05ab9cb6ff48c687ac7e83b37f06adcf", size = 37786, upload-time = "2024-10-06T02:22:30.787Z" },
+]
+
+[[package]]
+name = "tabulate2"
+version = "1.10.2"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.12'",
+    "python_full_version == '3.11.*'",
+    "python_full_version == '3.10.*'",
+    "python_full_version == '3.9.*'",
+]
+dependencies = [
+    { name = "wcwidth", marker = "python_full_version >= '3.9'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ac/c9/047f0049459e1310fe82c9668fd0d903f1e1f7cac7cfb3034a12f9f3fe9d/tabulate2-1.10.2.tar.gz", hash = "sha256:326277486a1cb83652014e42a51787588dcd0412dd92c6bd7b7650b2925d3085", size = 92663, upload-time = "2025-06-06T05:30:54.447Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/13/7f/ed37136b7287c6022cfba27351162cd6eb962eeaf00c1d24107a3a977eca/tabulate2-1.10.2-py3-none-any.whl", hash = "sha256:d54125bdf2e3206b52c6755c09c3483beb129f500d61cc8da4ea8dba39cd48b6", size = 65407, upload-time = "2025-06-06T05:30:52.58Z" },
+]
+
+[[package]]
 name = "tomli"
 version = "2.2.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1178,6 +1214,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/d5/b7/30753098208505d7ff9be5b3a32112fb8a4cb3ddfccbbb7ba9973f2e29ff/userpath-1.9.2.tar.gz", hash = "sha256:6c52288dab069257cc831846d15d48133522455d4677ee69a9781f11dbefd815", size = 11140, upload-time = "2024-02-29T21:39:08.742Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/43/99/3ec6335ded5b88c2f7ed25c56ffd952546f7ed007ffb1e1539dc3b57015a/userpath-1.9.2-py3-none-any.whl", hash = "sha256:2cbf01a23d655a1ff8fc166dfb78da1b641d1ceabf0fe5f970767d380b14e89d", size = 9065, upload-time = "2024-02-29T21:39:07.551Z" },
+]
+
+[[package]]
+name = "wcwidth"
+version = "0.2.13"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6c/63/53559446a878410fc5a5974feb13d31d78d752eb18aeba59c7fef1af7598/wcwidth-0.2.13.tar.gz", hash = "sha256:72ea0c06399eb286d978fdedb6923a9eb47e1c486ce63e9b4e64fc18303972b5", size = 101301, upload-time = "2024-01-06T02:10:57.829Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fd/84/fd2ba7aafacbad3c4201d395674fc6348826569da3c0937e75505ead3528/wcwidth-0.2.13-py2.py3-none-any.whl", hash = "sha256:3da69048e4540d84af32131829ff948f1e022c1c6bdb8d6102117aac784f6859", size = 34166, upload-time = "2024-01-06T02:10:55.763Z" },
 ]
 
 [[package]]

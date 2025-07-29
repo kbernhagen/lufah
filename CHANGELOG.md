@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Added history command
+
 ---
 
 ## [0.10.0] - 2025-07-03
