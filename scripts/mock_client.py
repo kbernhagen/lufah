@@ -123,7 +123,7 @@ class MockServer:  # pylint: disable=R0902
                 await asyncio.sleep(self._delay)
 
     async def _receive_requests(
-        self, websocket: websockets.WebSocketServerProtocol, remote_addr: str
+        self, websocket: websockets.ServerConnection, remote_addr: str
     ):
         """Receive and log incoming JSON requests."""
         async for message in websocket:
@@ -143,9 +143,7 @@ class MockServer:  # pylint: disable=R0902
                     "Received non-JSON message from %s: %s", remote_addr, message
                 )
 
-    async def _new_client_handler(
-        self, websocket: websockets.WebSocketServerProtocol, _path: str
-    ):
+    async def _new_client_handler(self, websocket: websockets.ServerConnection):
         """Handle new client connection."""
         # ignore path, assumed to be "/api/websocket"
         remote_addr = websocket.remote_address
@@ -198,7 +196,7 @@ class MockServer:  # pylint: disable=R0902
     default=socket.gethostname() + "Mock",
 )
 @arg("--data-file", help="Data file containing JSON dict and array updates")
-def serve(  # pylint: disable=too-many-arguments,too-many-branches
+def serve(  # pylint: disable=too-many-arguments,too-many-branches,too-many-positional-arguments
     version=False,  # pylint: disable=unused-argument
     verbose=False,
     debug=False,
