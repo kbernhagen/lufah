@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Requires python 3.9 or later
 - Added history command
 
 ---
