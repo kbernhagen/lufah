@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - Requires python 3.9 or later
+- Removed support for 8.1 groups
 - Added history command
 
 ---

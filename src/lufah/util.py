@@ -125,22 +125,15 @@ def uri_and_group_for_peer(peer: Optional[str]) -> tuple[Optional[str], Optional
         host = "localhost"
     uri = f"ws://{host}:{port}/api/websocket"
 
-    # validate and munge group, possibly modify uri for 8.1
-    # for v8.3, allow "//" prefix, spaces, special chars
+    # validate and munge group name
+    # for v8.3+, allow "//" prefix, spaces, special chars
     # group None is all groups
     # '/'  will be '' (default group)
     # '//' will be '/'
     # '//.*' will be '/.*'
-    # 8.1 group name '/.*' requires using '//.*'
+    # legacy 8.1 group names '/.*' should use '//.*'
     if group and group.startswith("/"):
         group = group[1:]  # strip "/"; can now be ''
-
-    # TODO: drop 8.1 support
-    if group and re.match(r"^\/?[\w.-]*$", group):
-        # might be connecting to fah 8.1, so append /group
-        if not group.startswith("/"):
-            uri += "/"
-        uri += group
 
     return (uri, group)
 
@@ -196,10 +189,6 @@ def munged_group_name(group: Optional[str], snapshot: Optional[dict]) -> Optiona
         raise Exception(f"Unable to look for group '{group}'. No client data.")
     # get array of actual group names else []
     groups = list(snapshot.get("groups", {}).keys())
-    if not groups:
-        # for 8.1
-        peers = snapshot.get("peers", [])
-        groups = [s for s in peers if s.startswith("/")]
     if len(group):  # don't conflate '' with '/'; both can legit exist
         # check 'groupname' and '/groupname'
         # if both exist, throw
