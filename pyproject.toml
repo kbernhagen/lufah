@@ -10,9 +10,10 @@ keywords = ["fah", "foldingathome", "folding-at-home", "folding@home"]
 license = {file = "LICENSE"}
 readme = "README.md"
 authors = [{name = "Kevin Bernhagen", email = "kbernhagen.github@gmail.com"}]
-requires-python = ">=3.8.1"
+requires-python = ">=3.9"
 dependencies = [
     "shellingham",
+    "tabulate2>=1.9.2",
     "typer-slim",
     "websockets>=13.0.1",
 ]
@@ -23,7 +24,6 @@ classifiers = [
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",

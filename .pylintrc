@@ -6,6 +6,7 @@ disable=
     chained-comparison,
     fixme,
     missing-function-docstring,
+    too-many-boolean-expressions,
     too-many-branches,
     too-many-instance-attributes,
     too-many-lines,

@@ -19,6 +19,7 @@ async def _print_log_lines(client, msg):
                 for line in v:
                     if line:
                         print(line)
+            sys.stdout.flush()  # ensure any SIGPIPE occurs in this try block
         except BrokenPipeError:
             devnull = os.open(os.devnull, os.O_WRONLY)
             os.dup2(devnull, sys.stdout.fileno())
@@ -36,5 +37,5 @@ async def do_log(args: argparse.Namespace):
     if client.is_connected:
         try:
             await client.ws.wait_closed()
-        except (KeyboardInterrupt, asyncio.CancelledError):
+        except asyncio.CancelledError:
             pass

@@ -7,6 +7,7 @@ import asyncio
 import errno
 import logging
 import os
+import re
 import sys
 from typing import Callable
 
@@ -42,6 +43,7 @@ from lufah.commands.core.enable_all_gpus import do_enable_all_gpus
 from lufah.commands.core.finish_fold_pause import do_finish, do_fold, do_pause
 from lufah.commands.core.get import do_get
 from lufah.commands.core.groups import do_groups
+from lufah.commands.core.history import do_history
 from lufah.commands.core.info import do_info
 from lufah.commands.core.link_account import do_link_account
 from lufah.commands.core.log import do_log
@@ -73,6 +75,7 @@ COMMANDS_ORDER = [
     "status",
     "get",
     "groups",
+    "history",
     "info",
     "log",
     "top",
@@ -204,6 +207,83 @@ def get(
 @app.command(help=do_groups.__doc__)
 def groups(ctx: typer.Context):
     _wrap_do_command(do_groups, ctx.obj)
+
+
+def validate_history_core(ctx: typer.Context, value: str) -> str:
+    if ctx.resilient_parsing or value is None:
+        return None
+    if value and not re.match(r"^[a-zA-Z0-9]{2}$", value):
+        raise Exception("Error: core must be 2 hexadecimal characters")
+    return value.lower()
+
+
+def complete_history_os():
+    return ["win", "lin", "mac"]
+
+
+def validate_history_os(ctx: typer.Context, value: str) -> str:
+    if ctx.resilient_parsing or value is None:
+        return None
+    value = value.lower()[:3]
+    if value not in complete_history_os():
+        raise typer.BadParameter(f"Error: unrecognized os {value}")
+    return value
+
+
+@app.command(help=do_history.__doc__)
+def history(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    ctx: typer.Context,
+    n: int = typer.Option(
+        0,
+        "-n",
+        help="Max number of rows to show",
+    ),
+    project: int = typer.Option(
+        0,
+        "-p",
+        "--project",
+        help="Project number filter",
+    ),
+    core: str = typer.Option(
+        None,
+        "-c",
+        "--core",
+        help="Core number filter (2 hexadecimal characters)",
+        callback=validate_history_core,
+    ),
+    os_name: str = typer.Option(
+        None,
+        "-o",
+        "--os",
+        help="OS name filter (win|lin|mac)",
+        autocompletion=complete_history_os,
+        callback=validate_history_os,
+    ),
+    unit_status: str = typer.Option(
+        None,
+        "-s",
+        "--status",
+        help="Case-insensitive prefix of desired status",
+    ),
+    days: float = typer.Option(
+        0.0,
+        "-w",
+        "--within",
+        help="Max days since assignment",
+    ),
+):
+    ctx.obj.n = n
+    if project > 0:
+        ctx.obj.filters["project"] = project
+    if core:
+        ctx.obj.filters["core"] = core.lower()
+    if os_name:
+        ctx.obj.filters["os"] = os_name.lower()
+    if unit_status:
+        ctx.obj.filters["status"] = unit_status.lower()
+    if days > 0.0:
+        ctx.obj.filters["within"] = days
+    _wrap_do_command(do_history, ctx.obj)
 
 
 @app.command(help=do_info.__doc__)
@@ -377,6 +457,8 @@ def cli_root(
     args.peers = peers
     args.command = ctx.invoked_subcommand or "units"
     args.force = False
+    args.n = 0
+    args.filters = {}
 
     if peer is None and args.command not in MULTI_PEER_COMMANDS:
         raise SystemExit(f"Error: {args.command!r} does not support multiple clients")

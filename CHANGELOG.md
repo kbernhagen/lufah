@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Requires python 3.9 or later
+- Added history command
+
 ---
 
 ## [0.10.0] - 2025-07-03

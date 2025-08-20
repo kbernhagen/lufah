@@ -220,7 +220,7 @@ def natural_delta_from_seconds(secs: int) -> str:
     """Human-readable time interval"""
     secs = int(secs)  # it may not be int
     if secs < 0:
-        return "-(" + natural_delta_from_seconds(-secs) + ")"
+        return natural_delta_from_seconds(-secs) + " ago"
     if secs < 60:
         return f"{secs:02d}s"
     m, s = divmod(secs, 60)
