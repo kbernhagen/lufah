@@ -2,9 +2,19 @@
 
 ## [Unreleased]
 
+### Changed
+
 - Requires python 3.9 or later
-- Removed support for 8.1 groups
-- Added history command
+- Removed support for fah 8.1 groups
+
+### Added
+
+- work unit `history` command
+
+### Fixed
+
+- `wait-until-paused` will ignore groups with no resources
+- specifying a group works for fah 8.4.10
 
 ---
 
