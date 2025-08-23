@@ -6,7 +6,6 @@ import asyncio
 import importlib
 import json
 import operator
-import re
 import socket
 import sys
 from functools import reduce
