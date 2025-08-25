@@ -25,6 +25,8 @@ _FILTERS = {}
 def assigned_after(unit: dict, target_time: dt.datetime) -> bool:
     assignment = unit.get("assignment", {})
     assign_time_str = assignment.get("time", "")
+    if assign_time_str == "":
+        return False
     atime = dt.datetime.fromisoformat(assign_time_str.replace("Z", "+00:00"))
     return target_time <= atime
 
@@ -33,6 +35,10 @@ def ud_assign_delta(_: FahClient, unit: dict):
     "Human-readable time interval from assignment time to now"
     assignment = unit.get("assignment", {})
     assign_time_str = assignment.get("time", "")
+    if assign_time_str == "":
+        # no assign time wus records can happen with server errors
+        # "" is an invalid isoformat string, so return now
+        return ""
     atime = dt.datetime.fromisoformat(assign_time_str.replace("Z", "+00:00"))
     now = dt.datetime.now(dt.timezone.utc)
     ago_secs = (atime - now).total_seconds()
@@ -133,7 +139,6 @@ def _print_table(client: FahClient, wunits: list):
             row.append(col.func(client, unit))
         data.append(row)
     print(tabulate(data, headers=headers, colalign=colalign))
-    # print(wunits[0])
 
 
 async def _print_history(client, msg):
