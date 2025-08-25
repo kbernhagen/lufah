@@ -6,7 +6,7 @@ A python command line utility for macOS, Linux, Windows
 
 ## Requirements
 
-- python 3.8 or later
+- python 3.9 or later
 
 ## Install from PyPI
 
@@ -96,6 +96,7 @@ Commands:
   status             (Deprecated) alias for state
   get                Show json value at dot-separated key path in client...
   groups             Show json array of resource group names.
+  history            Show work unit history and exit.
   info               Show host and client info.
   log                Show client log.
   top                Show top-like updating units table.
