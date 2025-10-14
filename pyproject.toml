@@ -41,7 +41,10 @@ Changelog = "https://github.com/kbernhagen/lufah/blob/main/CHANGELOG.md"
 path = "src/lufah/__init__.py"
 
 [tool.uv]
-dev-dependencies = [
+required-version = ">=0.9.0"
+
+[dependency-groups]
+dev = [
     "argh",
     "pipx",
     "pylint",
