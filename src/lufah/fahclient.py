@@ -4,6 +4,7 @@ import asyncio
 import datetime
 import json
 import logging
+import random
 from urllib.parse import urlparse
 
 import websockets
@@ -28,9 +29,15 @@ from lufah.util import (
 
 
 class FahClient:
-    """Class to manage a remote client connection"""
+    """Class to manage a remote Folding@home client connection with auto-reconnect support."""
 
-    def __init__(self, peer, name=None, should_process_updates=True):
+    def __init__(self, peer, name=None, should_process_updates=True, max_retries=None):
+        """
+        :param peer: Remote peer address
+        :param name: Optional human-readable name
+        :param should_process_updates: Whether to apply incoming updates to client state
+        :param max_retries: Max reconnect attempts (default: None = unlimited)
+        """
         peer = valid.address(peer, single=True)
         self._name = None
         self.ws = None
@@ -39,12 +46,22 @@ class FahClient:
         self._version = (0, 0, 0)  # data.info.version as tuple after connect
         self._callbacks = []  # message callbacks
         self._should_process_updates = should_process_updates
+
         # peer is a pseuso-uri that needs munging
-        # NOTE: this may raise
         self._uri, self._group = uri_and_group_for_peer(peer)
         self._connected_uri = None
         u = urlparse(self._uri)
         self._name = name or u.netloc or peer
+
+        # Reconnect management
+        self.reconnect_enabled = True
+        self._reconnect_task = None
+        self._base_delay = 5  # initial backoff in seconds
+        self._max_delay = 10  # max backoff cap in seconds
+        self._current_delay = self._base_delay
+        self._max_retries = max_retries  # None = unlimited
+        self._retry_count = 0
+
         logger.debug('Created FahClient("%s")', self._name)
 
     @property
@@ -96,99 +113,190 @@ class FahClient:
             data = json.loads(message)
         except Exception as e:
             logger.error(
-                "%s:_process_message():unable to convert message to json:%s:%s",
+                "%s:_process_message(): unable to convert message to json: %s: %s",
                 self._name,
                 e,
                 message,
             )
             return
+
         try:
             if self._should_process_updates and isinstance(data, (list, str)):
                 self.data.do_update(data)
         except Exception as e:
-            logger.error("%s:Updatable.do_update() exception:%s", self._name, type(e))
+            logger.error("%s: Updatable.do_update() exception: %s", self._name, type(e))
+        await self._do_callbacks_with_data(data)
+
+    async def _do_callbacks_with_data(self, data):
         for callback in self._callbacks:
             try:
                 await callback(self, data)
             except Exception as e:
                 logger.error(
-                    "%s:_process_message() ignoring callback exception:%s:%s",
+                    "%s:_process_message() ignoring callback exception: %s: %s",
                     self._name,
                     e,
                     callback,
                 )
 
+    async def _did_change(self):
+        """Notify of state change via callbacks with None"""
+        # maybe use reactive properties?
+        await self._do_callbacks_with_data(None)
+
     async def _receive_messages(self):
-        while True:
+        """Background task: receive messages until closed, then trigger reconnect if allowed."""
+        while self.is_connected:
             try:
-                message = await self.ws.recv()
+                message = await asyncio.wait_for(self.ws.recv(), timeout=20)
                 await self._process_message(message)
             except ConnectionClosed:
-                logger.info("%s:Connection closed.", self._name)
+                logger.info("%s: Connection closed.", self._name)
+                break
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise  # MUST re-raise
+            except asyncio.TimeoutError:
+                logger.info("%s: Connection recv timeout.", self._name)
                 await self.close()
                 break
-            except (KeyboardInterrupt, asyncio.CancelledError):
-                await self.close()
-                raise  # MUST re-raise asyncio.CancelledError
             except Exception as e:
-                logger.debug("%s:Ignoring unexpected exception: %s", self._name, e)
+                logger.exception(
+                    "%s: Unexpected exception in _receive_messages: %s", self._name, e
+                )
+
+        # If we end up here, the connection is closed
+        await self._schedule_reconnect()
+
+    async def _schedule_reconnect(self):
+        """Schedule reconnect with exponential backoff + jitter if reconnect is enabled."""
+        if not self.reconnect_enabled:
+            logger.debug(
+                "%s: Reconnect disabled, not scheduling reconnect.", self._name
+            )
+            return
+
+        if self._max_retries is not None and self._retry_count >= self._max_retries:
+            logger.error(
+                "%s: Reached maximum retry limit (%d). Giving up.",
+                self._name,
+                self._max_retries,
+            )
+            return
+
+        if self._reconnect_task and not self._reconnect_task.done():
+            logger.debug("%s: Reconnect already scheduled.", self._name)
+            return
+
+        # Add jitter (±20%)
+        jitter = random.uniform(0.8, 1.2)
+        delay = min(self._current_delay * jitter, self._max_delay)
+        self._retry_count += 1
+
+        logger.info(
+            "%s: Attempting reconnect #%d in %.1f seconds...",
+            self._name,
+            self._retry_count,
+            delay,
+        )
+        self._reconnect_task = asyncio.create_task(self._delayed_reconnect(delay))
+
+        # Increase backoff for next time, capped
+        self._current_delay = min(self._current_delay * 2, self._max_delay)
+
+    async def _delayed_reconnect(self, delay):
+        try:
+            await asyncio.sleep(delay)
+            await self.connect()
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+            raise
+        except Exception as e:
+            logger.warning("%s: Reconnect attempt failed: %s", self._name, e)
+            await self._schedule_reconnect()  # keep retrying (if under limit)
 
     async def connect(self):
         if self.is_connected:
             return
         if self._uri is None:
-            logger.error("%s:connect(): uri is None", self._name)
+            logger.error("%s: connect(): uri is None", self._name)
             return
-        if not self.ws:
-            logger.info("%s:Opening %s", self._name, self._uri)
-            self._connection_state = "Connecting.."  # Resolving
-            uri = await ipv4_uri_for_uri(self._uri)
-            self._connected_uri = None
-            try:
-                self._connection_state = "Connecting..."
-                self.ws = await websockets.asyncio.client.connect(
-                    uri,
-                    ping_interval=None,  # client will ping us, and may not pong
-                    max_size=16777216,  # first log message can be huge
-                )
-                self._connected_uri = uri
-                self._connection_state = "Connected"
-                logger.info("%s:Connected to %s", self._name, uri)
-            except (KeyboardInterrupt, asyncio.CancelledError):
-                self.data = Updatable()
-                self._version = (0, 0, 0)
-                self._connection_state = "Disconnected"
-                logger.warning("%s:connect cancelled to %s", self._name, uri)
-                raise
-            except Exception as e:
-                self.data = Updatable()
-                self._version = (0, 0, 0)
-                if isinstance(e, (OSError, asyncio.TimeoutError)):
-                    self._connection_state = "Unreachable"
-                elif isinstance(e, websockets.exceptions.InvalidURI):
-                    self._connection_state = "Invalid address"
-                else:
-                    self._connection_state = type(e)  # "Disconnected"
-                logger.warning("%s:Failed to connect to %s", self._name, uri)
-                return
-        r = await self.ws.recv()
-        snapshot = json.loads(r)
-        v = snapshot.get("info", {}).get("version", "0")
-        self._version = tuple(map(int, v.split(".")))
-        old = self._version < (8, 3)
-        self.data = Updatable(snapshot, compat_mode=old)
-        if old:
-            logger.warning(
-                "Client v%s. Support for clients older than 8.3 is deprecated.", v
+
+        self._connection_state = "Connecting..."
+        uri = await ipv4_uri_for_uri(self._uri)
+        self._connected_uri = None
+        try:
+            self.ws = await websockets.asyncio.client.connect(
+                uri,
+                ping_interval=None,  # client will ping us, and may not pong
+                max_size=16777216,  # first log message can be huge
             )
-        asyncio.ensure_future(self._receive_messages())
+            self._connected_uri = uri
+            self._connection_state = "Connected"
+            logger.info("%s: Connected to %s", self._name, uri)
+
+            # Reset retry/backoff after successful connection
+            self._current_delay = self._base_delay
+            self._retry_count = 0
+        except asyncio.CancelledError:
+            self._reset_state("Disconnected")
+            logger.warning("%s: connect() cancelled", self._name)
+            raise
+        except Exception as e:
+            self._reset_state(
+                "Unreachable"
+                if isinstance(e, (OSError, asyncio.TimeoutError))
+                else "Disconnected"
+            )
+            logger.warning("%s: Failed to connect to %s: %s", self._name, uri, e)
+            await self.close()
+            await self._schedule_reconnect()
+            return
+
+        try:
+            r = await self.ws.recv()
+            snapshot = json.loads(r)
+            v = snapshot.get("info", {}).get("version", "0")
+            self._version = tuple(map(int, v.split(".")))
+            old = self._version < (8, 3)
+            self.data = Updatable(snapshot, compat_mode=old)
+            if old:
+                logger.warning("Client v%s. Support for <8.3 is deprecated.", v)
+        except Exception as e:
+            logger.error("%s: Failed to receive initial snapshot: %s", self._name, e)
+            await self.close()
+            await self._schedule_reconnect()
+            return
+
+        asyncio.create_task(self._receive_messages())
 
     async def close(self):
+        """Close connection and disable auto-reconnect temporarily."""
+        logger.debug("%s: Closing connection", self._name)
+        recon_enabled = self.reconnect_enabled
+        self.reconnect_enabled = False  # disable auto-reconnect temporarily
+
+        if self._reconnect_task and not self._reconnect_task.done():
+            self._reconnect_task.cancel()
+            self._reconnect_task = None
+
         if self.ws is not None:
             self._connection_state = "Disconnecting"
-            await self.ws.close()
-            self._connected_uri = None
-        self._connection_state = "Disconnected"
+            try:
+                await self.ws.close()
+            except Exception as e:
+                logger.debug("%s: Exception while closing websocket: %s", self._name, e)
+            finally:
+                self.ws = None
+                self._connected_uri = None
+
+        self._reset_state("Disconnected")
+        self.reconnect_enabled = recon_enabled  # restore for future use
+        self._current_delay = self._base_delay  # reset backoff
+        self._retry_count = 0
+
+    def _reset_state(self, state):
+        # self.data = Updatable()
+        # self._version = (0, 0, 0)
+        self._connection_state = state
 
     async def send(self, message):
         if not self.is_connected:
