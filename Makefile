@@ -28,7 +28,6 @@ $(VENV):
 	"$(PYTHON)" -m ensurepip --upgrade
 	"$(PYTHON)" -m pip install pipx
 	"$(PYTHON)" -m pipx ensurepath
-	@echo "You may want to use \"source $(VENV)/bin/activate\""
 
 $(UV): $(VENV)
 	@if [ ! -x "$(UV)" ]; then \
