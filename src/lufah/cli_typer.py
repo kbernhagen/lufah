@@ -58,7 +58,7 @@ from lufah.commands.core.watch import do_watch
 from lufah.exceptions import *  # noqa: F403
 from lufah.fahclient import FahClient
 from lufah.logger import logger, simple_log_handler
-from lufah.util import eprint
+from lufah.util import eprint, split_address_and_group
 
 COMMANDS_ORDER = [
     "fold",
@@ -442,12 +442,11 @@ def cli_root(
     else:
         logger.setLevel(logging.WARNING)
 
-    peers = []
-    if "/" not in peer:
-        peers = peer.split(",")
-    if not peers:
-        peers = [peer]
-    elif len(peers) > 1:
+    peer, group = split_address_and_group(peer)
+    if group and group.startswith("/"):
+        group = group[1:]  # strip "/"; can now be ''
+    peers = peer.split(",")
+    if len(peers) > 1:
         peer = None
 
     args = argparse.Namespace()
@@ -455,6 +454,7 @@ def cli_root(
     args.debug = debug
     args.peer = peer
     args.peers = peers
+    args.group = group
     args.command = ctx.invoked_subcommand or "units"
     args.force = False
     args.n = 0

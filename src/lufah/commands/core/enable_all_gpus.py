@@ -11,7 +11,7 @@ async def do_enable_all_gpus(args: argparse.Namespace):
     await client.connect()
     if client.version < (8, 3, 17):
         raise Exception("Error: enable-all-gpus requires client 8.3.17+")
-    if client.group is None or client.group not in client.groups:
+    if args.group is None or args.group not in client.groups:
         raise Exception("Error: an existing group must be specified for enable-all-gpus")
     all_gpus = client.data.get("info", {}).get("gpus", {})
     # get set of all_supported gpu ids, info.gpus id with "supported" True
@@ -40,7 +40,7 @@ async def do_enable_all_gpus(args: argparse.Namespace):
         return
     # create group config with to_enable gpus, {gpuid = {enabled = True}}
     # start with existing gpus, so we don't disable any in target group
-    groupconf = client.data.get("groups", {}).get(client.group, {}).get("config", {})
+    groupconf = client.data.get("groups", {}).get(args.group, {}).get("config", {})
     target_group_conf_gpus = groupconf.get("gpus", {}).copy()
     for gpuid in to_enable:
         target_group_conf_gpus[gpuid] = {"enabled": True}
@@ -49,7 +49,7 @@ async def do_enable_all_gpus(args: argparse.Namespace):
     groupsconf = {}
     for g in client.groups:
         groupsconf[g] = {}
-    groupsconf[client.group] = {"gpus": target_group_conf_gpus}
+    groupsconf[args.group] = {"gpus": target_group_conf_gpus}
     conf = {"groups": groupsconf}
     # send config
     await client.send({"cmd": "config", "config": conf})

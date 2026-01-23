@@ -38,11 +38,11 @@ async def do_config(args: argparse.Namespace):
 
     if (8, 3) <= ver:
         try:
-            group = munged_group_name(client.group, client.data)
+            group = munged_group_name(args.group, client.data)
         except Exception as e:
             raise Exception(f"FahClient('{client.name}'):{e}") from e
     else:
-        group = client.group
+        group = args.group
 
     # don't require group if there is only one (the default group "")
     if group is None and len(groups) == 1:

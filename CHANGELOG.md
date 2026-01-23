@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Breaking API Changes
+- Removed FahClient should_process_updates
+- Group name is not stored in client; group name is passed to client methods
+
 ---
 
 ## [0.11.0] - 2025-08-25

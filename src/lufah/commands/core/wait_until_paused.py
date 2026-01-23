@@ -4,6 +4,8 @@ import argparse
 
 from lufah.logger import logger
 
+# args.group global for callback
+g_group: str = None
 
 def _no_enabled_gpus(gpus: dict) -> bool:
     for v in gpus.values():
@@ -12,9 +14,8 @@ def _no_enabled_gpus(gpus: dict) -> bool:
     return True
 
 
-async def _close_if_paused(client, _):
-    # unused: msg
-    group = client.group
+async def _close_if_paused(client, _msg):
+    group = g_group
     if group is None:
         groups = client.groups
     elif group not in client.groups:
@@ -40,6 +41,8 @@ async def _close_if_paused(client, _):
 
 async def do_wait_until_paused(args: argparse.Namespace):
     "Run until specified group or all groups are paused."
+    global g_group  # pylint: disable=global-statement
+    g_group = args.group
     client = args.client
     client.register_callback(_close_if_paused)
     await client.connect()

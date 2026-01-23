@@ -71,8 +71,10 @@ Options:
                          [host][:port],[host][:port]... Use "." for localhost.
                          Group name must not be url-encoded, but may need
                          escaping from shell. Can be a comma-separated list of
-                         hosts for commands units, info, fold, finish, pause
-                         [default: localhost:7396]
+                         hosts for commands units, info, fold, pause, finish,
+                         top. A group name cannot be used with multiple hosts.
+                         IPv6 is not supported by the client.  [default:
+                         localhost:7396]
   -v, --verbose
   -d, --debug
   --version              Show version and exit.

@@ -23,7 +23,7 @@ async def do_dump_all(args: argparse.Namespace):
     await client.connect()
     if client.version < (8, 3):
         raise Exception("Error: dump-all requires client 8.3+")
-    group = client.group
+    group = args.group
     units = client.paused_units_in_group(group)
     if len(units) == 0:
         msg = f"{client.machine_name}: no paused units found"

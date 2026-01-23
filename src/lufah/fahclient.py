@@ -40,7 +40,7 @@ class FahClient:
         self._callbacks = []  # message callbacks
         # peer is a pseuso-uri that needs munging
         # NOTE: this may raise
-        self._uri, self._group = uri_and_group_for_peer(peer)
+        self._uri, _ = uri_and_group_for_peer(peer)
         self._connected_uri = None
         u = urlparse(self._uri)
         self._name = name or u.netloc or peer
@@ -53,10 +53,6 @@ class FahClient:
     @property
     def uri(self):
         return self._uri
-
-    @property
-    def group(self):
-        return self._group
 
     @property
     def is_connected(self):
@@ -218,11 +214,11 @@ class FahClient:
                 await self.close()
                 raise
 
-    async def send_command(self, cmd, **kwargs):
+    async def send_command(self, cmd, group=None, force=False):
         if cmd not in [COMMAND_FOLD, COMMAND_FINISH, COMMAND_PAUSE]:
             raise FahClientUnknownCommand(f'Unknown client command: "{cmd}"')
-        if kwargs.get("force") and cmd == "finish" and self.version >= (8, 4):
-            await self._send_finish_force()
+        if force and cmd == COMMAND_FINISH and self.version >= (8, 4):
+            await self._send_finish_force(group)
             # fall thru to also do standard finish for any other groups
             # (harmless to our targeted groups)
         if self.version < (8, 3):
@@ -231,7 +227,6 @@ class FahClient:
             msg = {"cmd": cmd}
         else:
             msg = {"state": cmd, "cmd": "state"}
-            group = kwargs.get("group", self.group)
             # NOTE: group would be created if it doesn't exist
             if group is not None:
                 group = munged_group_name(group, self.data)
@@ -240,7 +235,7 @@ class FahClient:
                 msg["group"] = group
         await self.send(msg)
 
-    async def _send_finish_force(self):
+    async def _send_finish_force(self, group=None):
         # gather set of paused groups with units in RUN state
         target_groups = set()
         for unit in self.data.get("units", []):
@@ -251,13 +246,13 @@ class FahClient:
                 # units can be migrated to "" if their group was deleted
                 if groupname not in self.groups:
                     groupname = ""
-                group = self.data.get("groups", {}).get(groupname, {})
-                if group.get("config", {}).get("paused"):
+                group_dict = self.data.get("groups", {}).get(groupname, {})
+                if group_dict.get("config", {}).get("paused"):
                     target_groups.add(groupname)
         # create config with hack for each target group
         # but if a client group was specified, only hack that group
         all_groups_conf = {g: {} for g in self.groups}
-        group = munged_group_name(self.group, self.data)
+        group = munged_group_name(group, self.data)
         if group is not None:
             if group in target_groups:
                 # only group specified is a valid target
@@ -266,18 +261,13 @@ class FahClient:
                 # group specified is not a candidate
                 target_groups = []
         # replace empty conf with hack conf for tageted groups
-        for group in target_groups:
-            if group in all_groups_conf:  # a little paranoia here
-                all_groups_conf[group] = {"paused": False, "finish": True}
+        for g in target_groups:
+            if g in all_groups_conf:  # a little paranoia here
+                all_groups_conf[g] = {"paused": False, "finish": True}
         if target_groups:
             await self.send({"cmd": "config", "config": {"groups": all_groups_conf}})
         else:
             logger.debug("no groups to force finish")
-
-    # async def send_config(self, config, **kwargs):
-    # default_group=self.group
-    # force=False
-    # def get_config_value(self, key, **kwargs):
 
     async def create_group(self, group):
         if self.version < (8, 3, 1):

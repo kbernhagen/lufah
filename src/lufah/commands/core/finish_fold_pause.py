@@ -10,7 +10,7 @@ async def _do_command_multi(args: argparse.Namespace, command=None):
     for client in args.clients:
         try:
             if client.is_connected:
-                await client.send_command(command, force=args.force)
+                await client.send_command(command, group=args.group, force=args.force)
         except Exception as e:
             raise Exception(f"Error: FahClient('{client.name}'):{e}") from e
 

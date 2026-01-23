@@ -28,7 +28,9 @@ def address(peer: Optional[str], single=False) -> str:
     Use "." for localhost.
     Group name must not be url-encoded, but may need escaping from shell.
     Can be a comma-separated list of hosts for commands
-    units, info, fold, finish, pause
+    units, info, fold, pause, finish, top.
+    A group name cannot be used with multiple hosts.
+    IPv6 is not supported by the client.
     """
     if peer is None:
         return _DEFAULT_HOST_PORT
