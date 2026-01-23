@@ -30,7 +30,7 @@ from lufah.util import (
 class FahClient:
     """Class to manage a remote client connection"""
 
-    def __init__(self, peer, name=None, should_process_updates=True):
+    def __init__(self, peer, name=None):
         peer = valid.address(peer, single=True)
         self._name = None
         self.ws = None
@@ -38,7 +38,6 @@ class FahClient:
         self.data = Updatable()  # client state
         self._version = (0, 0, 0)  # data.info.version as tuple after connect
         self._callbacks = []  # message callbacks
-        self._should_process_updates = should_process_updates
         # peer is a pseuso-uri that needs munging
         # NOTE: this may raise
         self._uri, self._group = uri_and_group_for_peer(peer)
@@ -103,7 +102,7 @@ class FahClient:
             )
             return
         try:
-            if self._should_process_updates and isinstance(data, (list, str)):
+            if isinstance(data, (list, str)):
                 self.data.do_update(data)
         except Exception as e:
             logger.error("%s:Updatable.do_update() exception:%s", self._name, type(e))
