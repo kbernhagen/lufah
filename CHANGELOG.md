@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- Group names beginning with '/' must be specified with prefix '//' on command line
+
 ### Breaking API Changes
 - Removed FahClient should_process_updates
 - Group name is not stored in client; group name is passed to client methods

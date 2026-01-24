@@ -175,30 +175,18 @@ async def ipv4_uri_for_uri(uri: Optional[str]) -> Optional[str]:
 
 
 def munged_group_name(group: Optional[str], snapshot: Optional[dict]) -> Optional[str]:
-    # TODO: drop 8.1 support and require // if group begins / to remove ambiguity
     # return group name that exists, None, or raise
     # assume v8.3; old group names may persist from upgrade
     # NOTE: must have connected to have snapshot
     # group may be None
     # expect always having first leading '/' removed from cli argument
-    # expect user specified '//name' for actual '/name' (already stripped)
+    # requires user specified '//name' on cli for actual '/name' (already stripped)
     if group is None:
         return None  # no group specified; this is common
     if snapshot is None:
         raise Exception(f"Unable to look for group '{group}'. No client data.")
     # get array of actual group names else []
     groups = list(snapshot.get("groups", {}).keys())
-    if len(group):  # don't conflate '' with '/'; both can legit exist
-        # check 'groupname' and '/groupname'
-        # if both exist, throw
-        # '' is always the default group and not checked here
-        group0 = "/" + group
-        if group0 in groups and group in groups:
-            raise Exception(
-                f"Ambiguous group name. Both '{group}' and '{group0}' exist."
-            )
-        if group0 in groups and group not in groups:
-            group = group0
     if group not in groups:
         raise FahClientGroupDoesNotExist(f"Group '{group}' is not in groups {groups}")
     return group
