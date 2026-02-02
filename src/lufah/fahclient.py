@@ -4,6 +4,7 @@ import asyncio
 import datetime
 import json
 import logging
+from typing import Any
 from urllib.parse import urlparse
 
 import websockets
@@ -81,10 +82,34 @@ class FahClient:
         return self._connection_state
 
     def register_callback(self, callback):
-        self._callbacks.append(callback)
+        if callback is not None:
+            self._callbacks.append(callback)
 
     def unregister_callback(self, callback):
-        self._callbacks.remove(callback)
+        if callback in self._callbacks:
+            self._callbacks.remove(callback)
+
+    async def _dispatch_handlers(self, data: Any) -> None:
+        """
+        Dispatch message to registered handlers.
+
+        Handler signature: async def handler(client: FAHClient, data: Any)
+        async is not required.
+        """
+        for callback in self._callbacks:
+            try:
+                if asyncio.iscoroutinefunction(callback):
+                    await callback(self, data)
+                else:
+                    callback(self, data)
+            except Exception as e:  # pylint: disable=broad-except
+                logger.error(
+                    "%s: Ignoring callback exception: %s in %s",
+                    self._name,
+                    e,
+                    callback,
+                    exc_info=True,
+                )
 
     async def _process_message(self, message):
         try:
@@ -102,16 +127,7 @@ class FahClient:
                 self.data.do_update(data)
         except Exception as e:
             logger.error("%s:Updatable.do_update() exception:%s", self._name, type(e))
-        for callback in self._callbacks:
-            try:
-                await callback(self, data)
-            except Exception as e:
-                logger.error(
-                    "%s:_process_message() ignoring callback exception:%s:%s",
-                    self._name,
-                    e,
-                    callback,
-                )
+        await self._dispatch_handlers(data)
 
     async def _receive_messages(self):
         while True:
@@ -176,6 +192,7 @@ class FahClient:
             logger.warning(
                 "Client v%s. Support for clients older than 8.3 is deprecated.", v
             )
+        await self._dispatch_handlers(snapshot)
         asyncio.ensure_future(self._receive_messages())
 
     async def close(self):

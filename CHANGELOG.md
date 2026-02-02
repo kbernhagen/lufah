@@ -8,6 +8,8 @@
 ### Breaking API Changes
 - Removed FahClient should_process_updates
 - Group name is not stored in client; group name is passed to client methods
+- Initial state dict is also sent to message callbacks.
+    Callback data can be None or any JSON value.
 
 ---
 
