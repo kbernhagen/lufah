@@ -11,18 +11,30 @@ A python command line utility for macOS, Linux, Windows
 ## Install from PyPI
 
 Install in isolated user environment (preferred):
+
+Via [uv](https://docs.astral.sh/uv/)
+```
+uv tool install lufah
+```
+
+Or via pipx
 ```
 pip install pipx
 pipx install lufah
 ```
 
-Or
+Or not isolated:
 ```
 pip install lufah
 ```
 
 ## Uninstall
 
+```
+uv tool uninstall lufah
+```
+
+Or
 ```
 pip install pipx
 pipx uninstall lufah
@@ -39,7 +51,7 @@ macOS / Linux / Windows
 ```
 git clone https://github.com/kbernhagen/lufah.git
 cd lufah
-make install-user
+make install-user  # uses pipx
 ```
 
 ## Uninstall from source
@@ -47,7 +59,7 @@ make install-user
 ```
 git clone https://github.com/kbernhagen/lufah.git
 cd lufah
-make uninstall-user
+make uninstall-user  # uses pipx
 ```
 
 ## Usage
