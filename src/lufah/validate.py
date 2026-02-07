@@ -36,6 +36,9 @@ def address(peer: Optional[str], single=False) -> str:
         return _DEFAULT_HOST_PORT
     # separate "/group" from peer(s)
     peer, group = split_address_and_group(peer)
+    # validate group name; for now that means printable chars (and space)
+    if group and not group.isprintable():
+        raise Exception("Invalid group name with non-printable characters")
 
     if peer in ["", ".", _DEFAULT_HOST, _DEFAULT_HOST_PORT]:
         return _DEFAULT_HOST_PORT + (group or "")
@@ -62,10 +65,12 @@ def address(peer: Optional[str], single=False) -> str:
         if group:
             raise Exception("Error: Cannot have multiple hosts with any group")
         # split on comma and validate each single-host address, then join, unique
+        # ignore empty strings
         addresses = set()
         for p in peer.split(","):
-            p = address(p, single=True)
-            addresses.add(p)
+            if p:
+                p = address(p, single=True)
+                addresses.add(p)
         peer = ",".join(addresses)
     return peer
 

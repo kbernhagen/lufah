@@ -24,7 +24,7 @@ from lufah.updatable import Updatable
 from lufah.util import (
     ipv4_uri_for_uri,
     munged_group_name,
-    uri_and_group_for_peer,
+    uri_for_peer,
 )
 
 
@@ -41,7 +41,7 @@ class FahClient:
         self._callbacks = []  # message callbacks
         # peer is a pseuso-uri that needs munging
         # NOTE: this may raise
-        self._uri, _ = uri_and_group_for_peer(peer)
+        self._uri = uri_for_peer(peer)
         self._connected_uri = None
         u = urlparse(self._uri)
         self._name = name or u.netloc or peer

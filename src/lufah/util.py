@@ -106,14 +106,15 @@ def func_module_docstring(func: Callable) -> str:
     return mod.__doc__ or ""
 
 
-def uri_and_group_for_peer(peer: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+def uri_for_peer(peer: Optional[str]) -> Optional[str]:
     # assume 'valid' single host:port[/group] as returned by validate.address(peer, single=True)
     # try to return a resolved host:port[/group]
     # host should be left as-is if unresolvable; it might be later on reconnect attempt
     if peer in [None, ""]:  # should never happen
-        return (None, None)  # this should be the only way None is returned
+        return None  # this should be the only way None is returned
 
-    peer, group = split_address_and_group(peer)
+    # discard group, if any
+    peer, _group = split_address_and_group(peer)
 
     u = urlparse("ws://" + peer)
     host = u.hostname or "localhost"
@@ -122,19 +123,8 @@ def uri_and_group_for_peer(peer: Optional[str]) -> tuple[Optional[str], Optional
         host = host.strip()
     if host in [None, "", ".", "localhost", "localhost.", "127.0.0.1"]:
         host = "localhost"
-    uri = f"ws://{host}:{port}/api/websocket"
 
-    # validate and munge group name
-    # for v8.3+, allow "//" prefix, spaces, special chars
-    # group None is all groups
-    # '/'  will be '' (default group)
-    # '//' will be '/'
-    # '//.*' will be '/.*'
-    # legacy 8.1 group names '/.*' should use '//.*'
-    if group and group.startswith("/"):
-        group = group[1:]  # strip "/"; can now be ''
-
-    return (uri, group)
+    return f"ws://{host}:{port}/api/websocket"
 
 
 async def resolve_ipv4(hostname: str):
