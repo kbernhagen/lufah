@@ -215,7 +215,7 @@ def _unit_lines(client, unit) -> list[str]:
                 timeout_str = "Expired"
             else:
                 timeout_str = natural_delta_from_seconds(timeout_secs)
-        except:  # noqa: E722
+        except (ValueError, TypeError, OverflowError):
             pass
     lines.append(
         f"{prcg:<20} {cpus:<4} {gpus:<4} {core:<4} {status:<16}{progress(unit):^8}"

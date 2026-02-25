@@ -45,7 +45,7 @@ class Topper:  # pylint: disable=R0903
         self._draw_event.clear()
         try:
             curses.resize_term(0, 0)  # for Windows
-        except:  # noqa: E722
+        except Exception:
             pass
         screen.clear()
         maxy, maxx = self._screen.getmaxyx()
@@ -93,7 +93,7 @@ class Topper:  # pylint: disable=R0903
                         self._draw_event.set()
                     elif chr(char) == "q":
                         break
-                except:  # noqa: E722
+                except ValueError:
                     pass
 
     async def run(self):

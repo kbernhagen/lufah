@@ -39,6 +39,7 @@ class FahClient:
         self.data = Updatable()  # client state
         self._version = (0, 0, 0)  # data.info.version as tuple after connect
         self._callbacks = []  # message callbacks
+        self._receive_task = None
         # peer is a pseuso-uri that needs munging
         # NOTE: this may raise
         self._uri = uri_for_peer(peer)
@@ -193,13 +194,16 @@ class FahClient:
                 "Client v%s. Support for clients older than 8.3 is deprecated.", v
             )
         await self._dispatch_handlers(snapshot)
-        asyncio.ensure_future(self._receive_messages())
+        self._receive_task = asyncio.create_task(self._receive_messages())
 
     async def close(self):
+        if self._receive_task is not None:
+            self._receive_task.cancel()
         if self.ws is not None:
             self._connection_state = "Disconnecting"
             await self.ws.close()
             self._connected_uri = None
+            self.ws = None
         self._connection_state = "Disconnected"
 
     async def send(self, message):

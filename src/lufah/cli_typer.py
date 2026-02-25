@@ -15,7 +15,7 @@ try:
     from rich.markup import escape as rich_escape  # type: ignore
 
     _HAVE_RICH = True
-except:  # noqa: E722
+except (ImportError, ModuleNotFoundError):
     _HAVE_RICH = False
 
     def rich_escape(s):
@@ -31,7 +31,7 @@ try:
     from trogon import Trogon  # type: ignore  pylint: disable=E0401
 
     _HAVE_TROGON = True
-except:  # noqa: E722
+except (ImportError, ModuleNotFoundError):
     _HAVE_TROGON = False
 
 from lufah import __version__
