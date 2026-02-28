@@ -16,4 +16,5 @@ async def do_watch(args: argparse.Namespace):
     client = args.client
     client.register_callback(_print_json_message)
     await client.connect()
-    await client.ws.wait_closed()
+    if client.is_connected:
+        await client.ws.wait_closed()

@@ -7,6 +7,7 @@ from lufah.logger import logger
 # args.group global for callback
 g_group: str = None
 
+
 def _no_enabled_gpus(gpus: dict) -> bool:
     for v in gpus.values():
         if v.get("enabled", False):
@@ -46,11 +47,9 @@ async def do_wait_until_paused(args: argparse.Namespace):
     client = args.client
     client.register_callback(_close_if_paused)
     await client.connect()
-    if client.version < (8, 3, 17):
-        raise Exception("Error: wait-until-paused requires client 8.3.17+")
-    if args.debug:
-        return
-    # process initial connection snapshot
-    await _close_if_paused(client, None)
     if client.is_connected:
+        if client.version < (8, 3, 17):
+            raise Exception("Error: wait-until-paused requires client 8.3.17+")
         await client.ws.wait_closed()
+    else:
+        raise SystemError(f"Error: {client.name} failed to connect")

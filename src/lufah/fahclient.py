@@ -137,10 +137,11 @@ class FahClient:
                 await self._process_message(message)
             except ConnectionClosed:
                 logger.info("%s:Connection closed.", self._name)
-                await self.close()
+                self._connection_state = "Disconnected"
+                self._connected_uri = None
+                self.ws = None
                 break
-            except (KeyboardInterrupt, asyncio.CancelledError):
-                await self.close()
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise  # MUST re-raise asyncio.CancelledError
             except Exception as e:
                 logger.debug("%s:Ignoring unexpected exception: %s", self._name, e)
@@ -169,12 +170,14 @@ class FahClient:
             except (KeyboardInterrupt, asyncio.CancelledError):
                 self.data = Updatable()
                 self._version = (0, 0, 0)
+                self.ws = None
                 self._connection_state = "Disconnected"
                 logger.warning("%s:connect cancelled to %s", self._name, uri)
                 raise
             except Exception as e:
                 self.data = Updatable()
                 self._version = (0, 0, 0)
+                self.ws = None
                 if isinstance(e, (OSError, asyncio.TimeoutError)):
                     self._connection_state = "Unreachable"
                 elif isinstance(e, websockets.exceptions.InvalidURI):
@@ -197,13 +200,27 @@ class FahClient:
         self._receive_task = asyncio.create_task(self._receive_messages())
 
     async def close(self):
-        if self._receive_task is not None:
-            self._receive_task.cancel()
-        if self.ws is not None:
+        ws = self.ws  # Capture reference to handle race conditions
+        self.ws = None  # Clear immediately to prevent further use
+        if ws is not None:
             self._connection_state = "Disconnecting"
-            await self.ws.close()
-            self._connected_uri = None
-            self.ws = None
+            try:
+                await ws.close()
+                await ws.wait_closed()
+            except Exception as e:
+                logger.debug("%s:Exception while closing websocket: %s", self._name, e)
+            finally:
+                self._connected_uri = None
+        # Only cancel the receive task if we're not being called from within it
+        if (
+            self._receive_task is not None
+            and self._receive_task != asyncio.current_task()
+        ):
+            self._receive_task.cancel()
+            try:
+                await self._receive_task
+            except asyncio.CancelledError:
+                pass
         self._connection_state = "Disconnected"
 
     async def send(self, message):
