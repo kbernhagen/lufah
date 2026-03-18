@@ -47,9 +47,8 @@ async def do_wait_until_paused(args: argparse.Namespace):
     client = args.client
     client.register_callback(_close_if_paused)
     await client.connect()
-    if client.is_connected:
-        if client.version < (8, 3, 17):
-            raise Exception("Error: wait-until-paused requires client 8.3.17+")
-        await client.ws.wait_closed()
-    else:
+    if not client.is_connected:
         raise SystemError(f"Error: {client.name} failed to connect")
+    if client.version < (8, 3, 17):
+        raise Exception("Error: wait-until-paused requires client 8.3.17+")
+    await client.wait_closed()

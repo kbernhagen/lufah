@@ -34,7 +34,7 @@ class FahClient:
     def __init__(self, peer, name=None):
         peer = valid.address(peer, single=True)
         self._name = None
-        self.ws = None
+        self._ws = None
         self._connection_state = ""
         self.data = Updatable()  # client state
         self._version = (0, 0, 0)  # data.info.version as tuple after connect
@@ -58,7 +58,7 @@ class FahClient:
 
     @property
     def is_connected(self):
-        return self.ws is not None and self.ws.state == websockets.protocol.State.OPEN
+        return self._ws is not None and self._ws.state == websockets.protocol.State.OPEN
 
     @property
     def version(self):
@@ -133,13 +133,13 @@ class FahClient:
     async def _receive_messages(self):
         while True:
             try:
-                message = await self.ws.recv()
+                message = await self._ws.recv()
                 await self._process_message(message)
             except ConnectionClosed:
                 logger.info("%s:Connection closed.", self._name)
                 self._connection_state = "Disconnected"
                 self._connected_uri = None
-                self.ws = None
+                self._ws = None
                 break
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise  # MUST re-raise asyncio.CancelledError
@@ -152,14 +152,14 @@ class FahClient:
         if self._uri is None:
             logger.error("%s:connect(): uri is None", self._name)
             return
-        if not self.ws:
+        if not self._ws:
             logger.info("%s:Opening %s", self._name, self._uri)
             self._connection_state = "Connecting.."  # Resolving
             uri = await ipv4_uri_for_uri(self._uri)
             self._connected_uri = None
             try:
                 self._connection_state = "Connecting..."
-                self.ws = await websockets.asyncio.client.connect(
+                self._ws = await websockets.asyncio.client.connect(
                     uri,
                     ping_interval=None,  # client will ping us, and may not pong
                     max_size=16777216,  # first log message can be huge
@@ -170,14 +170,14 @@ class FahClient:
             except (KeyboardInterrupt, asyncio.CancelledError):
                 self.data = Updatable()
                 self._version = (0, 0, 0)
-                self.ws = None
+                self._ws = None
                 self._connection_state = "Disconnected"
                 logger.warning("%s:connect cancelled to %s", self._name, uri)
                 raise
             except Exception as e:
                 self.data = Updatable()
                 self._version = (0, 0, 0)
-                self.ws = None
+                self._ws = None
                 if isinstance(e, (OSError, asyncio.TimeoutError)):
                     self._connection_state = "Unreachable"
                 elif isinstance(e, websockets.exceptions.InvalidURI):
@@ -186,7 +186,7 @@ class FahClient:
                     self._connection_state = type(e)  # "Disconnected"
                 logger.warning("%s:Failed to connect to %s", self._name, uri)
                 return
-        r = await self.ws.recv()
+        r = await self._ws.recv()
         snapshot = json.loads(r)
         v = snapshot.get("info", {}).get("version", "0")
         self._version = tuple(map(int, v.split(".")))
@@ -200,8 +200,8 @@ class FahClient:
         self._receive_task = asyncio.create_task(self._receive_messages())
 
     async def close(self):
-        ws = self.ws  # Capture reference to handle race conditions
-        self.ws = None  # Clear immediately to prevent further use
+        ws = self._ws  # Capture reference to handle race conditions
+        self._ws = None  # Clear immediately to prevent further use
         if ws is not None:
             self._connection_state = "Disconnecting"
             try:
@@ -222,6 +222,11 @@ class FahClient:
             except asyncio.CancelledError:
                 pass
         self._connection_state = "Disconnected"
+
+    async def wait_closed(self):
+        """Wait until the websocket connection is fully closed."""
+        if self.is_connected:
+            await self._ws.wait_closed()
 
     async def send(self, message):
         if not self.is_connected:
@@ -247,7 +252,7 @@ class FahClient:
         if msgstr:
             logger.info("%s:sending: %s", self._name, msgstr)
             try:
-                await self.ws.send(msgstr)
+                await self._ws.send(msgstr)
             except ConnectionClosed:
                 await self.close()
                 raise

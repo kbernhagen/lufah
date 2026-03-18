@@ -16,5 +16,6 @@ async def do_watch(args: argparse.Namespace):
     client = args.client
     client.register_callback(_print_json_message)
     await client.connect()
-    if client.is_connected:
-        await client.ws.wait_closed()
+    if not client.is_connected:
+        raise SystemError(f"Error: {client.name} failed to connect")
+    await client.wait_closed()

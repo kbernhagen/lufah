@@ -31,11 +31,10 @@ async def do_log(args: argparse.Namespace):
     client = args.client
     client.register_callback(_print_log_lines)
     await client.connect()
+    if not client.is_connected:
+        raise SystemError(f"Error: {client.name} failed to connect")
     await client.send({"cmd": "log", "enable": True})
-    if args.debug:
-        return
-    if client.is_connected:
-        try:
-            await client.ws.wait_closed()
-        except asyncio.CancelledError:
-            pass
+    try:
+        await client.wait_closed()
+    except asyncio.CancelledError:
+        pass

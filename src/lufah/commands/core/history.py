@@ -170,11 +170,12 @@ async def do_history(args: argparse.Namespace):
     if args.filters:
         _FILTERS = args.filters
     await client.connect()
-    if client.is_connected:
-        if client.version < (8, 4, 8):
-            raise Exception("Error: history requires client 8.4.8+")
-        await client.send({"cmd": "wus", "enable": True})
-        try:
-            await asyncio.wait_for(client.ws.wait_closed(), timeout=20)
-        except (asyncio.CancelledError, asyncio.TimeoutError):
-            pass
+    if not client.is_connected:
+        raise SystemError(f"Error: {client.name} failed to connect")
+    if client.version < (8, 4, 8):
+        raise Exception("Error: history requires client 8.4.8+")
+    await client.send({"cmd": "wus", "enable": True})
+    try:
+        await asyncio.wait_for(client.wait_closed(), timeout=20)
+    except (asyncio.CancelledError, asyncio.TimeoutError):
+        pass
