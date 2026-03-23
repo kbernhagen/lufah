@@ -73,8 +73,8 @@ publish: build  # build and publish to pypi.org
 
 .PHONY: clean
 clean:  # remove all build products
-	rm -rf dist build src/*.egg-info examples/__pycache__
-	find src -type d -name __pycache__ -print -exec rm -r {} \; -prune
+	rm -rf dist build src/*.egg-info
+	find . -type d -name __pycache__ -print -exec rm -r {} \; -prune
 
 .PHONY: clean-venv
 clean-venv:  # remove venv
@@ -82,4 +82,4 @@ clean-venv:  # remove venv
 
 .PHONY: clean-all
 clean-all: clean clean-venv  # clean all
-	rm -rf .ruff_cache
+	rm -rf .pytest_cache .ruff_cache
