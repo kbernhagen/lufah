@@ -11,6 +11,7 @@ import sys
 
 from tabulate2 import tabulate
 
+from lufah.commands import validate_single_client_connection
 from lufah.commands.core import units
 from lufah.fahclient import FahClient
 from lufah.logger import logger
@@ -170,8 +171,7 @@ async def do_history(args: argparse.Namespace):
     if args.filters:
         _FILTERS = args.filters
     await client.connect()
-    if not client.is_connected:
-        raise SystemError(f"Error: {client.name} failed to connect")
+    validate_single_client_connection(client)
     if client.version < (8, 4, 8):
         raise Exception("Error: history requires client 8.4.8+")
     await client.send({"cmd": "wus", "enable": True})

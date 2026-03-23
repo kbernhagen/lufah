@@ -3,6 +3,8 @@
 import argparse
 import json
 
+from lufah.commands import validate_single_client_connection
+
 
 async def _print_json_message(_client, msg):
     if isinstance(msg, (list, str)):
@@ -16,6 +18,5 @@ async def do_watch(args: argparse.Namespace):
     client = args.client
     client.register_callback(_print_json_message)
     await client.connect()
-    if not client.is_connected:
-        raise SystemError(f"Error: {client.name} failed to connect")
+    validate_single_client_connection(client)
     await client.wait_closed()

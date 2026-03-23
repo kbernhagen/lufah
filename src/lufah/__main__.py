@@ -1,4 +1,4 @@
-""" lufah __main__ """
+"""lufah __main__"""
 
 from lufah.cli_typer import main
 

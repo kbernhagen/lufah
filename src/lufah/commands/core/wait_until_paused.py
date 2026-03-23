@@ -2,6 +2,7 @@
 
 import argparse
 
+from lufah.commands import validate_single_client_connection
 from lufah.logger import logger
 
 # args.group global for callback
@@ -47,8 +48,7 @@ async def do_wait_until_paused(args: argparse.Namespace):
     client = args.client
     client.register_callback(_close_if_paused)
     await client.connect()
-    if not client.is_connected:
-        raise SystemError(f"Error: {client.name} failed to connect")
+    validate_single_client_connection(client)
     if client.version < (8, 3, 17):
         raise Exception("Error: wait-until-paused requires client 8.3.17+")
     await client.wait_closed()

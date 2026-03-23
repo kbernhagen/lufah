@@ -145,7 +145,7 @@ def passkey(value: Optional[str]) -> Optional[str]:
 
     Passkey must be "" or 30-32 hexadecimal characters.
     New passkeys are 32 characters. Do not make it up.
-    Get your passkey at https://apps.foldingathome.org/getpasskey 
+    Get your passkey at https://apps.foldingathome.org/getpasskey
     """
     if value is None:
         return None

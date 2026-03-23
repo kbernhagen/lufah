@@ -5,6 +5,8 @@ link to account-token [machine-name]
 import argparse
 import platform
 
+from lufah.commands import validate_single_client_connection
+
 
 async def do_link_account(args: argparse.Namespace):
     """
@@ -15,6 +17,7 @@ async def do_link_account(args: argparse.Namespace):
     """
     client = args.client
     await client.connect()
+    validate_single_client_connection(client)
     if (8, 3, 1) <= client.version:
         token = args.account_token
         name = args.machine_name

@@ -5,6 +5,8 @@ import asyncio
 import os
 import sys
 
+from lufah.commands import validate_single_client_connection
+
 
 async def _print_log_lines(client, msg):
     _ = client
@@ -31,8 +33,7 @@ async def do_log(args: argparse.Namespace):
     client = args.client
     client.register_callback(_print_log_lines)
     await client.connect()
-    if not client.is_connected:
-        raise SystemError(f"Error: {client.name} failed to connect")
+    validate_single_client_connection(client)
     await client.send({"cmd": "log", "enable": True})
     try:
         await client.wait_closed()

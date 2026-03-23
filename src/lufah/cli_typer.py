@@ -131,8 +131,13 @@ async def _wrap_do_command_async(func: Callable, args: argparse.Namespace):
         else:
             func(args)
     finally:
+        # Close clients with proper timeout to prevent hanging
         for client in args.clients:
-            await client.close()
+            try:
+                await asyncio.wait_for(client.close(), timeout=1)
+            except (asyncio.TimeoutError, Exception):
+                # If close times out or fails, continue cleanup
+                pass
 
 
 def _wrap_do_command(func: Callable, args: argparse.Namespace):

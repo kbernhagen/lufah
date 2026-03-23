@@ -3,10 +3,14 @@
 import argparse
 import asyncio
 
+from lufah.commands import validate_multi_client_connections
+
 
 async def _do_command_multi(args: argparse.Namespace, command=None):
     await asyncio.gather(*[c.connect() for c in args.clients])
     command = command or args.command
+    validate_multi_client_connections(args.clients)
+
     for client in args.clients:
         try:
             if client.is_connected:

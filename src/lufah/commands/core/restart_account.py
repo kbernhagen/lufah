@@ -2,6 +2,8 @@
 
 import argparse
 
+from lufah.commands import validate_single_client_connection
+
 
 async def do_restart_account(args: argparse.Namespace):
     """
@@ -12,6 +14,7 @@ async def do_restart_account(args: argparse.Namespace):
     """
     client = args.client
     await client.connect()
+    validate_single_client_connection(client)
     if (8, 3, 17) <= client.version:
         await client.send({"cmd": "restart"})
     else:

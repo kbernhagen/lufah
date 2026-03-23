@@ -10,6 +10,7 @@ import math
 import shutil
 from urllib.parse import urlparse
 
+from lufah.commands import validate_multi_client_connections
 from lufah.const import STATUS_STRINGS, WAIT_STATUS_STRINGS
 from lufah.fahclient import FahClient
 from lufah.logger import logger
@@ -312,6 +313,8 @@ def print_units_header():
 async def do_units(args: argparse.Namespace):
     "Show table of all units by machine name and group."
     await asyncio.gather(*[c.connect() for c in args.clients])
+    validate_multi_client_connections(args.clients)
+
     width = shutil.get_terminal_size((400, 40)).columns
     for line in units_table_lines(args.clients):
         print(line[:width])
