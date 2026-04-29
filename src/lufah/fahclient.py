@@ -337,7 +337,7 @@ class FahClient:
             raise Exception("Error: default group cannot be deleted")
         if group not in self.groups:
             raise Exception(f'Error: group "{group}" does not exist')
-        # TODO: require group is paused and has no units
+        # require group is paused and has no units
         paused = (
             self.data.get("groups", {})
             .get(group, {})
