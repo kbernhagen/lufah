@@ -40,8 +40,8 @@ def _start_or_stop_local_sevice(args: argparse.Namespace, command=None):
             pass
         note = note or f"org.foldingathome.fahclient.{user}.{command}"
         cmd = ["notifyutil", "-p", note]
-        if args.debug:
-            logger.debug("WOULD BE running: %s", " ".join(cmd))
+        if args.dry_run:
+            logger.info("[DRY-RUN] would run: %s", " ".join(cmd))
             return
         logger.info("%s", " ".join(cmd))
         check_call(cmd)

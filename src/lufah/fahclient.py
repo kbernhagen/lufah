@@ -40,6 +40,7 @@ class FahClient:
         self._version = (0, 0, 0)  # data.info.version as tuple after connect
         self._callbacks = []  # message callbacks
         self._receive_task = None
+        self._dry_run = False
         # peer is a pseuso-uri that needs munging
         # NOTE: this may raise
         self._uri = uri_for_peer(peer)
@@ -63,6 +64,14 @@ class FahClient:
     @property
     def version(self):
         return self._version
+
+    @property
+    def dry_run(self):
+        return self._dry_run
+
+    def set_dry_run(self, enabled: bool):
+        """Set dry-run mode. When enabled, commands are logged but not sent."""
+        self._dry_run = enabled
 
     @property
     def groups(self):
@@ -246,8 +255,8 @@ class FahClient:
         elif isinstance(message, list):
             # currently, would be invalid
             msgstr = json.dumps(message)
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("%s:WOULD BE sending: %s", self._name, msgstr)
+        if self._dry_run:
+            logger.info("%s:[DRY-RUN] would send: %s", self._name, msgstr)
             return
         if msgstr:
             logger.info("%s:sending: %s", self._name, msgstr)

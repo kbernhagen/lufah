@@ -426,6 +426,11 @@ def cli_root(
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
     debug: bool = typer.Option(False, "--debug", "-d"),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Show commands that would be executed without sending them",
+    ),
     _version: bool = typer.Option(
         False,
         "--version",
@@ -457,6 +462,7 @@ def cli_root(
     args = argparse.Namespace()
     args.verbose = verbose
     args.debug = debug
+    args.dry_run = dry_run
     args.peer = peer
     args.peers = peers
     args.group = group
@@ -472,6 +478,7 @@ def cli_root(
     for p in peers:
         c = FahClient(p)
         if c is not None:
+            c.set_dry_run(dry_run)
             clients.append(c)
 
     args.clients = clients

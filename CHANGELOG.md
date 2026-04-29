@@ -2,8 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+- `--dry-run` option to show commands that would be executed without sending them
+
 ### Changed
 - Group names beginning with '/' must be specified with prefix '//' on command line
+- `--debug` option no longer disables sending commands; use `--dry-run` instead
+- start/stop commands now check `--dry-run` to disable execution (previously checked `--debug`)
 
 ### Breaking API Changes
 - Removed FahClient should_process_updates
