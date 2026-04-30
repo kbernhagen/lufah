@@ -36,6 +36,7 @@ except (ImportError, ModuleNotFoundError):
 
 from lufah import __version__
 from lufah import validate as valid
+from lufah.cli_helpers import GroupWithGlobalOptions
 from lufah.commands import config  # typer subcommand
 from lufah.commands.core.create_group import do_create_group, do_delete_group
 from lufah.commands.core.dump_all import do_dump_all
@@ -98,8 +99,8 @@ class NaturalOrderGroup(typer.core.TyperGroup):
         return self.commands.keys()
 
 
-class ManualOrderGroup(typer.core.TyperGroup):
-    "Commands in help manual order"
+class ManualOrderGroup(GroupWithGlobalOptions):
+    """Commands in help manual order, with parent options displayed."""
 
     def list_commands(self, ctx):
         return COMMANDS_ORDER

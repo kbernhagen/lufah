@@ -9,6 +9,11 @@
 - Group names beginning with '/' must be specified with prefix '//' on command line
 - `--debug` option no longer disables sending commands; use `--dry-run` instead
 - start/stop commands now check `--dry-run` to disable execution (previously checked `--debug`)
+- Global options now visible in subcommand help with proper placement notation (`lufah [GLOBAL_OPTIONS] config beta`)
+
+### Breaking Changes
+- warning/error messages may have changed; parsing such text is not advised
+- exit codes may have changed; example: zero exit if not all connections failed
 
 ### Breaking API Changes
 - Removed FahClient should_process_updates

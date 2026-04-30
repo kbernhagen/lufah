@@ -17,13 +17,18 @@ from typing import Any, Optional
 import typer  # type: ignore
 
 from lufah import validate as valid
+from lufah.cli_helpers import GroupWithGlobalOptions
 from lufah.commands.core.config import do_config
 from lufah.const import KNOWN_CAUSES
 
 # Note: trogon seems to have trouble with optional bool args, so they are opt str
 from lufah.util import bool_from_string
 
-app = typer.Typer(context_settings={"help_option_names": ["-h", "--help"]})
+
+app = typer.Typer(
+    cls=GroupWithGlobalOptions,
+    context_settings={"help_option_names": ["-h", "--help"]}
+)
 
 _VALID_PRIORITIES = ["idle", "low", "normal", "inherit"]
 
