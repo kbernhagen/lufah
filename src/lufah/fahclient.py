@@ -3,7 +3,6 @@
 import asyncio
 import datetime
 import json
-import logging
 from typing import Any
 from urllib.parse import urlparse
 

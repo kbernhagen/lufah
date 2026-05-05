@@ -24,10 +24,9 @@ from lufah.const import KNOWN_CAUSES
 # Note: trogon seems to have trouble with optional bool args, so they are opt str
 from lufah.util import bool_from_string
 
-
 app = typer.Typer(
     cls=GroupWithGlobalOptions,
-    context_settings={"help_option_names": ["-h", "--help"]}
+    context_settings={"help_option_names": ["-h", "--help"]},
 )
 
 _VALID_PRIORITIES = ["idle", "low", "normal", "inherit"]

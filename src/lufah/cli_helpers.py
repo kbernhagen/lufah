@@ -28,22 +28,22 @@ def _format_params_section(formatter, section_name, params, ctx):
 
 def _build_group_usage(cmd, ctx, global_options_label="GLOBAL_OPTIONS"):
     """Build usage line for a group (root or subgroup).
-    
+
     Args:
         cmd: The group command object
         ctx: The Click context
         global_options_label: Label for global options in usage line
-    
+
     Returns:
         String formatted as either "prog [OPTIONS] COMMAND" or "prog [LABEL] group COMMAND"
     """
     prog_name = ctx.find_root().info_name or "lufah"
     pieces = list(cmd.collect_usage_pieces(ctx))
-    
+
     if ctx.parent is None:
         # Root level - standard format
         return f"{prog_name} {' '.join(pieces)}"
-    
+
     # Subgroup - show global options in usage
     grp_name = ctx.info_name
     # Remove [OPTIONS] if only --help (automatic) is available
@@ -54,27 +54,33 @@ def _build_group_usage(cmd, ctx, global_options_label="GLOBAL_OPTIONS"):
 
 def _get_params_for_group(cmd, ctx):
     """Get params to display and their context for a group.
-    
+
     Args:
         cmd: The group command object
         ctx: The Click context
-    
+
     Returns:
         Tuple of (params_list, context) where context is the one to use for get_help_record
     """
     if ctx.parent is None:
         # Root: show own params
-        params = cmd.params if hasattr(cmd, 'params') else []
+        params = cmd.params if hasattr(cmd, "params") else []
         return params, ctx
-    
+
     # Subgroup: show parent params
-    parent_params = ctx.parent.command.params if ctx.parent and hasattr(ctx.parent.command, 'params') else []
+    parent_params = (
+        ctx.parent.command.params
+        if ctx.parent and hasattr(ctx.parent.command, "params")
+        else []
+    )
     return parent_params, ctx.parent
 
 
-def _format_group_help_with_globals(cmd, ctx, formatter, global_options_label="GLOBAL_OPTIONS"):
+def _format_group_help_with_globals(
+    cmd, ctx, formatter, global_options_label="GLOBAL_OPTIONS"
+):
     """Format complete group help with global options.
-    
+
     Args:
         cmd: The group command object
         ctx: The Click context
@@ -83,10 +89,10 @@ def _format_group_help_with_globals(cmd, ctx, formatter, global_options_label="G
     """
     usage = _build_group_usage(cmd, ctx, global_options_label)
     params_to_show, param_ctx = _get_params_for_group(cmd, ctx)
-    
+
     with formatter.section("Usage"):
         formatter.write_text(usage)
-    
+
     cmd.format_help_text(ctx, formatter)
     _format_params_section(formatter, "Global Options", params_to_show, param_ctx)
     cmd.format_commands(ctx, formatter)
@@ -102,28 +108,30 @@ class CommandWithGlobalOptions(typer.core.TyperCommand):
         cmd_part = _get_command_path(ctx, prog_name)
         pieces = self.collect_usage_pieces(ctx)
         usage = f"{prog_name} [GLOBAL_OPTIONS] {cmd_part} {' '.join(pieces)}"
-        
+
         with formatter.section("Usage"):
             formatter.write_text(usage)
-        
+
         self.format_help_text(ctx, formatter)
-        
+
         # Display global options from root
         root_ctx = ctx.find_root()
-        if root_ctx and hasattr(root_ctx.command, 'params'):
-            _format_params_section(formatter, "Global Options", root_ctx.command.params, root_ctx)
-        
+        if root_ctx and hasattr(root_ctx.command, "params"):
+            _format_params_section(
+                formatter, "Global Options", root_ctx.command.params, root_ctx
+            )
+
         self.format_options(ctx, formatter)
         self.format_epilog(ctx, formatter)
 
 
 class GroupWithGlobalOptions(typer.core.TyperGroup):
     """Base class for groups that display parent options in help.
-    
+
     Attributes:
         global_options_label: Label for global options in usage line (default: "GLOBAL_OPTIONS")
     """
-    
+
     global_options_label = "GLOBAL_OPTIONS"
 
     def format_help(self, ctx, formatter):
@@ -134,7 +142,9 @@ class GroupWithGlobalOptions(typer.core.TyperGroup):
         """Ensure subcommands use the custom Command class."""
         ctx = super().make_context(info_name, args, parent, **extra)
         for name, cmd in self.commands.items():
-            if isinstance(cmd, typer.core.TyperCommand) and not isinstance(cmd, CommandWithGlobalOptions):
+            if isinstance(cmd, typer.core.TyperCommand) and not isinstance(
+                cmd, CommandWithGlobalOptions
+            ):
                 new_cmd = CommandWithGlobalOptions(
                     name=cmd.name,
                     callback=cmd.callback,
