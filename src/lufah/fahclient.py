@@ -139,7 +139,7 @@ class FahClient:
         await self._dispatch_handlers(data)
 
     async def _receive_messages(self):
-        while True:
+        while self.is_connected:
             try:
                 message = await self._ws.recv()
                 await self._process_message(message)
@@ -226,9 +226,11 @@ class FahClient:
         ):
             self._receive_task.cancel()
             try:
-                await self._receive_task
-            except asyncio.CancelledError:
-                pass
+                # Wait with a short timeout to allow task cleanup
+                await asyncio.wait_for(self._receive_task, timeout=0.5)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                # Task either cancelled or timed out, which is fine
+                logger.debug("%s:Receive task terminated", self._name)
         self._connection_state = "Disconnected"
 
     async def wait_closed(self):
