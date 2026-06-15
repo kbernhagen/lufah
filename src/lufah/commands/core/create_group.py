@@ -6,7 +6,13 @@ from lufah.commands import validate_single_client_connection
 
 
 async def do_create_group(args: argparse.Namespace):
-    "Create group if it does not exist."
+    """
+    Create group if it does not exist.
+
+    Group name must be specified via -a option argument.
+
+    Example: lufah -a /mygroup create-group
+    """
     client = args.client
     await client.connect()
     validate_single_client_connection(client)
@@ -14,7 +20,13 @@ async def do_create_group(args: argparse.Namespace):
 
 
 async def do_delete_group(args: argparse.Namespace):
-    'Delete group if it exists, is not "", is paused, and has no units.'
+    """
+    Delete group if it exists, is not "", is paused, and has no units.
+
+    Group name must be specified via -a option argument.
+
+    Example: lufah -a /mygroup delete-group
+    """
     client = args.client
     await client.connect()
     validate_single_client_connection(client)
