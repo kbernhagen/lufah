@@ -5,6 +5,7 @@ disable=
     broad-exception-raised,
     chained-comparison,
     fixme,
+    invalid-name,
     missing-function-docstring,
     too-many-boolean-expressions,
     too-many-branches,
