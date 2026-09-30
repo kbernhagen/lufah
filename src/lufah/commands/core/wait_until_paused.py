@@ -7,6 +7,8 @@ from lufah.logger import logger
 
 # args.group global for callback
 g_group: str = None
+# set when callback closes client because target groups are paused
+g_all_paused: bool = False
 
 
 def _no_enabled_gpus(gpus: dict) -> bool:
@@ -38,17 +40,22 @@ async def _close_if_paused(client, _msg):
         if paused is None:
             logger.warning('no value for paused in group "%s"', group)
     # all target groups are assumed paused
+    global g_all_paused  # pylint: disable=global-statement
+    g_all_paused = True
     await client.close()
 
 
 async def do_wait_until_paused(args: argparse.Namespace):
     "Run until specified group or all groups are paused."
-    global g_group  # pylint: disable=global-statement
+    global g_group, g_all_paused  # pylint: disable=global-statement
     g_group = args.group
+    g_all_paused = False
     client = args.client
     client.register_callback(_close_if_paused)
     await client.connect()
-    validate_single_client_connection(client)
+    # the initial snapshot may already close the client if all is paused
+    if not g_all_paused:
+        validate_single_client_connection(client)
     if client.version < (8, 3, 17):
         raise Exception("Error: wait-until-paused requires client 8.3.17+")
     await client.wait_closed()
