@@ -27,6 +27,9 @@ def address(peer: Optional[str], single=False) -> str:
     [host][:port][/group] or [host][:port],[host][:port]...
     Use "." for localhost.
     Group name must not be url-encoded, but may need escaping from shell.
+    The first "/" separates the group and is not part of its name.
+    "/" alone is the default group. For a group whose name begins with "/",
+    use "//": host//name is the group "/name". Group names are exact matches.
     Can be a comma-separated list of hosts for commands
     units, info, fold, pause, finish, top.
     A group name cannot be used with multiple hosts.

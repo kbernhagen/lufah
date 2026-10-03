@@ -178,7 +178,11 @@ def munged_group_name(group: Optional[str], snapshot: Optional[dict]) -> Optiona
     # get array of actual group names else []
     groups = list(snapshot.get("groups", {}).keys())
     if group not in groups:
-        raise FahClientGroupDoesNotExist(f"Group '{group}' is not in groups {groups}")
+        msg = f"Group '{group}' is not in groups {groups}"
+        if "/" + group in groups:
+            # one leading '/' was stripped from cli argument; need '//' for '/name'
+            msg += f". Did you mean '//{group}'?"
+        raise FahClientGroupDoesNotExist(msg)
     return group
 
 

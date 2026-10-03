@@ -4,12 +4,18 @@
 
 ### Added
 - `--dry-run` option to show commands that would be executed without sending them
+- Error for a missing group suggests `//name` when a group named `/name` exists
 
 ### Changed
-- Group names beginning with '/' must be specified with prefix '//' on command line
+- Group names beginning with '/' must be specified with prefix '//' on command line;
+  `name` no longer falls back to the group `/name`
+- `--address` help text explains group syntax, including the `//` prefix
 - `--debug` option no longer disables sending commands; use `--dry-run` instead
 - start/stop commands now check `--dry-run` to disable execution (previously checked `--debug`)
 - Global options now visible in subcommand help with proper placement notation (`lufah [GLOBAL_OPTIONS] config beta`)
+
+### Fixed
+- Order of hosts in a comma-separated `--address` is preserved (was random)
 
 ### Breaking Changes
 - warning/error messages may have changed; parsing such text is not advised
