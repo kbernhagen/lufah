@@ -65,12 +65,11 @@ def address(peer: Optional[str], single=False) -> str:
         if group:
             raise Exception("Error: Cannot have multiple hosts with any group")
         # split on comma and validate each single-host address, then join, unique
-        # ignore empty strings
-        addresses = set()
+        # ignore empty strings; keep first-seen order (dict as ordered set)
+        addresses = {}
         for p in peer.split(","):
             if p:
-                p = address(p, single=True)
-                addresses.add(p)
+                addresses[address(p, single=True)] = None
         peer = ",".join(addresses)
     return peer
 
