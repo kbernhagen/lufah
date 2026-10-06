@@ -55,9 +55,8 @@ test:  # uv run pytest -vv
 	"$(UV)" run pytest -vv
 
 .PHONY: build
-build: clean lint test  # clean build and check; done as-needed by other targets
+build: clean lint test  # clean build and test; done as-needed by other targets
 	"$(UV)" build
-	"$(UV)" run twine check dist/*
 
 .PHONY: install-system
 install-system:  # install for all users; you may need sudo; you must have venv deactivated
@@ -65,11 +64,11 @@ install-system:  # install for all users; you may need sudo; you must have venv 
 
 .PHONY: publish-testpypi
 publish-testpypi: build
-	"$(UV)" run twine upload -u __token__ --repository testpypi dist/*
+	"$(UV)" publish -u __token__ --publish-url https://test.pypi.org/legacy/
 
 .PHONY: publish
 publish: build  # build and publish to pypi.org
-	"$(UV)" run twine upload -u __token__ dist/*
+	"$(UV)" publish -u __token__
 
 .PHONY: clean
 clean:  # remove all build products
