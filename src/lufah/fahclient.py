@@ -17,7 +17,7 @@ from lufah.const import (
     COMMAND_FOLD,
     COMMAND_PAUSE,
 )
-from lufah.exceptions import FahClientUnknownCommand
+from lufah.exceptions import FahClientUnknownCommand, LufahError
 from lufah.logger import logger
 from lufah.updatable import Updatable
 from lufah.util import (
@@ -111,7 +111,7 @@ class FahClient:
                     await callback(self, data)
                 else:
                     callback(self, data)
-            except Exception as e:  # pylint: disable=broad-except
+            except Exception as e:  # pylint: disable=broad-except  # noqa: BLE001
                 logger.error(
                     "%s: Ignoring callback exception: %s in %s",
                     self._name,
@@ -123,7 +123,7 @@ class FahClient:
     async def _process_message(self, message):
         try:
             data = json.loads(message)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(
                 "%s:_process_message():unable to convert message to json:%s:%s",
                 self._name,
@@ -134,7 +134,7 @@ class FahClient:
         try:
             if isinstance(data, (list, str)):
                 self.data.do_update(data)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error("%s:Updatable.do_update() exception:%s", self._name, type(e))
         await self._dispatch_handlers(data)
 
@@ -151,7 +151,7 @@ class FahClient:
                 break
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise  # MUST re-raise asyncio.CancelledError
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.debug("%s:Ignoring unexpected exception: %s", self._name, e)
 
     async def connect(self):
@@ -182,7 +182,7 @@ class FahClient:
                 self._connection_state = "Disconnected"
                 logger.warning("%s:connect cancelled to %s", self._name, uri)
                 raise
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 self.data = Updatable()
                 self._version = (0, 0, 0)
                 self._ws = None
@@ -215,7 +215,7 @@ class FahClient:
             try:
                 await ws.close()
                 await ws.wait_closed()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.debug("%s:Exception while closing websocket: %s", self._name, e)
             finally:
                 self._connected_uri = None
@@ -324,9 +324,9 @@ class FahClient:
 
     async def create_group(self, group):
         if self.version < (8, 3, 1):
-            raise Exception("Error: create group requires client 8.3.1+")
+            raise LufahError("Error: create group requires client 8.3.1+")
         if group is None:
-            raise Exception("Error: no group specified")
+            raise LufahError("Error: no group specified")
         # strip leading/trailing whitespace, as web control does
         group = group.strip()
         if group in self.groups:
@@ -338,15 +338,15 @@ class FahClient:
 
     async def delete_group(self, group):
         if self.version < (8, 3, 1):
-            raise Exception("Error: delete group requires client 8.3.1+")
+            raise LufahError("Error: delete group requires client 8.3.1+")
         if group is None:
-            raise Exception("Error: no group specified")
+            raise LufahError("Error: no group specified")
         # strip leading/trailing whitespace, as web control does
         group = group.strip()
         if group == "":
-            raise Exception("Error: default group cannot be deleted")
+            raise LufahError("Error: default group cannot be deleted")
         if group not in self.groups:
-            raise Exception(f'Error: group "{group}" does not exist')
+            raise LufahError(f'Error: group "{group}" does not exist')
         # require group is paused and has no units
         paused = (
             self.data.get("groups", {})
@@ -363,7 +363,7 @@ class FahClient:
                 m += f"; group has {count} unit"
                 if count != 1:
                     m += "s"
-            raise Exception(m)
+            raise LufahError(m)
         # delete group by omitting it from groups config
         groups_conf = {g: {} for g in self.groups}
         del groups_conf[group]

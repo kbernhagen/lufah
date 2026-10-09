@@ -9,6 +9,7 @@ from lufah.const import (
     GROUP_CONFIG_KEYS,
     VALID_CONFIG_SET_KEYS,
 )
+from lufah.exceptions import LufahError
 from lufah.logger import logger
 from lufah.util import munged_group_name
 
@@ -40,7 +41,7 @@ async def do_config(args: argparse.Namespace):
         try:
             group = munged_group_name(args.group, client.data)
         except Exception as e:
-            raise Exception(f"FahClient('{client.name}'):{e}") from e
+            raise LufahError(f"FahClient('{client.name}'):{e}") from e
     else:
         group = args.group
 
@@ -57,7 +58,7 @@ async def do_config(args: argparse.Namespace):
         # print value for key
         if (8, 3) <= ver and key in GROUP_CONFIG_KEYS:
             if group is None:
-                raise Exception(
+                raise LufahError(
                     f'Error: cannot get "{key0}" on unspecified group.'
                     f" There are {len(groups)} groups."
                 )
@@ -75,7 +76,7 @@ async def do_config(args: argparse.Namespace):
         # available_cpus in fah v8.1.19 only
         maxcpus = client.data.get("config", {}).get("available_cpus", maxcpus0)
         if value > maxcpus:
-            raise Exception(f"Error: cpus is greater than available cpus {maxcpus}")
+            raise LufahError(f"Error: cpus is greater than available cpus {maxcpus}")
         # FIXME: cpus are in groups on fah 8.3; need to sum cpus across groups
         # available_cpus = maxcpus - total_group_cpus
         # if value > (available_cpus - current_group_cpus)
@@ -85,9 +86,9 @@ async def do_config(args: argparse.Namespace):
 
     if (8, 3) <= ver:
         if key in DEPRECATED_CONFIG_KEYS:
-            raise Exception(f'Error: key "{key0}" is deprecated in fah 8.3')
+            raise LufahError(f'Error: key "{key0}" is deprecated in fah 8.3')
         if key not in VALID_CONFIG_SET_KEYS:
-            raise Exception(f'Error: setting "{key0}" is not supported in fah 8.3')
+            raise LufahError(f'Error: setting "{key0}" is not supported in fah 8.3')
         if have_acct and key in GLOBAL_CONFIG_KEYS:
             logger.warning("Machine is linked to an account")
             logger.warning('"%s" "%s" may be overwritten by account', key0, value)
@@ -97,7 +98,7 @@ async def do_config(args: argparse.Namespace):
     msg = {"cmd": "config", "config": conf}
     if (8, 3) <= ver and key in GROUP_CONFIG_KEYS:
         if group is None:
-            raise Exception(
+            raise LufahError(
                 f'Error: cannot set "{key0}" on unspecified group. There are {len(groups)} groups.'
             )
         # create appropriate 8.3 config.groups dict with all current groups

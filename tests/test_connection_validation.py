@@ -24,7 +24,7 @@ def _fahclient_available() -> bool:
             sock.settimeout(0.2)
             sock.connect(("127.0.0.1", 7396))
         return True
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False
 
 

@@ -2,11 +2,12 @@
 # SPDX-License-Identifier: MIT
 
 """Updatable from Web Control translated to python"""
+from __future__ import annotations
 
 __all__ = ["Updatable"]
 
 import datetime
-from typing import Any, Dict, List, Union
+from typing import Any
 
 
 def _is_dict(o: Any) -> bool:
@@ -32,7 +33,7 @@ class Updatable(dict):
         do_update: Updates the object using a specific update format.
     """
 
-    def __init__(self, data: dict = None, compat_mode=False, **kwargs) -> None:
+    def __init__(self, data: dict | None = None, compat_mode=False, **kwargs) -> None:
         """
         Initializes the Updatable instance from a dict and/or kwargs.
 
@@ -49,7 +50,7 @@ class Updatable(dict):
             self.update(self.clean_keys(data), **kwargs)
         else:
             self.update(data, **kwargs)
-        self._last_update = datetime.datetime.now()
+        self._last_update = datetime.datetime.now(tz=datetime.timezone.utc)
 
     @staticmethod
     def clean_key(key: Any) -> Any:
@@ -91,7 +92,7 @@ class Updatable(dict):
         """Return timestamp of last list update."""
         return self._last_update
 
-    def do_update(self, update: List[Union[str, int, Any]]) -> None:  # pylint: disable=R0912
+    def do_update(self, update: list[str | int | Any]) -> None:  # pylint: disable=R0912
         """
         Updates the object using a list containing a key path and value.
 
@@ -109,9 +110,9 @@ class Updatable(dict):
         """
         if not isinstance(update, list):
             return
-        self._last_update = datetime.datetime.now()
+        self._last_update = datetime.datetime.now(tz=datetime.timezone.utc)
 
-        obj: Union[Updatable, Dict, List] = self
+        obj: Updatable | dict | list = self
         i = 0
 
         while i < len(update) - 2:

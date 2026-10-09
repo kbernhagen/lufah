@@ -13,6 +13,7 @@ from tabulate2 import tabulate
 
 from lufah.commands import validate_single_client_connection
 from lufah.commands.core import units
+from lufah.exceptions import LufahError
 from lufah.fahclient import FahClient
 from lufah.logger import logger
 from lufah.util import natural_delta_from_seconds
@@ -173,7 +174,7 @@ async def do_history(args: argparse.Namespace):
     await client.connect()
     validate_single_client_connection(client)
     if client.version < (8, 4, 8):
-        raise Exception("Error: history requires client 8.4.8+")
+        raise LufahError("Error: history requires client 8.4.8+")
     await client.send({"cmd": "wus", "enable": True})
     try:
         await asyncio.wait_for(client.wait_closed(), timeout=20)

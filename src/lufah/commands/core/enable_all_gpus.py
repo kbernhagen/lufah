@@ -3,6 +3,7 @@
 import argparse
 
 from lufah.commands import validate_single_client_connection
+from lufah.exceptions import LufahError
 from lufah.logger import logger
 
 
@@ -12,15 +13,15 @@ async def do_enable_all_gpus(args: argparse.Namespace):
     await client.connect()
     validate_single_client_connection(client)
     if client.version < (8, 3, 17):
-        raise Exception("Error: enable-all-gpus requires client 8.3.17+")
+        raise LufahError("Error: enable-all-gpus requires client 8.3.17+")
     if args.group is None or args.group not in client.groups:
-        raise Exception(
+        raise LufahError(
             "Error: an existing group must be specified for enable-all-gpus"
         )
     all_gpus = client.data.get("info", {}).get("gpus", {})
     # get set of all_supported gpu ids, info.gpus id with "supported" True
     all_supported = set()
-    for gpuid in all_gpus.keys():
+    for gpuid in all_gpus:
         if all_gpus.get(gpuid, {}).get("supported") is True:
             all_supported.add(gpuid)
     if len(all_supported) == 0:
@@ -31,7 +32,7 @@ async def do_enable_all_gpus(args: argparse.Namespace):
     groups_dict = client.data.get("groups", {})
     for group in client.groups:
         gconfgpus = groups_dict.get(group, {}).get("config", {}).get("gpus", {})
-        for gpuid in gconfgpus.keys():
+        for gpuid in gconfgpus:
             if gconfgpus.get(gpuid, {}).get("enabled") is True:
                 already_enabled.add(gpuid)
 

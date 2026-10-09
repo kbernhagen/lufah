@@ -3,6 +3,7 @@
 import argparse
 
 from lufah.commands import validate_single_client_connection
+from lufah.exceptions import LufahError
 
 
 async def do_restart_account(args: argparse.Namespace):
@@ -18,4 +19,4 @@ async def do_restart_account(args: argparse.Namespace):
     if (8, 3, 17) <= client.version:
         await client.send({"cmd": "restart"})
     else:
-        raise Exception("Error: restart account requires client 8.3.17+")
+        raise LufahError("Error: restart account requires client 8.3.17+")
