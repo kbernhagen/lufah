@@ -40,9 +40,7 @@ def _is_gpu(unit) -> bool:
     if 0 == unit.get("assignment", {}).get("min_cpus", -1):
         return True
     core_type = unit.get("assignment", {}).get("core", {}).get("type", "")
-    if core_type.startswith("0x2"):
-        return True
-    return False
+    return bool(core_type.startswith("0x2"))
 
 
 def _wait_until(unit):

@@ -6,6 +6,7 @@ import argparse
 import sys
 
 from lufah.commands import validate_single_client_connection
+from lufah.exceptions import LufahError
 from lufah.logger import logger
 
 from .units import print_unit, print_units_header
@@ -24,7 +25,7 @@ async def do_dump_all(args: argparse.Namespace):
     await client.connect()
     validate_single_client_connection(client)
     if client.version < (8, 3):
-        raise Exception("Error: dump-all requires client 8.3+")
+        raise LufahError("Error: dump-all requires client 8.3+")
     group = args.group
     units = client.paused_units_in_group(group)
     if len(units) == 0:

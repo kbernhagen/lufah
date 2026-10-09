@@ -23,8 +23,8 @@ async def send_command_to_clients(cmd: str, clients: list[FahClient]):
     for client in clients:
         try:
             await client.send_command(cmd)
-        except:  # noqa: E722
-            pass
+        except Exception:
+            logging.info("Error sending command %s to %s", cmd, client.name)  # noqa: LOG015
 
 
 async def main_async():

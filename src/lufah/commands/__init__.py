@@ -1,5 +1,6 @@
 """Shared command utilities"""
 
+from lufah.exceptions import LufahError
 from lufah.logger import logger
 
 
@@ -13,7 +14,7 @@ def validate_single_client_connection(client):
         Exception: If client is not connected, with exit code 1
     """
     if not client.is_connected:
-        raise Exception(f"Error: {client.name} failed to connect")
+        raise LufahError(f"Error: {client.name} failed to connect")
 
 
 def validate_multi_client_connections(clients):
@@ -38,6 +39,6 @@ def validate_multi_client_connections(clients):
             logger.warning("Failed to connect to %s", client.name)
 
     if connected_count == 0:
-        raise Exception("Error: Failed to connect to any clients")
+        raise LufahError("Error: Failed to connect to any clients")
 
     return connected_count

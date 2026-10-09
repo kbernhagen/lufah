@@ -6,6 +6,7 @@ import argparse
 import platform
 
 from lufah.commands import validate_single_client_connection
+from lufah.exceptions import LufahError
 
 
 async def do_link_account(args: argparse.Namespace):
@@ -28,6 +29,6 @@ async def do_link_account(args: argparse.Namespace):
         if not name and args.peer == ".":
             name = platform.node()
         if not (token and name):
-            raise Exception("Error: unable to determine token and name")
+            raise LufahError("Error: unable to determine token and name")
         msg = {"cmd": "link", "token": token, "name": name}
         await client.send(msg)

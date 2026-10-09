@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from typing import Any, Optional
+from typing import Any
 
 import typer  # type: ignore
 
@@ -46,7 +46,7 @@ def complete_priority():
     return _VALID_PRIORITIES
 
 
-def validate_cause(ctx: typer.Context, value: Optional[str]) -> str:
+def validate_cause(ctx: typer.Context, value: str | None) -> str:
     if ctx.resilient_parsing:
         return None
     if value is None:
@@ -94,7 +94,7 @@ def config(): ...
 @app.command()
 def beta(
     ctx: typer.Context,
-    value: Optional[str] = typer.Argument(
+    value: str | None = typer.Argument(
         None,
         callback=bool_from_string,
         autocompletion=complete_bool,
@@ -112,7 +112,7 @@ def beta(
 @app.command(help=valid.cause.__doc__)
 def cause(
     ctx: typer.Context,
-    value: Optional[str] = typer.Argument(
+    value: str | None = typer.Argument(
         None,
         callback=validate_cause,
         autocompletion=complete_cause,
@@ -125,7 +125,7 @@ def cause(
 @app.command(deprecated=True, help=valid.checkpoint.__doc__)
 def checkpoint(
     ctx: typer.Context,
-    value: Optional[int] = typer.Argument(None, min=3, max=30),
+    value: int | None = typer.Argument(None, min=3, max=30),
 ):
     _wrap_do_config(ctx.obj, "checkpoint", value)
 
@@ -133,7 +133,7 @@ def checkpoint(
 @app.command(help=valid.cpus.__doc__)
 def cpus(
     ctx: typer.Context,
-    count: Optional[int] = typer.Argument(
+    count: int | None = typer.Argument(
         None, min=0, max=256, help="non-negative number of cpus to use"
     ),
 ):
@@ -143,7 +143,7 @@ def cpus(
 @app.command()
 def cuda(
     ctx: typer.Context,
-    value: Optional[str] = typer.Argument(
+    value: str | None = typer.Argument(
         None,
         callback=bool_from_string,
         autocompletion=complete_bool,
@@ -161,7 +161,7 @@ def cuda(
 @app.command(deprecated=True)
 def fold_anon(
     ctx: typer.Context,
-    value: Optional[str] = typer.Argument(
+    value: str | None = typer.Argument(
         None,
         callback=bool_from_string,
         autocompletion=complete_bool,
@@ -179,7 +179,7 @@ def fold_anon(
 @app.command()
 def hip(
     ctx: typer.Context,
-    value: Optional[str] = typer.Argument(
+    value: str | None = typer.Argument(
         None,
         callback=bool_from_string,
         autocompletion=complete_bool,
@@ -197,7 +197,7 @@ def hip(
 @app.command()
 def keep_awake(
     ctx: typer.Context,
-    value: Optional[str] = typer.Argument(
+    value: str | None = typer.Argument(
         None,
         callback=bool_from_string,
         autocompletion=complete_bool,
@@ -215,7 +215,7 @@ def keep_awake(
 @app.command(help=valid.key.__doc__)
 def key(
     ctx: typer.Context,
-    value: Optional[int] = typer.Argument(None, min=0, max=0xFFFFFFFFFFFFFFFF),
+    value: int | None = typer.Argument(None, min=0, max=0xFFFFFFFFFFFFFFFF),
 ):
     _wrap_do_config(ctx.obj, "key", value)
 
@@ -223,7 +223,7 @@ def key(
 @app.command()
 def on_battery(
     ctx: typer.Context,
-    value: Optional[str] = typer.Argument(
+    value: str | None = typer.Argument(
         None,
         callback=bool_from_string,
         autocompletion=complete_bool,
@@ -241,7 +241,7 @@ def on_battery(
 @app.command()
 def on_idle(
     ctx: typer.Context,
-    value: Optional[str] = typer.Argument(
+    value: str | None = typer.Argument(
         None,
         callback=bool_from_string,
         autocompletion=complete_bool,
@@ -260,7 +260,7 @@ def on_idle(
 @app.command(help=valid.passkey.__doc__)
 def passkey(
     ctx: typer.Context,
-    value: Optional[str] = typer.Argument(None, callback=validate_passkey),
+    value: str | None = typer.Argument(None, callback=validate_passkey),
 ):
     _wrap_do_config(ctx.obj, "passkey", value)
 
@@ -268,7 +268,7 @@ def passkey(
 @app.command(deprecated=True, help=valid.priority.__doc__)
 def priority(
     ctx: typer.Context,
-    value: Optional[str] = typer.Argument(
+    value: str | None = typer.Argument(
         None,
         callback=valid.priority,
         autocompletion=complete_priority,
@@ -281,7 +281,7 @@ def priority(
 @app.command(help=valid.team.__doc__)
 def team(
     ctx: typer.Context,
-    value: Optional[int] = typer.Argument(None, min=0, max=0x7FFFFFFF),
+    value: int | None = typer.Argument(None, min=0, max=0x7FFFFFFF),
 ):
     _wrap_do_config(ctx.obj, "team", value)
 
@@ -289,7 +289,7 @@ def team(
 @app.command(help=valid.user.__doc__)
 def user(
     ctx: typer.Context,
-    value: Optional[str] = typer.Argument(None),
+    value: str | None = typer.Argument(None),
     force: bool = typer.Option(False, "-f", "--force", help="Allow legacy characters"),
 ):
     ctx.obj.force = force

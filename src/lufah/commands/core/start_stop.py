@@ -36,7 +36,7 @@ def _start_or_stop_local_sevice(args: argparse.Namespace, command=None):
                     )
                 elif command == "stop":
                     user = d.get("UserName", user)
-        except (ImportError, FileNotFoundError, IOError):
+        except (OSError, ImportError, FileNotFoundError):
             pass
         note = note or f"org.foldingathome.fahclient.{user}.{command}"
         cmd = ["notifyutil", "-p", note]

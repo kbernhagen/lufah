@@ -56,7 +56,6 @@ from lufah.commands.core.units import do_units
 from lufah.commands.core.unlink_account import do_unlink_account
 from lufah.commands.core.wait_until_paused import do_wait_until_paused
 from lufah.commands.core.watch import do_watch
-from lufah.exceptions import *  # noqa: F403
 from lufah.fahclient import FahClient
 from lufah.logger import logger, simple_log_handler
 from lufah.util import eprint, split_address_and_group
@@ -118,8 +117,7 @@ app.add_typer(config.app, name="config")
 
 
 PROGRAM = os.path.basename(sys.argv[0])
-if PROGRAM.endswith(".py"):
-    PROGRAM = PROGRAM[:-3]
+PROGRAM = PROGRAM.removesuffix(".py")
 
 NO_CLIENT_COMMANDS = ["start", "stop"]
 MULTI_PEER_COMMANDS = ["units", "info", "fold", "finish", "pause", "top"]
@@ -136,9 +134,9 @@ async def _wrap_do_command_async(func: Callable, args: argparse.Namespace):
         for client in args.clients:
             try:
                 await asyncio.wait_for(client.close(), timeout=1)
-            except (asyncio.TimeoutError, Exception):
+            except (asyncio.TimeoutError, Exception) as e:
                 # If close times out or fails, continue cleanup
-                pass
+                logger.debug("Failed to close client %s: %s", client.name, e)
 
 
 def _wrap_do_command(func: Callable, args: argparse.Namespace):
@@ -219,7 +217,7 @@ def validate_history_core(ctx: typer.Context, value: str) -> str:
     if ctx.resilient_parsing or value is None:
         return None
     if value and not re.match(r"^[a-zA-Z0-9]{2}$", value):
-        raise Exception("Error: core must be 2 hexadecimal characters")
+        raise ValueError("Error: core must be 2 hexadecimal characters")
     return value.lower()
 
 
@@ -506,7 +504,7 @@ def main():
         # to devnull to avoid another BrokenPipeError at shutdown
         devnull = os.open(os.devnull, os.O_WRONLY)
         os.dup2(devnull, sys.stdout.fileno())
-    except IOError as e:
+    except OSError as e:
         if e.errno != errno.EPIPE:
             eprint(e)
             sys.exit(1)

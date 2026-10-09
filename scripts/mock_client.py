@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Mock FahClient Server"""
+from __future__ import annotations
 
 __version__ = "0.1.0"
 
@@ -10,6 +11,7 @@ import os
 import re
 import socket
 import sys
+import typing
 
 import websockets
 from argh import arg, dispatch_command  # pylint: disable=import-error
@@ -21,7 +23,7 @@ from lufah.util import load_json_objects_from_file
 class CustomFormatter(logging.Formatter):
     """Custom logging formatter with different formats by log level."""
 
-    FORMATS = {
+    FORMATS: typing.ClassVar[dict[int, str]] = {
         logging.DEBUG: "%(levelname)s: %(message)s",
         logging.INFO: "%(message)s",
         logging.WARNING: "%(levelname)s: %(message)s",
@@ -202,7 +204,7 @@ def serve(  # pylint: disable=too-many-arguments,too-many-branches,too-many-posi
     debug=False,
     port: int = 8765,
     delay: int = 1,
-    name: str = None,
+    name: str | None = None,
     data_file="data/lufahwatch3.jsonl",
 ):
     """Setup and start the mock client websocket server."""
