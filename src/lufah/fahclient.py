@@ -160,12 +160,21 @@ class FahClient:
         if self._uri is None:
             logger.error("%s:connect(): uri is None", self._name)
             return
+
+        if self._receive_task is not None and not self._receive_task.done():
+            self._receive_task.cancel()
+            try:
+                await asyncio.wait_for(self._receive_task, timeout=0.5)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                logger.debug("%s:Previous receive task terminated", self._name)
+
         if not self._ws:
             logger.info("%s:Opening %s", self._name, self._uri)
-            self._connection_state = "Connecting.."  # Resolving
-            uri = await ipv4_uri_for_uri(self._uri)
             self._connected_uri = None
+            uri = self._uri
             try:
+                self._connection_state = "Connecting.."  # Resolving
+                uri = await ipv4_uri_for_uri(self._uri)
                 self._connection_state = "Connecting..."
                 self._ws = await websockets.asyncio.client.connect(
                     uri,
@@ -194,22 +203,30 @@ class FahClient:
                     self._connection_state = type(e)  # "Disconnected"
                 logger.warning("%s:Failed to connect to %s", self._name, uri)
                 return
-        r = await self._ws.recv()
-        snapshot = json.loads(r)
-        v = snapshot.get("info", {}).get("version", "0")
-        self._version = tuple(map(int, v.split(".")))
-        old = self._version < (8, 3)
-        self.data = Updatable(snapshot, compat_mode=old)
-        if old:
-            logger.warning(
-                "Client v%s. Support for clients older than 8.3 is deprecated.", v
-            )
-        await self._dispatch_handlers(snapshot)
-        self._receive_task = asyncio.create_task(self._receive_messages())
+        try:
+            r = await self._ws.recv()
+            snapshot = json.loads(r)
+            v = snapshot.get("info", {}).get("version", "0")
+            self._version = tuple(map(int, v.split(".")))
+            old = self._version < (8, 3)
+            self.data = Updatable(snapshot, compat_mode=old)
+            if old:
+                logger.warning(
+                    "Client v%s. Support for clients older than 8.3 is deprecated.", v
+                )
+            await self._dispatch_handlers(snapshot)
+            self._receive_task = asyncio.create_task(self._receive_messages())
+        except Exception as e:
+            logger.error("%s:Exception while receiving initial message: %s", self._name, e)
+            await self.close()
+            raise
 
     async def close(self):
-        ws = self._ws  # Capture reference to handle race conditions
-        self._ws = None  # Clear immediately to prevent further use
+        ws = self._ws
+        task = self._receive_task
+        self._ws = None
+        self._receive_task = None
+
         if ws is not None:
             self._connection_state = "Disconnecting"
             try:
@@ -219,18 +236,14 @@ class FahClient:
                 logger.debug("%s:Exception while closing websocket: %s", self._name, e)
             finally:
                 self._connected_uri = None
-        # Only cancel the receive task if we're not being called from within it
-        if (
-            self._receive_task is not None
-            and self._receive_task != asyncio.current_task()
-        ):
-            self._receive_task.cancel()
+
+        if task is not None and task != asyncio.current_task():
+            task.cancel()
             try:
-                # Wait with a short timeout to allow task cleanup
-                await asyncio.wait_for(self._receive_task, timeout=0.5)
+                await asyncio.wait_for(task, timeout=0.5)
             except (asyncio.CancelledError, asyncio.TimeoutError):
-                # Task either cancelled or timed out, which is fine
                 logger.debug("%s:Receive task terminated", self._name)
+
         self._connection_state = "Disconnected"
 
     async def wait_closed(self):
