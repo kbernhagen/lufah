@@ -62,8 +62,8 @@ build: clean lint test  # clean build and test; done as-needed by other targets
 install-system:  # install for all users; you may need sudo; you must have venv deactivated
 	python3 -m pip install .
 
-.PHONY: publish-testpypi
-publish-testpypi: build
+.PHONY: publish-test
+publish-test: build  # build and publish to test.pypi.org
 	"$(UV)" publish -u __token__ --publish-url https://test.pypi.org/legacy/
 
 .PHONY: publish
