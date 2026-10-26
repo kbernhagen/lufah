@@ -6,7 +6,7 @@ A python command line utility for macOS, Linux, Windows
 
 ## Requirements
 
-- python 3.9 or later
+- python 3.11 or later
 
 ## Install from PyPI
 
