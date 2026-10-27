@@ -4,62 +4,38 @@ Little Utility for FAH v8
 
 A python command line utility for macOS, Linux, Windows
 
-## Requirements
+## Install or upgrade from PyPI
 
-- python 3.11 or later
+Install Python 3.15.1 or later from [python.org](https://www.python.org/downloads/).
+This release includes updated pip certificates to address the eMudhra/emSign
+certificate incident.
 
-## Install from PyPI
+Use the same Python 3.15.1+ interpreter for all commands below. If `python`
+does not select it, replace `python` with the full path to that interpreter.
 
-Install in isolated user environment (preferred):
-
-Via [uv](https://docs.astral.sh/uv/)
+macOS / Linux:
 ```
-uv tool install lufah
-```
-
-Or via pipx
-```
-pip install pipx
-pipx install lufah
+python3.15 --version
+python3.15 -m pip install --user --upgrade pipx
+python3.15 -m pipx install --force lufah
+python3.15 -m pipx ensurepath
 ```
 
-Or not isolated:
+Windows Command Prompt:
 ```
-pip install lufah
+python --version
+python -m pip install --user --upgrade pipx
+python -m pipx install --force lufah
+python -m pipx ensurepath
 ```
+
+Restart your terminal if `lufah` is not found after `ensurepath`.
 
 ## Uninstall
 
+With pipx:
 ```
-uv tool uninstall lufah
-```
-
-Or
-```
-pip install pipx
-pipx uninstall lufah
-```
-
-Or
-```
-pip uninstall lufah
-```
-
-## Install from source
-
-macOS / Linux / Windows
-```
-git clone https://github.com/kbernhagen/lufah.git
-cd lufah
-make install-user  # uses pipx
-```
-
-## Uninstall from source
-
-```
-git clone https://github.com/kbernhagen/lufah.git
-cd lufah
-make uninstall-user  # uses pipx
+python3.15 -m pipx uninstall lufah
 ```
 
 ## Usage
