@@ -50,7 +50,7 @@ class Updatable(dict):
             self.update(self.clean_keys(data), **kwargs)
         else:
             self.update(data, **kwargs)
-        self._last_update = datetime.datetime.now(tz=datetime.timezone.utc)
+        self._last_update = datetime.datetime.now(tz=datetime.UTC)
 
     @staticmethod
     def clean_key(key: Any) -> Any:
@@ -110,7 +110,7 @@ class Updatable(dict):
         """
         if not isinstance(update, list):
             return
-        self._last_update = datetime.datetime.now(tz=datetime.timezone.utc)
+        self._last_update = datetime.datetime.now(tz=datetime.UTC)
 
         obj: Updatable | dict | list = self
         i = 0

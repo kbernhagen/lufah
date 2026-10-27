@@ -9,7 +9,7 @@ import logging
 import os
 import re
 import sys
-from typing import Callable
+from collections.abc import Callable
 
 try:
     from rich.markup import escape as rich_escape  # type: ignore
@@ -134,7 +134,7 @@ async def _wrap_do_command_async(func: Callable, args: argparse.Namespace):
         for client in args.clients:
             try:
                 await asyncio.wait_for(client.close(), timeout=1)
-            except (asyncio.TimeoutError, Exception) as e:  # noqa: BLE001
+            except (TimeoutError, Exception) as e:  # noqa: BLE001
                 # If close times out or fails, continue cleanup
                 logger.debug("Failed to close client %s: %s", client.name, e)
 

@@ -8,9 +8,8 @@ import json
 import operator
 import socket
 import sys
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from functools import reduce
-from typing import Callable
 from urllib.parse import urlparse
 from urllib.request import urlopen
 

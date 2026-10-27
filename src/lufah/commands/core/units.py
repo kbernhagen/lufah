@@ -45,11 +45,11 @@ def _is_gpu(unit) -> bool:
 
 def _wait_until(unit):
     when_str = unit.get("wait")
-    return dt.datetime.fromisoformat(when_str.replace("Z", "+00:00"))
+    return dt.datetime.fromisoformat(when_str.replace("Z", "+00:00"))  # noqa: FURB162
 
 
 def _waiting(unit):
-    now = dt.datetime.now(dt.timezone.utc)
+    now = dt.datetime.now(dt.UTC)
     return unit.get("wait") and now < _wait_until(unit)
 
 
@@ -121,8 +121,8 @@ def _group_status(client, group_name):
         return "Paused"
     wait_str = group.get("wait", "")
     if wait_str:
-        now = dt.datetime.now(dt.timezone.utc)
-        wait_time = dt.datetime.fromisoformat(wait_str.replace("Z", "+00:00"))
+        now = dt.datetime.now(dt.UTC)
+        wait_time = dt.datetime.fromisoformat(wait_str.replace("Z", "+00:00"))  # noqa: FURB162
         interval = (wait_time - now).total_seconds()
         if interval > 1:
             wait_str = "Wait " + natural_delta_from_seconds(interval)
@@ -139,8 +139,8 @@ def run_time_secs(unit) -> int:
     t = unit.get("run_time", 0)
     ststr = unit.get("start_time")
     if unit.get("state") == "RUN" and ststr:
-        stime = dt.datetime.fromisoformat(ststr.replace("Z", "+00:00"))
-        now = dt.datetime.now(dt.timezone.utc)
+        stime = dt.datetime.fromisoformat(ststr.replace("Z", "+00:00"))  # noqa: FURB162
+        now = dt.datetime.now(dt.UTC)
         t += (now - stime).total_seconds()
     return int(t)
 
@@ -200,8 +200,8 @@ def _unit_lines(client, unit) -> list[str]:
         try:
             deadline = assignment.get("deadline", 0)  # secs from assign time
             timeout = assignment.get("timeout", 0)  # secs from assign time
-            now = dt.datetime.now(dt.timezone.utc)
-            atime = dt.datetime.fromisoformat(assign_time.replace("Z", "+00:00"))
+            now = dt.datetime.now(dt.UTC)
+            atime = dt.datetime.fromisoformat(assign_time.replace("Z", "+00:00"))  # noqa: FURB162
             dtime = atime + dt.timedelta(seconds=deadline)
             deadline_secs = (dtime - now).total_seconds()
             if deadline_secs <= 0:

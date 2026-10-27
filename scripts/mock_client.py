@@ -98,7 +98,7 @@ class MockServer:  # pylint: disable=R0902
             # Fetch an update with timeout
             try:
                 update = await asyncio.wait_for(self._updates.get(), timeout=20)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # "ping" if no updates within timeout
                 websockets.broadcast(self._clients, '"ping"')
                 logger.info("Broadcasted %s", '"ping"')

@@ -165,7 +165,7 @@ class FahClient:
             self._receive_task.cancel()
             try:
                 await asyncio.wait_for(self._receive_task, timeout=0.5)
-            except (asyncio.CancelledError, asyncio.TimeoutError):
+            except (TimeoutError, asyncio.CancelledError):
                 logger.debug("%s:Previous receive task terminated", self._name)
 
         if not self._ws:
@@ -241,7 +241,7 @@ class FahClient:
             task.cancel()
             try:
                 await asyncio.wait_for(task, timeout=0.5)
-            except (asyncio.CancelledError, asyncio.TimeoutError):
+            except (TimeoutError, asyncio.CancelledError):
                 logger.debug("%s:Receive task terminated", self._name)
 
         self._connection_state = "Disconnected"
@@ -260,7 +260,7 @@ class FahClient:
             msg = message
             if "time" not in msg:
                 msg = message.copy()
-                now = datetime.datetime.now(datetime.timezone.utc)
+                now = datetime.datetime.now(datetime.UTC)
                 t = now.replace(microsecond=0).isoformat()
                 msg["time"] = t.replace("+00:00", "Z")
             msgstr = json.dumps(msg)
