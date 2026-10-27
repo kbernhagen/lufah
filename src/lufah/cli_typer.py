@@ -421,7 +421,7 @@ def cli_root(
         "-a",
         metavar="ADDRESS",
         callback=validate_address,
-        help=rich_escape(valid.address.__doc__),
+        help=valid.address.__doc__,
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
     debug: bool = typer.Option(False, "--debug", "-d"),
