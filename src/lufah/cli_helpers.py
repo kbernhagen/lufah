@@ -1,6 +1,7 @@
 """Shared CLI helper classes for displaying global options in subcommand help."""
 
-import typer  # type: ignore
+import typer
+import typer.core
 
 
 def _get_command_path(ctx, prog_name):

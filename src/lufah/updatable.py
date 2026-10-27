@@ -88,11 +88,11 @@ class Updatable(dict):
         return data
 
     @property
-    def last_update(self) -> datetime:
+    def last_update(self) -> datetime.datetime:
         """Return timestamp of last list update."""
         return self._last_update
 
-    def do_update(self, update: list[str | int | Any]) -> None:  # pylint: disable=R0912
+    def do_update(self, update: Any | list) -> None:  # pylint: disable=R0912
         """
         Updates the object using a list containing a key path and value.
 

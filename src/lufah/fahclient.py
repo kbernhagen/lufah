@@ -2,6 +2,7 @@
 
 import asyncio
 import datetime
+import inspect
 import json
 from typing import Any
 from urllib.parse import urlparse
@@ -107,7 +108,7 @@ class FahClient:
         """
         for callback in self._callbacks:
             try:
-                if asyncio.iscoroutinefunction(callback):
+                if inspect.iscoroutinefunction(callback):
                     await callback(self, data)
                 else:
                     callback(self, data)

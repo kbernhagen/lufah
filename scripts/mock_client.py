@@ -60,8 +60,8 @@ class MockServer:  # pylint: disable=R0902
         self._background_tasks = set()
         self._clients = set()  # Set of connected WebSocket clients
         self._state = Updatable()
-        self._updates: asyncio.Queue = None  # must be created inside async loop
-        self._shutdown_event: asyncio.Event = None  # must be created inside async loop
+        self._updates: asyncio.Queue | None = None  # must be created inside async loop
+        self._shutdown_event: asyncio.Event | None = None  # must be created inside async loop
 
     async def _initialize_state(self):
         """Initialize state and updates from data_file."""

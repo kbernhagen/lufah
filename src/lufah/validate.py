@@ -15,7 +15,7 @@ _DEFAULT_HOST_PORT = f"{_DEFAULT_HOST}:{_DEFAULT_PORT}"
 def account_token(value: str | None) -> str | None:
     """Account token must be 43 url base64 characters."""
     if value is None:
-        return value
+        return None
     # token is URL base64 encoding of 32 bytes, no padding '='
     if not value or not re.match(r"^[a-zA-Z0-9_\-]{43}$", value):
         raise ValueError(f"Error: {account_token.__doc__}")
@@ -88,7 +88,7 @@ def cause(value: str | None) -> str | None:
     return value
 
 
-def cpus(value: str | None) -> int | None:
+def cpus(value: int | str | None) -> int | None:
     """
     Set number of cpus to allocate to resource group.
 
@@ -102,7 +102,7 @@ def cpus(value: str | None) -> int | None:
     return value
 
 
-def checkpoint(value: str | None) -> int | None:
+def checkpoint(value: int | str | None) -> int | None:
     """Set requested CPU WU checkpoint frequency in minutes."""
     if value is None:
         return None
@@ -114,13 +114,13 @@ def checkpoint(value: str | None) -> int | None:
     return value
 
 
-def key(value: str | None) -> int | None:
+def key(value: int | str | None) -> int | None:
     """Set project key for internal beta testing of new projects."""
     if value is None:
         return None
     if value == "":
         return 0
-    value = int(value, 0)
+    value = int(value)
     if value not in range(0xFFFFFFFFFFFFFFFF):
         raise ValueError("Error: key must be 0 to 0xFFFFFFFFFFFFFFFF (in decimal)")
     return value
@@ -173,11 +173,11 @@ def priority(value: str | None) -> str | None:
     return value
 
 
-def team(value: str | None) -> int | None:
+def team(value: int | str | None) -> int | None:
     """Set team number. Team must already exist."""
     if value is None:
         return None
-    value = int(value, 0)
+    value = int(value)
     if value not in range(0x7FFFFFFF):
         raise ValueError("Error: team number must be 0 to 0x7FFFFFFF (in decimal)")
     return value

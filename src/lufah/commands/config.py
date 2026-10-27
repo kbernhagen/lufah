@@ -14,7 +14,7 @@ import argparse
 import asyncio
 from typing import Any
 
-import typer  # type: ignore
+import typer
 
 from lufah import validate as valid
 from lufah.cli_helpers import GroupWithGlobalOptions

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import errno
+import inspect
 import logging
 import os
 import re
@@ -12,7 +13,7 @@ import sys
 from collections.abc import Callable
 
 try:
-    from rich.markup import escape as rich_escape  # type: ignore
+    from rich.markup import escape as rich_escape
 
     _HAVE_RICH = True
 except (ImportError, ModuleNotFoundError):
@@ -22,7 +23,8 @@ except (ImportError, ModuleNotFoundError):
         return s
 
 
-import typer  # type: ignore
+import typer
+import typer.core
 
 # typer doesn't behave well with Annotated on python <3.10
 # from typing_extensions import Annotated, Optional
@@ -125,7 +127,7 @@ MULTI_PEER_COMMANDS = ["units", "info", "fold", "finish", "pause", "top"]
 
 async def _wrap_do_command_async(func: Callable, args: argparse.Namespace):
     try:
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
             await func(args)
         else:
             func(args)
@@ -213,7 +215,7 @@ def groups(ctx: typer.Context):
     _wrap_do_command(do_groups, ctx.obj)
 
 
-def validate_history_core(ctx: typer.Context, value: str) -> str:
+def validate_history_core(ctx: typer.Context, value: str) -> str | None:
     if ctx.resilient_parsing or value is None:
         return None
     if value and not re.match(r"^[a-zA-Z0-9]{2}$", value):
@@ -225,7 +227,7 @@ def complete_history_os():
     return ["win", "lin", "mac"]
 
 
-def validate_history_os(ctx: typer.Context, value: str) -> str:
+def validate_history_os(ctx: typer.Context, value: str) -> str | None:
     if ctx.resilient_parsing or value is None:
         return None
     value = value.lower()[:3]
@@ -295,13 +297,13 @@ def info(ctx: typer.Context):
     _wrap_do_command(do_info, ctx.obj)
 
 
-def validate_account_token(ctx: typer.Context, value: str) -> str:
+def validate_account_token(ctx: typer.Context, value: str) -> str | None:
     if ctx.resilient_parsing:
         return None
     return valid.account_token(value)
 
 
-def validate_machine_name(ctx: typer.Context, value: str) -> str:
+def validate_machine_name(ctx: typer.Context, value: str) -> str | None:
     if ctx.resilient_parsing:
         return None
     return valid.machine_name(value)
