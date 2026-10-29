@@ -13,9 +13,11 @@
 - `--debug` option no longer disables sending commands; use `--dry-run` instead
 - start/stop commands now check `--dry-run` to disable execution (previously checked `--debug`)
 - Global options now visible in subcommand help with proper placement notation (`lufah [GLOBAL_OPTIONS] config beta`)
+- Requires Python 3.11 or later; Python 3.9 and 3.10 are no longer supported
 
 ### Fixed
 - Order of hosts in a comma-separated `--address` is preserved (was random)
+- Improved reliability when connecting to and disconnecting from Folding@home clients
 
 ### Breaking Changes
 - warning/error messages may have changed; parsing such text is not advised
