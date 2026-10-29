@@ -24,7 +24,7 @@ async def _close_if_paused(client, _msg):
     if group is None:
         groups = client.groups
     elif group not in client.groups:
-        raise LufahError(f'group "{group}" does not exist')
+        return
     else:
         groups = [group]
     for group in groups:
@@ -57,6 +57,8 @@ async def do_wait_until_paused(args: argparse.Namespace):
     # the initial snapshot may already close the client if all is paused
     if not g_all_paused:
         validate_single_client_connection(client)
+    if g_group is not None and g_group not in client.groups:
+        raise LufahError(f'group "{g_group}" does not exist')
     if client.version < (8, 3, 17):
         raise LufahError("Error: wait-until-paused requires client 8.3.17+")
     await client.wait_closed()

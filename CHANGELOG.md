@@ -18,6 +18,7 @@
 ### Fixed
 - Order of hosts in a comma-separated `--address` is preserved (was random)
 - Improved reliability when connecting to and disconnecting from Folding@home clients
+- Invalid group names in `wait-until-paused` now produce a clear error instead of a traceback
 
 ### Breaking Changes
 - warning/error messages may have changed; parsing such text is not advised

@@ -5,6 +5,7 @@ import argparse
 import pytest
 
 from lufah.commands.core.wait_until_paused import do_wait_until_paused
+from lufah.exceptions import LufahError
 
 
 class FakeClient:  # pylint: disable=R0902
@@ -60,6 +61,13 @@ async def test_connect_failure_still_reported():
     """A real connection failure must still raise"""
     with pytest.raises(Exception, match="failed to connect"):
         await do_wait_until_paused(_args(FakeClient(paused=True, connects=False)))
+
+
+async def test_missing_group_raises_command_error():
+    """An invalid group is reported outside the callback dispatcher"""
+    client = FakeClient(paused=False)
+    with pytest.raises(LufahError, match='group "zz" does not exist'):
+        await do_wait_until_paused(_args(client, group="zz"))
 
 
 async def test_paused_state_does_not_leak_between_runs():
