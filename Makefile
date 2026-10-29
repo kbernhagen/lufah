@@ -68,11 +68,17 @@ build: clean lint test  # clean build and test; done as-needed by other targets
 
 .PHONY: publish-test
 publish-test: build  # build and publish to test.pypi.org
-	"$(UV)" publish -u __token__ --publish-url https://test.pypi.org/legacy/
+	@set -e; \
+	token="$$( "$(PYTHON)" -c 'import getpass; print(getpass.getpass("TestPyPI API token: "), end="")' )"; \
+	if [ -z "$$token" ]; then echo "No token entered." >&2; exit 1; fi; \
+	UV_PUBLISH_TOKEN="$$token" "$(UV)" publish --publish-url https://test.pypi.org/legacy/
 
 .PHONY: publish
 publish: build  # build and publish to pypi.org
-	"$(UV)" publish -u __token__
+	@set -e; \
+	token="$$( "$(PYTHON)" -c 'import getpass; print(getpass.getpass("PyPI API token: "), end="")' )"; \
+	if [ -z "$$token" ]; then echo "No token entered." >&2; exit 1; fi; \
+	UV_PUBLISH_TOKEN="$$token" "$(UV)" publish
 
 .PHONY: clean
 clean:  # remove all build products
