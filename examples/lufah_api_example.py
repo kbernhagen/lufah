@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # /// script
-# requires-python = ">=3.8"
+# requires-python = ">=3.9"
 # dependencies = [
 #     "lufah",
 # ]
@@ -23,8 +23,8 @@ async def send_command_to_clients(cmd: str, clients: list[FahClient]):
     for client in clients:
         try:
             await client.send_command(cmd)
-        except:  # noqa: E722
-            pass
+        except Exception:  # noqa: BLE001
+            logging.info("Error sending command %s to %s", cmd, client.name)  # noqa: LOG015
 
 
 async def main_async():
@@ -37,7 +37,7 @@ async def main_async():
                 client = FahClient(peer)
                 await client.connect()
                 clients.append(client)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(e)
         await send_command_to_clients(COMMAND_FINISH, clients)
     finally:

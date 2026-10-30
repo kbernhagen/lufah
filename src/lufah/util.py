@@ -8,12 +8,12 @@ import json
 import operator
 import socket
 import sys
+from collections.abc import Callable, Generator
 from functools import reduce
-from typing import Callable, Generator, Optional, Union
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
-from .exceptions import FahClientGroupDoesNotExist
+from .exceptions import FahClientGroupDoesNotExist, LufahError
 from .logger import logger
 
 
@@ -21,7 +21,7 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def bool_from_string(value: Optional[str]) -> Optional[bool]:
+def bool_from_string(value: str | None) -> bool | None:
     if value is None:
         return None
     value = value.lower().strip()
@@ -29,10 +29,10 @@ def bool_from_string(value: Optional[str]) -> Optional[bool]:
         return True
     if value in ["false", "no", "off", "0"]:
         return False
-    raise Exception(f"Error: not a bool string: '{value}'")
+    raise ValueError(f"Error: not a bool string: '{value}'")
 
 
-def split_address_and_group(peer: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+def split_address_and_group(peer: str | None) -> tuple[str | None, str | None]:
     if peer is None:
         return (None, None)
     group = None
@@ -47,7 +47,7 @@ def split_address_and_group(peer: Optional[str]) -> tuple[Optional[str], Optiona
     return (peer, group)
 
 
-def first_non_blank_line(s: Optional[str]) -> Optional[str]:
+def first_non_blank_line(s: str | None) -> str | None:
     """
     Returns the first non-blank line from a multi-line string.
 
@@ -66,7 +66,7 @@ def first_non_blank_line(s: Optional[str]) -> Optional[str]:
 
 
 # modified from bing chat answer
-def get_object_at_key_path(obj, key_path: Union[str, list]):
+def get_object_at_key_path(obj, key_path: str | list):
     if isinstance(key_path, str):
         key_path = key_path.split(".")
         # courtesy of chatgpt 4o:
@@ -82,19 +82,20 @@ def get_object_at_key_path(obj, key_path: Union[str, list]):
 # TODO: sparse changes in list items
 def diff_dicts(dict1: dict, dict2: dict) -> dict:
     diff = {}
-    for key in dict1:
-        if isinstance(dict1[key], dict) and isinstance(dict2.get(key), dict):
-            nested_diff = diff_dicts(dict1[key], dict2[key])
+    for key, value in dict1.items():
+        other_value = dict2.get(key)
+        if isinstance(value, dict) and isinstance(other_value, dict):
+            nested_diff = diff_dicts(value, other_value)
             if nested_diff:
                 diff[key] = nested_diff
-        elif isinstance(dict1[key], list) and isinstance(dict2.get(key), list):
-            if dict1[key] != dict2[key]:
-                diff[key] = dict2[key]
-        elif dict1[key] != dict2.get(key):
-            diff[key] = dict2.get(key)
-    for key in dict2:
+        elif isinstance(value, list) and isinstance(other_value, list):
+            if value != other_value:
+                diff[key] = other_value
+        elif value != other_value:
+            diff[key] = other_value
+    for key, value in dict2.items():
         if key not in dict1:
-            diff[key] = dict2[key]
+            diff[key] = value
     return diff
 
 
@@ -106,14 +107,15 @@ def func_module_docstring(func: Callable) -> str:
     return mod.__doc__ or ""
 
 
-def uri_and_group_for_peer(peer: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+def uri_for_peer(peer: str | None) -> str | None:
     # assume 'valid' single host:port[/group] as returned by validate.address(peer, single=True)
     # try to return a resolved host:port[/group]
     # host should be left as-is if unresolvable; it might be later on reconnect attempt
     if peer in [None, ""]:  # should never happen
-        return (None, None)  # this should be the only way None is returned
+        return None  # this should be the only way None is returned
 
-    peer, group = split_address_and_group(peer)
+    # discard group, if any
+    peer, _group = split_address_and_group(peer)
 
     u = urlparse("ws://" + peer)
     host = u.hostname or "localhost"
@@ -122,19 +124,8 @@ def uri_and_group_for_peer(peer: Optional[str]) -> tuple[Optional[str], Optional
         host = host.strip()
     if host in [None, "", ".", "localhost", "localhost.", "127.0.0.1"]:
         host = "localhost"
-    uri = f"ws://{host}:{port}/api/websocket"
 
-    # validate and munge group name
-    # for v8.3+, allow "//" prefix, spaces, special chars
-    # group None is all groups
-    # '/'  will be '' (default group)
-    # '//' will be '/'
-    # '//.*' will be '/.*'
-    # legacy 8.1 group names '/.*' should use '//.*'
-    if group and group.startswith("/"):
-        group = group[1:]  # strip "/"; can now be ''
-
-    return (uri, group)
+    return f"ws://{host}:{port}/api/websocket"
 
 
 async def resolve_ipv4(hostname: str):
@@ -146,7 +137,7 @@ async def resolve_ipv4(hostname: str):
     return ipv4_addr
 
 
-async def ipv4_uri_for_uri(uri: Optional[str]) -> Optional[str]:
+async def ipv4_uri_for_uri(uri: str | None) -> str | None:
     "Replace host with IPv4 address in uri"
     if not uri:
         return None
@@ -155,8 +146,7 @@ async def ipv4_uri_for_uri(uri: Optional[str]) -> Optional[str]:
     host = u.hostname or "localhost"
     port = u.port or 7396
     path = u.path or ""
-    if host.endswith("."):
-        host = host[:-1]
+    host = host.removesuffix(".")
     try:
         # this will be slow if host.local does not exist
         host = await resolve_ipv4(host)
@@ -174,33 +164,25 @@ async def ipv4_uri_for_uri(uri: Optional[str]) -> Optional[str]:
     return uri2
 
 
-def munged_group_name(group: Optional[str], snapshot: Optional[dict]) -> Optional[str]:
-    # TODO: drop 8.1 support and require // if group begins / to remove ambiguity
+def munged_group_name(group: str | None, snapshot: dict | None) -> str | None:
     # return group name that exists, None, or raise
     # assume v8.3; old group names may persist from upgrade
     # NOTE: must have connected to have snapshot
     # group may be None
     # expect always having first leading '/' removed from cli argument
-    # expect user specified '//name' for actual '/name' (already stripped)
+    # requires user specified '//name' on cli for actual '/name' (already stripped)
     if group is None:
         return None  # no group specified; this is common
     if snapshot is None:
-        raise Exception(f"Unable to look for group '{group}'. No client data.")
+        raise LufahError(f"Unable to look for group '{group}'. No client data.")
     # get array of actual group names else []
     groups = list(snapshot.get("groups", {}).keys())
-    if len(group):  # don't conflate '' with '/'; both can legit exist
-        # check 'groupname' and '/groupname'
-        # if both exist, throw
-        # '' is always the default group and not checked here
-        group0 = "/" + group
-        if group0 in groups and group in groups:
-            raise Exception(
-                f"Ambiguous group name. Both '{group}' and '{group0}' exist."
-            )
-        if group0 in groups and group not in groups:
-            group = group0
     if group not in groups:
-        raise FahClientGroupDoesNotExist(f"Group '{group}' is not in groups {groups}")
+        msg = f"Group '{group}' is not in groups {groups}"
+        if "/" + group in groups:
+            # one leading '/' was stripped from cli argument; need '//' for '/name'
+            msg += f". Did you mean '//{group}'?"
+        raise FahClientGroupDoesNotExist(msg)
     return group
 
 
@@ -248,7 +230,7 @@ def shorten_natural_delta(eta: str) -> str:
 
 def yield_json_objects_from_file(
     path: str,
-) -> Generator[Union[dict, list, int, float, str, bool, None], None, None]:
+) -> Generator[dict | list | int | float | str | bool | None, None, None]:
     """
     Return a generator of JSON objects from file at path.
 

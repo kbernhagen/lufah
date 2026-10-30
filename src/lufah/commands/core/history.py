@@ -11,7 +11,9 @@ import sys
 
 from tabulate2 import tabulate
 
+from lufah.commands import validate_single_client_connection
 from lufah.commands.core import units
+from lufah.exceptions import LufahError
 from lufah.fahclient import FahClient
 from lufah.logger import logger
 from lufah.util import natural_delta_from_seconds
@@ -27,7 +29,7 @@ def assigned_after(unit: dict, target_time: dt.datetime) -> bool:
     assign_time_str = assignment.get("time", "")
     if assign_time_str == "":
         return False
-    atime = dt.datetime.fromisoformat(assign_time_str.replace("Z", "+00:00"))
+    atime = dt.datetime.fromisoformat(assign_time_str.replace("Z", "+00:00"))  # noqa: FURB162
     return target_time <= atime
 
 
@@ -39,8 +41,8 @@ def ud_assign_delta(_: FahClient, unit: dict):
         # no assign time wus records can happen with server errors
         # "" is an invalid isoformat string, so return now
         return ""
-    atime = dt.datetime.fromisoformat(assign_time_str.replace("Z", "+00:00"))
-    now = dt.datetime.now(dt.timezone.utc)
+    atime = dt.datetime.fromisoformat(assign_time_str.replace("Z", "+00:00"))  # noqa: FURB162
+    now = dt.datetime.now(dt.UTC)
     ago_secs = (atime - now).total_seconds()
     return natural_delta_from_seconds(ago_secs)
 
@@ -114,7 +116,7 @@ def _print_table(client: FahClient, wunits: list):
         status = _FILTERS.get("status")
         days = _FILTERS.get("within")
         if days is not None:
-            now = dt.datetime.now(dt.timezone.utc)
+            now = dt.datetime.now(dt.UTC)
             target_time = now - dt.timedelta(days=days)
         else:
             target_time = None
@@ -170,13 +172,11 @@ async def do_history(args: argparse.Namespace):
     if args.filters:
         _FILTERS = args.filters
     await client.connect()
+    validate_single_client_connection(client)
     if client.version < (8, 4, 8):
-        raise Exception("Error: history requires client 8.4.8+")
+        raise LufahError("Error: history requires client 8.4.8+")
     await client.send({"cmd": "wus", "enable": True})
-    if args.debug:
-        return
-    if client.is_connected:
-        try:
-            await asyncio.wait_for(client.ws.wait_closed(), timeout=20)
-        except (asyncio.CancelledError, asyncio.TimeoutError):
-            pass
+    try:
+        await asyncio.wait_for(client.wait_closed(), timeout=20)
+    except (TimeoutError, asyncio.CancelledError):
+        pass

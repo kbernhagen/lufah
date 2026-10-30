@@ -4,50 +4,38 @@ Little Utility for FAH v8
 
 A python command line utility for macOS, Linux, Windows
 
-## Requirements
+## Install or upgrade from PyPI
 
-- python 3.9 or later
+Install Python 3.15.1 or later from [python.org](https://www.python.org/downloads/).
+This release includes updated pip certificates to address the eMudhra/emSign
+certificate incident.
 
-## Install from PyPI
+Use the same Python 3.15.1+ interpreter for all commands below. If `python`
+does not select it, replace `python` with the full path to that interpreter.
 
-Install in isolated user environment (preferred):
+macOS / Linux:
 ```
-pip install pipx
-pipx install lufah
+python3.15 --version
+python3.15 -m pip install --user --upgrade pipx
+python3.15 -m pipx install --force lufah
+python3.15 -m pipx ensurepath
 ```
 
-Or
+Windows Command Prompt:
 ```
-pip install lufah
+python --version
+python -m pip install --user --upgrade pipx
+python -m pipx install --force lufah
+python -m pipx ensurepath
 ```
+
+Restart your terminal if `lufah` is not found after `ensurepath`.
 
 ## Uninstall
 
+With pipx:
 ```
-pip install pipx
-pipx uninstall lufah
-```
-
-Or
-```
-pip uninstall lufah
-```
-
-## Install from source
-
-macOS / Linux / Windows
-```
-git clone https://github.com/kbernhagen/lufah.git
-cd lufah
-make install-user
-```
-
-## Uninstall from source
-
-```
-git clone https://github.com/kbernhagen/lufah.git
-cd lufah
-make uninstall-user
+python3.15 -m pipx uninstall lufah
 ```
 
 ## Usage
@@ -62,30 +50,38 @@ lufah -h
 ```
 
 ```
-Usage: lufah [OPTIONS] COMMAND [ARGS]...
+Usage:
+  lufah [OPTIONS] COMMAND [ARGS]...
 
   Little Utility for FAH v8
 
-Options:
+Global Options:
   -a, --address ADDRESS  [host][:port][/group] or
                          [host][:port],[host][:port]... Use "." for localhost.
                          Group name must not be url-encoded, but may need
-                         escaping from shell. Can be a comma-separated list of
-                         hosts for commands units, info, fold, finish, pause
+                         escaping from shell. The first "/" separates the
+                         group and is not part of its name. "/" alone is the
+                         default group. For a group whose name begins with
+                         "/", use "//": host//name is the group "/name". Group
+                         names are exact matches. Can be a comma-separated
+                         list of hosts for commands units, info, fold, pause,
+                         finish, top. A group name cannot be used with
+                         multiple hosts. IPv6 is not supported by the client.
                          [default: localhost:7396]
   -v, --verbose
   -d, --debug
+  --dry-run              Show commands that would be executed without sending
+                         them
   --version              Show version and exit.
   --install-completion   Install completion for the current shell.
   --show-completion      Show completion for the current shell, to copy it or
                          customize the installation.
-  -h, --help             Show this message and exit.
 
 Commands:
   fold               Start folding in specified group or all groups.
   finish             Finish folding and pause specified group or all groups.
   pause              Pause folding in specified group or all groups.
-  unpause            (Deprecated) alias for fold
+  unpause            alias for fold (DEPRECATED)
   wait-until-paused  Run until specified group or all groups are paused.
   config             Get or set config values.
   create-group       Create group if it does not exist.
@@ -93,7 +89,7 @@ Commands:
   dump-all           Dump all paused units in specified group or all groups.
   enable-all-gpus    Enable all unclaimed gpus in specified group.
   state              Show json snapshot of client state.
-  status             (Deprecated) alias for state
+  status             alias for state (DEPRECATED)
   get                Show json value at dot-separated key path in client...
   groups             Show json array of resource group names.
   history            Show work unit history and exit.
@@ -114,7 +110,8 @@ lufah config -h
 ```
 
 ```
-Usage: lufah config [OPTIONS] COMMAND [ARGS]...
+Usage:
+  lufah [GLOBAL_OPTIONS] config COMMAND [ARGS]...
 
   Get or set config values.
 
@@ -123,24 +120,43 @@ Usage: lufah config [OPTIONS] COMMAND [ARGS]...
 
   Example: lufah -a / config cpus 0
 
-Options:
-  -h, --help  Show this message and exit.
+Global Options:
+  -a, --address ADDRESS  [host][:port][/group] or
+                         [host][:port],[host][:port]... Use "." for localhost.
+                         Group name must not be url-encoded, but may need
+                         escaping from shell. The first "/" separates the
+                         group and is not part of its name. "/" alone is the
+                         default group. For a group whose name begins with
+                         "/", use "//": host//name is the group "/name". Group
+                         names are exact matches. Can be a comma-separated
+                         list of hosts for commands units, info, fold, pause,
+                         finish, top. A group name cannot be used with
+                         multiple hosts. IPv6 is not supported by the client.
+                         [default: localhost:7396]
+  -v, --verbose
+  -d, --debug
+  --dry-run              Show commands that would be executed without sending
+                         them
+  --version              Show version and exit.
+  --install-completion   Install completion for the current shell.
+  --show-completion      Show completion for the current shell, to copy it or
+                         customize the installation.
 
 Commands:
   beta        Enable beta work units.
   cause       Set cause preference.
-  checkpoint  (Deprecated) Set requested CPU WU checkpoint frequency in
-              minutes.
+  checkpoint  Set requested CPU WU checkpoint frequency in minutes.
+              (DEPRECATED)
   cpus        Set number of cpus to allocate to resource group.
   cuda        Enable CUDA for WUs in specified group.
-  fold-anon   (Deprecated) Fold anonymously.
+  fold-anon   Fold anonymously. (DEPRECATED)
   hip         Enable HIP for WUs in specified group.
   keep-awake  Prevent system sleep while folding and not on battery.
   key         Set project key for internal beta testing of new projects.
   on-battery  Fold even if on battery.
   on-idle     Only fold while user is idle.
   passkey     Set passkey token for quick return bonus points.
-  priority    (Deprecated) Set preferred core task priority.
+  priority    Set preferred core task priority. (DEPRECATED)
   team        Set team number.
   user        Set folding user name, "" or 2 to 100 bytes.
 ```

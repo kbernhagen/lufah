@@ -4,6 +4,38 @@
 
 ---
 
+## [0.12.0] - 2026-10-29
+
+### Added
+- `--dry-run` option to show commands that would be executed without sending them
+- Error for a missing group suggests `//name` when a group named `/name` exists
+
+### Changed
+- Group names beginning with '/' must be specified with prefix '//' on command line;
+  `name` no longer falls back to the group `/name`
+- `--address` help text explains group syntax, including the `//` prefix
+- `--debug` option no longer disables sending commands; use `--dry-run` instead
+- start/stop commands now check `--dry-run` to disable execution (previously checked `--debug`)
+- Global options now visible in subcommand help with proper placement notation (`lufah [GLOBAL_OPTIONS] config beta`)
+- Requires Python 3.11 or later; Python 3.9 and 3.10 are no longer supported
+
+### Fixed
+- Order of hosts in a comma-separated `--address` is preserved (was random)
+- Improved reliability when connecting to and disconnecting from Folding@home clients
+- Invalid group names in `wait-until-paused` now produce a clear error instead of a traceback
+
+### Breaking Changes
+- warning/error messages may have changed; parsing such text is not advised
+- exit codes may have changed; example: zero exit if not all connections failed
+
+### Breaking API Changes
+- Removed FahClient should_process_updates
+- Group name is not stored in client; group name is passed to client methods
+- Initial state dict is also sent to message callbacks.
+    Callback data can be None or any JSON value.
+
+---
+
 ## [0.11.0] - 2025-08-25
 
 ### Changed
@@ -114,7 +146,8 @@ Support for FAH older than v8.3 is deprecated.
 - Allow configuring group options without specifying group if there is only one group
 
 
-[unreleased]: https://github.com/kbernhagen/lufah/compare/0.11.0...HEAD
+[unreleased]: https://github.com/kbernhagen/lufah/compare/0.12.0...HEAD
+[0.12.0]: https://github.com/kbernhagen/lufah/compare/0.11.0...0.12.0
 [0.11.0]: https://github.com/kbernhagen/lufah/compare/0.10.0...0.11.0
 [0.10.0]: https://github.com/kbernhagen/lufah/compare/0.9.1...0.10.0
 [0.9.1]: https://github.com/kbernhagen/lufah/compare/0.9.0...0.9.1

@@ -5,24 +5,26 @@ from __future__ import annotations
 import argparse
 import asyncio
 import errno
+import inspect
 import logging
 import os
 import re
 import sys
-from typing import Callable
+from collections.abc import Callable
 
 try:
-    from rich.markup import escape as rich_escape  # type: ignore
+    from rich.markup import escape as rich_escape
 
     _HAVE_RICH = True
-except:  # noqa: E722
+except (ImportError, ModuleNotFoundError):
     _HAVE_RICH = False
 
     def rich_escape(s):
         return s
 
 
-import typer  # type: ignore
+import typer
+import typer.core
 
 # typer doesn't behave well with Annotated on python <3.10
 # from typing_extensions import Annotated, Optional
@@ -31,11 +33,12 @@ try:
     from trogon import Trogon  # type: ignore  pylint: disable=E0401
 
     _HAVE_TROGON = True
-except:  # noqa: E722
+except (ImportError, ModuleNotFoundError):
     _HAVE_TROGON = False
 
 from lufah import __version__
 from lufah import validate as valid
+from lufah.cli_helpers import GroupWithGlobalOptions
 from lufah.commands import config  # typer subcommand
 from lufah.commands.core.create_group import do_create_group, do_delete_group
 from lufah.commands.core.dump_all import do_dump_all
@@ -55,10 +58,9 @@ from lufah.commands.core.units import do_units
 from lufah.commands.core.unlink_account import do_unlink_account
 from lufah.commands.core.wait_until_paused import do_wait_until_paused
 from lufah.commands.core.watch import do_watch
-from lufah.exceptions import *  # noqa: F403
 from lufah.fahclient import FahClient
 from lufah.logger import logger, simple_log_handler
-from lufah.util import eprint
+from lufah.util import eprint, split_address_and_group
 
 COMMANDS_ORDER = [
     "fold",
@@ -98,8 +100,8 @@ class NaturalOrderGroup(typer.core.TyperGroup):
         return self.commands.keys()
 
 
-class ManualOrderGroup(typer.core.TyperGroup):
-    "Commands in help manual order"
+class ManualOrderGroup(GroupWithGlobalOptions):
+    """Commands in help manual order, with parent options displayed."""
 
     def list_commands(self, ctx):
         return COMMANDS_ORDER
@@ -117,8 +119,7 @@ app.add_typer(config.app, name="config")
 
 
 PROGRAM = os.path.basename(sys.argv[0])
-if PROGRAM.endswith(".py"):
-    PROGRAM = PROGRAM[:-3]
+PROGRAM = PROGRAM.removesuffix(".py")
 
 NO_CLIENT_COMMANDS = ["start", "stop"]
 MULTI_PEER_COMMANDS = ["units", "info", "fold", "finish", "pause", "top"]
@@ -126,13 +127,18 @@ MULTI_PEER_COMMANDS = ["units", "info", "fold", "finish", "pause", "top"]
 
 async def _wrap_do_command_async(func: Callable, args: argparse.Namespace):
     try:
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
             await func(args)
         else:
             func(args)
     finally:
+        # Close clients with proper timeout to prevent hanging
         for client in args.clients:
-            await client.close()
+            try:
+                await asyncio.wait_for(client.close(), timeout=1)
+            except (TimeoutError, Exception) as e:  # noqa: BLE001
+                # If close times out or fails, continue cleanup
+                logger.debug("Failed to close client %s: %s", client.name, e)
 
 
 def _wrap_do_command(func: Callable, args: argparse.Namespace):
@@ -209,11 +215,11 @@ def groups(ctx: typer.Context):
     _wrap_do_command(do_groups, ctx.obj)
 
 
-def validate_history_core(ctx: typer.Context, value: str) -> str:
+def validate_history_core(ctx: typer.Context, value: str) -> str | None:
     if ctx.resilient_parsing or value is None:
         return None
     if value and not re.match(r"^[a-zA-Z0-9]{2}$", value):
-        raise Exception("Error: core must be 2 hexadecimal characters")
+        raise ValueError("Error: core must be 2 hexadecimal characters")
     return value.lower()
 
 
@@ -221,7 +227,7 @@ def complete_history_os():
     return ["win", "lin", "mac"]
 
 
-def validate_history_os(ctx: typer.Context, value: str) -> str:
+def validate_history_os(ctx: typer.Context, value: str) -> str | None:
     if ctx.resilient_parsing or value is None:
         return None
     value = value.lower()[:3]
@@ -291,13 +297,13 @@ def info(ctx: typer.Context):
     _wrap_do_command(do_info, ctx.obj)
 
 
-def validate_account_token(ctx: typer.Context, value: str) -> str:
+def validate_account_token(ctx: typer.Context, value: str) -> str | None:
     if ctx.resilient_parsing:
         return None
     return valid.account_token(value)
 
 
-def validate_machine_name(ctx: typer.Context, value: str) -> str:
+def validate_machine_name(ctx: typer.Context, value: str) -> str | None:
     if ctx.resilient_parsing:
         return None
     return valid.machine_name(value)
@@ -417,10 +423,15 @@ def cli_root(
         "-a",
         metavar="ADDRESS",
         callback=validate_address,
-        help=rich_escape(valid.address.__doc__),
+        help=valid.address.__doc__,
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
     debug: bool = typer.Option(False, "--debug", "-d"),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Show commands that would be executed without sending them",
+    ),
     _version: bool = typer.Option(
         False,
         "--version",
@@ -442,19 +453,20 @@ def cli_root(
     else:
         logger.setLevel(logging.WARNING)
 
-    peers = []
-    if "/" not in peer:
-        peers = peer.split(",")
-    if not peers:
-        peers = [peer]
-    elif len(peers) > 1:
+    peer, group = split_address_and_group(peer)
+    if group and group.startswith("/"):
+        group = group[1:]  # strip "/"; can now be ''
+    peers = peer.split(",")
+    if len(peers) > 1:
         peer = None
 
     args = argparse.Namespace()
     args.verbose = verbose
     args.debug = debug
+    args.dry_run = dry_run
     args.peer = peer
     args.peers = peers
+    args.group = group
     args.command = ctx.invoked_subcommand or "units"
     args.force = False
     args.n = 0
@@ -467,6 +479,7 @@ def cli_root(
     for p in peers:
         c = FahClient(p)
         if c is not None:
+            c.set_dry_run(dry_run)
             clients.append(c)
 
     args.clients = clients
@@ -493,13 +506,11 @@ def main():
         # to devnull to avoid another BrokenPipeError at shutdown
         devnull = os.open(os.devnull, os.O_WRONLY)
         os.dup2(devnull, sys.stdout.fileno())
-    except IOError as e:
-        if e.errno != errno.EPIPE:
-            eprint(e)
-            sys.exit(1)
-        devnull = os.open(os.devnull, os.O_WRONLY)
-        os.dup2(devnull, sys.stdout.fileno())
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
+        if isinstance(e, OSError) and e.errno == errno.EPIPE:  # pylint: disable=E1101
+            devnull = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(devnull, sys.stdout.fileno())
+            return
         eprint(e)
         sys.exit(1)
 

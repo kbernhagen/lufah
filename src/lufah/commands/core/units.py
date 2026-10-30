@@ -10,6 +10,7 @@ import math
 import shutil
 from urllib.parse import urlparse
 
+from lufah.commands import validate_multi_client_connections
 from lufah.const import STATUS_STRINGS, WAIT_STATUS_STRINGS
 from lufah.fahclient import FahClient
 from lufah.logger import logger
@@ -39,18 +40,16 @@ def _is_gpu(unit) -> bool:
     if 0 == unit.get("assignment", {}).get("min_cpus", -1):
         return True
     core_type = unit.get("assignment", {}).get("core", {}).get("type", "")
-    if core_type.startswith("0x2"):
-        return True
-    return False
+    return bool(core_type.startswith("0x2"))
 
 
 def _wait_until(unit):
     when_str = unit.get("wait")
-    return dt.datetime.fromisoformat(when_str.replace("Z", "+00:00"))
+    return dt.datetime.fromisoformat(when_str.replace("Z", "+00:00"))  # noqa: FURB162
 
 
 def _waiting(unit):
-    now = dt.datetime.now(dt.timezone.utc)
+    now = dt.datetime.now(dt.UTC)
     return unit.get("wait") and now < _wait_until(unit)
 
 
@@ -122,8 +121,8 @@ def _group_status(client, group_name):
         return "Paused"
     wait_str = group.get("wait", "")
     if wait_str:
-        now = dt.datetime.now(dt.timezone.utc)
-        wait_time = dt.datetime.fromisoformat(wait_str.replace("Z", "+00:00"))
+        now = dt.datetime.now(dt.UTC)
+        wait_time = dt.datetime.fromisoformat(wait_str.replace("Z", "+00:00"))  # noqa: FURB162
         interval = (wait_time - now).total_seconds()
         if interval > 1:
             wait_str = "Wait " + natural_delta_from_seconds(interval)
@@ -140,8 +139,8 @@ def run_time_secs(unit) -> int:
     t = unit.get("run_time", 0)
     ststr = unit.get("start_time")
     if unit.get("state") == "RUN" and ststr:
-        stime = dt.datetime.fromisoformat(ststr.replace("Z", "+00:00"))
-        now = dt.datetime.now(dt.timezone.utc)
+        stime = dt.datetime.fromisoformat(ststr.replace("Z", "+00:00"))  # noqa: FURB162
+        now = dt.datetime.now(dt.UTC)
         t += (now - stime).total_seconds()
     return int(t)
 
@@ -201,8 +200,8 @@ def _unit_lines(client, unit) -> list[str]:
         try:
             deadline = assignment.get("deadline", 0)  # secs from assign time
             timeout = assignment.get("timeout", 0)  # secs from assign time
-            now = dt.datetime.now(dt.timezone.utc)
-            atime = dt.datetime.fromisoformat(assign_time.replace("Z", "+00:00"))
+            now = dt.datetime.now(dt.UTC)
+            atime = dt.datetime.fromisoformat(assign_time.replace("Z", "+00:00"))  # noqa: FURB162
             dtime = atime + dt.timedelta(seconds=deadline)
             deadline_secs = (dtime - now).total_seconds()
             if deadline_secs <= 0:
@@ -215,7 +214,7 @@ def _unit_lines(client, unit) -> list[str]:
                 timeout_str = "Expired"
             else:
                 timeout_str = natural_delta_from_seconds(timeout_secs)
-        except:  # noqa: E722
+        except (ValueError, TypeError, OverflowError):
             pass
     lines.append(
         f"{prcg:<20} {cpus:<4} {gpus:<4} {core:<4} {status:<16}{progress(unit):^8}"
@@ -312,6 +311,8 @@ def print_units_header():
 async def do_units(args: argparse.Namespace):
     "Show table of all units by machine name and group."
     await asyncio.gather(*[c.connect() for c in args.clients])
+    validate_multi_client_connections(args.clients)
+
     width = shutil.get_terminal_size((400, 40)).columns
     for line in units_table_lines(args.clients):
         print(line[:width])

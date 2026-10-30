@@ -15,33 +15,49 @@ if "%1" == "help" (
 )
 
 if "%1" == "install-user" (
-	echo. python -m venv %VENV%
-	python -m venv %VENV%
-	%PYTHON% -m ensurepip
-	%PYTHON% -m pip install pipx
-	%PYTHON% -m pipx install --force .
-	%PYTHON% -m pipx ensurepath
+	call :bootstrap || exit /b 1
+	"%PYTHON%" -m pipx install --force .
+	if errorlevel 1 exit /b 1
+	"%PYTHON%" -m pipx ensurepath
+	if errorlevel 1 exit /b 1
 	goto end
 )
 
 if "%1" == "uninstall-user" (
-	echo. python -m venv %VENV%
-	python -m venv %VENV%
-	%PYTHON% -m ensurepip
-	%PYTHON% -m pip install pipx
-	%PYTHON% -m pipx uninstall lufah
+	call :bootstrap || exit /b 1
+	"%PYTHON%" -m pipx uninstall lufah
+	if errorlevel 1 exit /b 1
 	goto end
 )
 
 if "%1" == "install-uv" (
-	echo. python -m venv %VENV%
-	python -m venv %VENV%
-	%PYTHON% -m ensurepip
-	%PYTHON% -m pip install pipx
-	%PYTHON% -m pipx install uv
-	%PYTHON% -m pipx ensurepath
+	call :bootstrap || exit /b 1
+	"%PYTHON%" -m pipx install uv
+	if errorlevel 1 exit /b 1
+	"%PYTHON%" -m pipx ensurepath
+	if errorlevel 1 exit /b 1
 	echo. You may need to open a new terminal to use uv
 	goto end
 )
 
 :end
+goto :eof
+
+:bootstrap
+call :check_python
+if errorlevel 1 exit /b 1
+python -m venv "%VENV%"
+if errorlevel 1 exit /b 1
+"%PYTHON%" -m pip install "pip @ https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"
+if errorlevel 1 exit /b 1
+"%PYTHON%" -m pip install pipx
+if errorlevel 1 exit /b 1
+exit /b 0
+
+:check_python
+python -c "import sys; print('Python ' + sys.version.split()[0]); sys.exit(sys.version_info < (3, 11))"
+if errorlevel 1 (
+	echo Python 3.11 or newer is required.
+	exit /b 1
+)
+exit /b 0

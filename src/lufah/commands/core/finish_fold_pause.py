@@ -3,16 +3,21 @@
 import argparse
 import asyncio
 
+from lufah.commands import validate_multi_client_connections
+from lufah.exceptions import LufahError
+
 
 async def _do_command_multi(args: argparse.Namespace, command=None):
     await asyncio.gather(*[c.connect() for c in args.clients])
     command = command or args.command
+    validate_multi_client_connections(args.clients)
+
     for client in args.clients:
         try:
             if client.is_connected:
-                await client.send_command(command, force=args.force)
+                await client.send_command(command, group=args.group, force=args.force)
         except Exception as e:
-            raise Exception(f"Error: FahClient('{client.name}'):{e}") from e
+            raise LufahError(f"Error: FahClient('{client.name}'):{e}") from e
 
 
 async def do_finish(args: argparse.Namespace):

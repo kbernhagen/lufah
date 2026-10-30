@@ -2,8 +2,9 @@
 
 import asyncio
 import datetime
+import inspect
 import json
-import logging
+from typing import Any
 from urllib.parse import urlparse
 
 import websockets
@@ -17,31 +18,32 @@ from lufah.const import (
     COMMAND_FOLD,
     COMMAND_PAUSE,
 )
-from lufah.exceptions import FahClientUnknownCommand
+from lufah.exceptions import FahClientUnknownCommand, LufahError
 from lufah.logger import logger
 from lufah.updatable import Updatable
 from lufah.util import (
     ipv4_uri_for_uri,
     munged_group_name,
-    uri_and_group_for_peer,
+    uri_for_peer,
 )
 
 
 class FahClient:
     """Class to manage a remote client connection"""
 
-    def __init__(self, peer, name=None, should_process_updates=True):
+    def __init__(self, peer, name=None):
         peer = valid.address(peer, single=True)
         self._name = None
-        self.ws = None
+        self._ws = None
         self._connection_state = ""
         self.data = Updatable()  # client state
         self._version = (0, 0, 0)  # data.info.version as tuple after connect
         self._callbacks = []  # message callbacks
-        self._should_process_updates = should_process_updates
+        self._receive_task = None
+        self._dry_run = False
         # peer is a pseuso-uri that needs munging
         # NOTE: this may raise
-        self._uri, self._group = uri_and_group_for_peer(peer)
+        self._uri = uri_for_peer(peer)
         self._connected_uri = None
         u = urlparse(self._uri)
         self._name = name or u.netloc or peer
@@ -56,16 +58,20 @@ class FahClient:
         return self._uri
 
     @property
-    def group(self):
-        return self._group
-
-    @property
     def is_connected(self):
-        return self.ws is not None and self.ws.state == websockets.protocol.State.OPEN
+        return self._ws is not None and self._ws.state == websockets.protocol.State.OPEN
 
     @property
     def version(self):
         return self._version
+
+    @property
+    def dry_run(self):
+        return self._dry_run
+
+    def set_dry_run(self, enabled: bool):
+        """Set dry-run mode. When enabled, commands are logged but not sent."""
+        self._dry_run = enabled
 
     @property
     def groups(self):
@@ -86,15 +92,39 @@ class FahClient:
         return self._connection_state
 
     def register_callback(self, callback):
-        self._callbacks.append(callback)
+        if callback is not None:
+            self._callbacks.append(callback)
 
     def unregister_callback(self, callback):
-        self._callbacks.remove(callback)
+        if callback in self._callbacks:
+            self._callbacks.remove(callback)
+
+    async def _dispatch_handlers(self, data: Any) -> None:
+        """
+        Dispatch message to registered handlers.
+
+        Handler signature: async def handler(client: FAHClient, data: Any)
+        async is not required.
+        """
+        for callback in self._callbacks:
+            try:
+                if inspect.iscoroutinefunction(callback):
+                    await callback(self, data)
+                else:
+                    callback(self, data)
+            except Exception as e:  # pylint: disable=broad-except  # noqa: BLE001
+                logger.error(
+                    "%s: Ignoring callback exception: %s in %s",
+                    self._name,
+                    e,
+                    callback,
+                    exc_info=True,
+                )
 
     async def _process_message(self, message):
         try:
             data = json.loads(message)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(
                 "%s:_process_message():unable to convert message to json:%s:%s",
                 self._name,
@@ -103,34 +133,26 @@ class FahClient:
             )
             return
         try:
-            if self._should_process_updates and isinstance(data, (list, str)):
+            if isinstance(data, (list, str)):
                 self.data.do_update(data)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error("%s:Updatable.do_update() exception:%s", self._name, type(e))
-        for callback in self._callbacks:
-            try:
-                await callback(self, data)
-            except Exception as e:
-                logger.error(
-                    "%s:_process_message() ignoring callback exception:%s:%s",
-                    self._name,
-                    e,
-                    callback,
-                )
+        await self._dispatch_handlers(data)
 
     async def _receive_messages(self):
-        while True:
+        while self.is_connected:
             try:
-                message = await self.ws.recv()
+                message = await self._ws.recv()
                 await self._process_message(message)
             except ConnectionClosed:
                 logger.info("%s:Connection closed.", self._name)
-                await self.close()
+                self._connection_state = "Disconnected"
+                self._connected_uri = None
+                self._ws = None
                 break
-            except (KeyboardInterrupt, asyncio.CancelledError):
-                await self.close()
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise  # MUST re-raise asyncio.CancelledError
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.debug("%s:Ignoring unexpected exception: %s", self._name, e)
 
     async def connect(self):
@@ -139,14 +161,23 @@ class FahClient:
         if self._uri is None:
             logger.error("%s:connect(): uri is None", self._name)
             return
-        if not self.ws:
-            logger.info("%s:Opening %s", self._name, self._uri)
-            self._connection_state = "Connecting.."  # Resolving
-            uri = await ipv4_uri_for_uri(self._uri)
-            self._connected_uri = None
+
+        if self._receive_task is not None and not self._receive_task.done():
+            self._receive_task.cancel()
             try:
+                await asyncio.wait_for(self._receive_task, timeout=0.5)
+            except (TimeoutError, asyncio.CancelledError):
+                logger.debug("%s:Previous receive task terminated", self._name)
+
+        if not self._ws:
+            logger.info("%s:Opening %s", self._name, self._uri)
+            self._connected_uri = None
+            uri = self._uri
+            try:
+                self._connection_state = "Connecting.."  # Resolving
+                uri = await ipv4_uri_for_uri(self._uri)
                 self._connection_state = "Connecting..."
-                self.ws = await websockets.asyncio.client.connect(
+                self._ws = await websockets.asyncio.client.connect(
                     uri,
                     ping_interval=None,  # client will ping us, and may not pong
                     max_size=16777216,  # first log message can be huge
@@ -157,12 +188,14 @@ class FahClient:
             except (KeyboardInterrupt, asyncio.CancelledError):
                 self.data = Updatable()
                 self._version = (0, 0, 0)
+                self._ws = None
                 self._connection_state = "Disconnected"
                 logger.warning("%s:connect cancelled to %s", self._name, uri)
                 raise
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 self.data = Updatable()
                 self._version = (0, 0, 0)
+                self._ws = None
                 if isinstance(e, (OSError, asyncio.TimeoutError)):
                     self._connection_state = "Unreachable"
                 elif isinstance(e, websockets.exceptions.InvalidURI):
@@ -171,24 +204,53 @@ class FahClient:
                     self._connection_state = type(e)  # "Disconnected"
                 logger.warning("%s:Failed to connect to %s", self._name, uri)
                 return
-        r = await self.ws.recv()
-        snapshot = json.loads(r)
-        v = snapshot.get("info", {}).get("version", "0")
-        self._version = tuple(map(int, v.split(".")))
-        old = self._version < (8, 3)
-        self.data = Updatable(snapshot, compat_mode=old)
-        if old:
-            logger.warning(
-                "Client v%s. Support for clients older than 8.3 is deprecated.", v
-            )
-        asyncio.ensure_future(self._receive_messages())
+        try:
+            r = await self._ws.recv()
+            snapshot = json.loads(r)
+            v = snapshot.get("info", {}).get("version", "0")
+            self._version = tuple(map(int, v.split(".")))
+            old = self._version < (8, 3)
+            self.data = Updatable(snapshot, compat_mode=old)
+            if old:
+                logger.warning(
+                    "Client v%s. Support for clients older than 8.3 is deprecated.", v
+                )
+            await self._dispatch_handlers(snapshot)
+            self._receive_task = asyncio.create_task(self._receive_messages())
+        except Exception as e:
+            logger.error("%s:Exception while receiving initial message: %s", self._name, e)
+            await self.close()
+            raise
 
     async def close(self):
-        if self.ws is not None:
+        ws = self._ws
+        task = self._receive_task
+        self._ws = None
+        self._receive_task = None
+
+        if ws is not None:
             self._connection_state = "Disconnecting"
-            await self.ws.close()
-            self._connected_uri = None
+            try:
+                await ws.close()
+                await ws.wait_closed()
+            except Exception as e:  # noqa: BLE001
+                logger.debug("%s:Exception while closing websocket: %s", self._name, e)
+            finally:
+                self._connected_uri = None
+
+        if task is not None and task != asyncio.current_task():
+            task.cancel()
+            try:
+                await asyncio.wait_for(task, timeout=0.5)
+            except (TimeoutError, asyncio.CancelledError):
+                logger.debug("%s:Receive task terminated", self._name)
+
         self._connection_state = "Disconnected"
+
+    async def wait_closed(self):
+        """Wait until the websocket connection is fully closed."""
+        if self.is_connected:
+            await self._ws.wait_closed()
 
     async def send(self, message):
         if not self.is_connected:
@@ -199,7 +261,7 @@ class FahClient:
             msg = message
             if "time" not in msg:
                 msg = message.copy()
-                now = datetime.datetime.now(datetime.timezone.utc)
+                now = datetime.datetime.now(datetime.UTC)
                 t = now.replace(microsecond=0).isoformat()
                 msg["time"] = t.replace("+00:00", "Z")
             msgstr = json.dumps(msg)
@@ -208,22 +270,22 @@ class FahClient:
         elif isinstance(message, list):
             # currently, would be invalid
             msgstr = json.dumps(message)
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("%s:WOULD BE sending: %s", self._name, msgstr)
+        if self._dry_run:
+            logger.info("%s:[DRY-RUN] would send: %s", self._name, msgstr)
             return
         if msgstr:
             logger.info("%s:sending: %s", self._name, msgstr)
             try:
-                await self.ws.send(msgstr)
+                await self._ws.send(msgstr)
             except ConnectionClosed:
                 await self.close()
                 raise
 
-    async def send_command(self, cmd, **kwargs):
+    async def send_command(self, cmd, group=None, force=False):
         if cmd not in [COMMAND_FOLD, COMMAND_FINISH, COMMAND_PAUSE]:
             raise FahClientUnknownCommand(f'Unknown client command: "{cmd}"')
-        if kwargs.get("force") and cmd == "finish" and self.version >= (8, 4):
-            await self._send_finish_force()
+        if force and cmd == COMMAND_FINISH and self.version >= (8, 4):
+            await self._send_finish_force(group)
             # fall thru to also do standard finish for any other groups
             # (harmless to our targeted groups)
         if self.version < (8, 3):
@@ -232,7 +294,6 @@ class FahClient:
             msg = {"cmd": cmd}
         else:
             msg = {"state": cmd, "cmd": "state"}
-            group = kwargs.get("group", self.group)
             # NOTE: group would be created if it doesn't exist
             if group is not None:
                 group = munged_group_name(group, self.data)
@@ -241,7 +302,7 @@ class FahClient:
                 msg["group"] = group
         await self.send(msg)
 
-    async def _send_finish_force(self):
+    async def _send_finish_force(self, group=None):
         # gather set of paused groups with units in RUN state
         target_groups = set()
         for unit in self.data.get("units", []):
@@ -252,13 +313,13 @@ class FahClient:
                 # units can be migrated to "" if their group was deleted
                 if groupname not in self.groups:
                     groupname = ""
-                group = self.data.get("groups", {}).get(groupname, {})
-                if group.get("config", {}).get("paused"):
+                group_dict = self.data.get("groups", {}).get(groupname, {})
+                if group_dict.get("config", {}).get("paused"):
                     target_groups.add(groupname)
         # create config with hack for each target group
         # but if a client group was specified, only hack that group
         all_groups_conf = {g: {} for g in self.groups}
-        group = munged_group_name(self.group, self.data)
+        group = munged_group_name(group, self.data)
         if group is not None:
             if group in target_groups:
                 # only group specified is a valid target
@@ -267,24 +328,19 @@ class FahClient:
                 # group specified is not a candidate
                 target_groups = []
         # replace empty conf with hack conf for tageted groups
-        for group in target_groups:
-            if group in all_groups_conf:  # a little paranoia here
-                all_groups_conf[group] = {"paused": False, "finish": True}
+        for g in target_groups:
+            if g in all_groups_conf:  # a little paranoia here
+                all_groups_conf[g] = {"paused": False, "finish": True}
         if target_groups:
             await self.send({"cmd": "config", "config": {"groups": all_groups_conf}})
         else:
             logger.debug("no groups to force finish")
 
-    # async def send_config(self, config, **kwargs):
-    # default_group=self.group
-    # force=False
-    # def get_config_value(self, key, **kwargs):
-
     async def create_group(self, group):
         if self.version < (8, 3, 1):
-            raise Exception("Error: create group requires client 8.3.1+")
+            raise LufahError("Error: create group requires client 8.3.1+")
         if group is None:
-            raise Exception("Error: no group specified")
+            raise LufahError("Error: no group specified")
         # strip leading/trailing whitespace, as web control does
         group = group.strip()
         if group in self.groups:
@@ -296,16 +352,16 @@ class FahClient:
 
     async def delete_group(self, group):
         if self.version < (8, 3, 1):
-            raise Exception("Error: delete group requires client 8.3.1+")
+            raise LufahError("Error: delete group requires client 8.3.1+")
         if group is None:
-            raise Exception("Error: no group specified")
+            raise LufahError("Error: no group specified")
         # strip leading/trailing whitespace, as web control does
         group = group.strip()
         if group == "":
-            raise Exception("Error: default group cannot be deleted")
+            raise LufahError("Error: default group cannot be deleted")
         if group not in self.groups:
-            raise Exception(f'Error: group "{group}" does not exist')
-        # TODO: require group is paused and has no units
+            raise LufahError(f'Error: group "{group}" does not exist')
+        # require group is paused and has no units
         paused = (
             self.data.get("groups", {})
             .get(group, {})
@@ -321,7 +377,7 @@ class FahClient:
                 m += f"; group has {count} unit"
                 if count != 1:
                     m += "s"
-            raise Exception(m)
+            raise LufahError(m)
         # delete group by omitting it from groups config
         groups_conf = {g: {} for g in self.groups}
         del groups_conf[group]

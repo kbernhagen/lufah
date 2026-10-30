@@ -3,13 +3,14 @@
 __all__ = ["logger", "simple_log_handler"]
 
 import logging
+import typing
 
 
 # Custom logging formatter
 class CustomFormatter(logging.Formatter):
     """Custom logging formatter with different formats by log level."""
 
-    FORMATS = {
+    FORMATS: typing.ClassVar[dict[int, str]] = {
         logging.DEBUG: "%(levelname)s:%(filename)s:%(lineno)s: %(message)s",
         logging.INFO: "%(message)s",
         logging.WARNING: "Warning: %(message)s",

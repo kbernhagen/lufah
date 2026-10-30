@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Mock FahClient Server"""
+from __future__ import annotations
 
 __version__ = "0.1.0"
 
@@ -10,6 +11,7 @@ import os
 import re
 import socket
 import sys
+import typing
 
 import websockets
 from argh import arg, dispatch_command  # pylint: disable=import-error
@@ -21,7 +23,7 @@ from lufah.util import load_json_objects_from_file
 class CustomFormatter(logging.Formatter):
     """Custom logging formatter with different formats by log level."""
 
-    FORMATS = {
+    FORMATS: typing.ClassVar[dict[int, str]] = {
         logging.DEBUG: "%(levelname)s: %(message)s",
         logging.INFO: "%(message)s",
         logging.WARNING: "%(levelname)s: %(message)s",
@@ -58,8 +60,8 @@ class MockServer:  # pylint: disable=R0902
         self._background_tasks = set()
         self._clients = set()  # Set of connected WebSocket clients
         self._state = Updatable()
-        self._updates: asyncio.Queue = None  # must be created inside async loop
-        self._shutdown_event: asyncio.Event = None  # must be created inside async loop
+        self._updates: asyncio.Queue | None = None  # must be created inside async loop
+        self._shutdown_event: asyncio.Event | None = None  # must be created inside async loop
 
     async def _initialize_state(self):
         """Initialize state and updates from data_file."""
@@ -96,7 +98,7 @@ class MockServer:  # pylint: disable=R0902
             # Fetch an update with timeout
             try:
                 update = await asyncio.wait_for(self._updates.get(), timeout=20)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # "ping" if no updates within timeout
                 websockets.broadcast(self._clients, '"ping"')
                 logger.info("Broadcasted %s", '"ping"')
@@ -202,7 +204,7 @@ def serve(  # pylint: disable=too-many-arguments,too-many-branches,too-many-posi
     debug=False,
     port: int = 8765,
     delay: int = 1,
-    name: str = None,
+    name: str | None = None,
     data_file="data/lufahwatch3.jsonl",
 ):
     """Setup and start the mock client websocket server."""
@@ -251,7 +253,7 @@ def main():
         # to devnull to avoid another BrokenPipeError at shutdown
         devnull = os.open(os.devnull, os.O_WRONLY)
         os.dup2(devnull, sys.stdout.fileno())
-    except Exception as e:  # pylint: disable=W0718
+    except Exception as e:  # noqa: BLE001
         logger.error("%s", e)
 
 

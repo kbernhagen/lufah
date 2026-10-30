@@ -45,8 +45,8 @@ class Topper:  # pylint: disable=R0903
         self._draw_event.clear()
         try:
             curses.resize_term(0, 0)  # for Windows
-        except:  # noqa: E722
-            pass
+        except curses.error:
+            logger.debug("curses resize failed", exc_info=True)
         screen.clear()
         maxy, maxx = self._screen.getmaxyx()
         maxx -= 1
@@ -55,7 +55,7 @@ class Topper:  # pylint: disable=R0903
         if lines[0].startswith("---"):
             del lines[0]  # first line is decor
         # draw clipped timestamp in lower right
-        timestamp = str(dt.datetime.now().replace(microsecond=0))[:maxx]
+        timestamp = str(dt.datetime.now().astimezone().replace(microsecond=0))[:maxx]
         screen.addstr(maxy, maxx - len(timestamp), timestamp)
         # draw units table, clipped to terminal screen
         i = 0
@@ -93,7 +93,7 @@ class Topper:  # pylint: disable=R0903
                         self._draw_event.set()
                     elif chr(char) == "q":
                         break
-                except:  # noqa: E722
+                except ValueError:
                     pass
 
     async def run(self):

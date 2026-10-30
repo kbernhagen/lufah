@@ -3,6 +3,8 @@
 import argparse
 import asyncio
 
+from lufah.commands import validate_multi_client_connections
+
 
 def _print_info(client):
     if client is None:
@@ -26,6 +28,8 @@ def _print_info(client):
 async def do_info(args: argparse.Namespace):
     "Show host and client info."
     await asyncio.gather(*[c.connect() for c in args.clients])
+    validate_multi_client_connections(args.clients)
+
     clients = sorted(args.clients, key=lambda c: c.machine_name)
     multi = len(clients) > 1
     if multi:

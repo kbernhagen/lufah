@@ -2,6 +2,8 @@
 
 import argparse
 
+from lufah.commands import validate_single_client_connection
+from lufah.exceptions import LufahError
 from lufah.logger import logger
 
 
@@ -9,14 +11,17 @@ async def do_enable_all_gpus(args: argparse.Namespace):
     "Enable all unclaimed gpus in specified group."
     client = args.client
     await client.connect()
+    validate_single_client_connection(client)
     if client.version < (8, 3, 17):
-        raise Exception("Error: enable-all-gpus requires client 8.3.17+")
-    if client.group is None or client.group not in client.groups:
-        raise Exception("Error: an existing group must be specified for enable-all-gpus")
+        raise LufahError("Error: enable-all-gpus requires client 8.3.17+")
+    if args.group is None or args.group not in client.groups:
+        raise LufahError(
+            "Error: an existing group must be specified for enable-all-gpus"
+        )
     all_gpus = client.data.get("info", {}).get("gpus", {})
     # get set of all_supported gpu ids, info.gpus id with "supported" True
     all_supported = set()
-    for gpuid in all_gpus.keys():
+    for gpuid in all_gpus:
         if all_gpus.get(gpuid, {}).get("supported") is True:
             all_supported.add(gpuid)
     if len(all_supported) == 0:
@@ -27,7 +32,7 @@ async def do_enable_all_gpus(args: argparse.Namespace):
     groups_dict = client.data.get("groups", {})
     for group in client.groups:
         gconfgpus = groups_dict.get(group, {}).get("config", {}).get("gpus", {})
-        for gpuid in gconfgpus.keys():
+        for gpuid in gconfgpus:
             if gconfgpus.get(gpuid, {}).get("enabled") is True:
                 already_enabled.add(gpuid)
 
@@ -40,7 +45,7 @@ async def do_enable_all_gpus(args: argparse.Namespace):
         return
     # create group config with to_enable gpus, {gpuid = {enabled = True}}
     # start with existing gpus, so we don't disable any in target group
-    groupconf = client.data.get("groups", {}).get(client.group, {}).get("config", {})
+    groupconf = client.data.get("groups", {}).get(args.group, {}).get("config", {})
     target_group_conf_gpus = groupconf.get("gpus", {}).copy()
     for gpuid in to_enable:
         target_group_conf_gpus[gpuid] = {"enabled": True}
@@ -49,7 +54,7 @@ async def do_enable_all_gpus(args: argparse.Namespace):
     groupsconf = {}
     for g in client.groups:
         groupsconf[g] = {}
-    groupsconf[client.group] = {"gpus": target_group_conf_gpus}
+    groupsconf[args.group] = {"gpus": target_group_conf_gpus}
     conf = {"groups": groupsconf}
     # send config
     await client.send({"cmd": "config", "config": conf})

@@ -5,6 +5,9 @@ link to account-token [machine-name]
 import argparse
 import platform
 
+from lufah.commands import validate_single_client_connection
+from lufah.exceptions import LufahError
+
 
 async def do_link_account(args: argparse.Namespace):
     """
@@ -15,6 +18,7 @@ async def do_link_account(args: argparse.Namespace):
     """
     client = args.client
     await client.connect()
+    validate_single_client_connection(client)
     if (8, 3, 1) <= client.version:
         token = args.account_token
         name = args.machine_name
@@ -25,6 +29,6 @@ async def do_link_account(args: argparse.Namespace):
         if not name and args.peer == ".":
             name = platform.node()
         if not (token and name):
-            raise Exception("Error: unable to determine token and name")
+            raise LufahError("Error: unable to determine token and name")
         msg = {"cmd": "link", "token": token, "name": name}
         await client.send(msg)

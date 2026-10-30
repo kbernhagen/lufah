@@ -11,8 +11,9 @@ license = "MIT"
 license-files = ["LICENSE"]
 readme = "README.md"
 authors = [{name = "Kevin Bernhagen", email = "kbernhagen.github@gmail.com"}]
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 dependencies = [
+    "certifi>=2026.10.19",
     "shellingham",
     "tabulate2>=1.9.2",
     "typer-slim",
@@ -25,11 +26,11 @@ classifiers = [
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
 ]
 
 [project.scripts]
@@ -43,14 +44,19 @@ Changelog = "https://github.com/kbernhagen/lufah/blob/main/CHANGELOG.md"
 path = "src/lufah/__init__.py"
 
 [tool.uv]
-required-version = ">=0.9.0"
+required-version = ">=0.13.5"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 
 [dependency-groups]
 dev = [
     "argh",
+    "pip>=26.2.2",
     "pipx",
     "pylint",
     "pytest",
+    "pytest-asyncio",
     "ruff",
-    "twine",
 ]

@@ -2,7 +2,14 @@
 
 import argparse
 
+from lufah.commands import validate_single_client_connection
+from lufah.exceptions import LufahError
 from lufah.logger import logger
+
+# args.group global for callback
+g_group: str = None
+# set when callback closes client because target groups are paused
+g_all_paused: bool = False
 
 
 def _no_enabled_gpus(gpus: dict) -> bool:
@@ -12,13 +19,12 @@ def _no_enabled_gpus(gpus: dict) -> bool:
     return True
 
 
-async def _close_if_paused(client, _):
-    # unused: msg
-    group = client.group
+async def _close_if_paused(client, _msg):
+    group = g_group
     if group is None:
         groups = client.groups
     elif group not in client.groups:
-        raise Exception(f'group "{group}" does not exist')
+        return
     else:
         groups = [group]
     for group in groups:
@@ -35,19 +41,24 @@ async def _close_if_paused(client, _):
         if paused is None:
             logger.warning('no value for paused in group "%s"', group)
     # all target groups are assumed paused
+    global g_all_paused  # pylint: disable=global-statement
+    g_all_paused = True
     await client.close()
 
 
 async def do_wait_until_paused(args: argparse.Namespace):
     "Run until specified group or all groups are paused."
+    global g_group, g_all_paused  # pylint: disable=global-statement
+    g_group = args.group
+    g_all_paused = False
     client = args.client
     client.register_callback(_close_if_paused)
     await client.connect()
+    # the initial snapshot may already close the client if all is paused
+    if not g_all_paused:
+        validate_single_client_connection(client)
+    if g_group is not None and g_group not in client.groups:
+        raise LufahError(f'group "{g_group}" does not exist')
     if client.version < (8, 3, 17):
-        raise Exception("Error: wait-until-paused requires client 8.3.17+")
-    if args.debug:
-        return
-    # process initial connection snapshot
-    await _close_if_paused(client, None)
-    if client.is_connected:
-        await client.ws.wait_closed()
+        raise LufahError("Error: wait-until-paused requires client 8.3.17+")
+    await client.wait_closed()
