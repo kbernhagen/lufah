@@ -16,7 +16,9 @@ does not select it, replace `python` with the full path to that interpreter.
 macOS / Linux:
 ```
 python3.15 --version
-python3.15 -m pip install --user --upgrade pipx
+python3.15 -m venv --upgrade /tmp/venv-lufah
+source /tmp/venv-lufah/bin/activate
+python3.15 -m pip install --upgrade pipx
 python3.15 -m pipx install --force lufah
 python3.15 -m pipx ensurepath
 ```
@@ -24,7 +26,7 @@ python3.15 -m pipx ensurepath
 Windows Command Prompt:
 ```
 python --version
-python -m pip install --user --upgrade pipx
+python -m pip install --upgrade pipx
 python -m pipx install --force lufah
 python -m pipx ensurepath
 ```

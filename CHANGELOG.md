@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Improved install instructions
+
 ---
 
 ## [0.12.0] - 2026-10-29
