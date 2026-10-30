@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+---
+
+## [0.12.0] - 2026-10-29
+
 ### Added
 - `--dry-run` option to show commands that would be executed without sending them
 - Error for a missing group suggests `//name` when a group named `/name` exists
@@ -142,7 +146,8 @@ Support for FAH older than v8.3 is deprecated.
 - Allow configuring group options without specifying group if there is only one group
 
 
-[unreleased]: https://github.com/kbernhagen/lufah/compare/0.11.0...HEAD
+[unreleased]: https://github.com/kbernhagen/lufah/compare/0.12.0...HEAD
+[0.12.0]: https://github.com/kbernhagen/lufah/compare/0.11.0...0.12.0
 [0.11.0]: https://github.com/kbernhagen/lufah/compare/0.10.0...0.11.0
 [0.10.0]: https://github.com/kbernhagen/lufah/compare/0.9.1...0.10.0
 [0.9.1]: https://github.com/kbernhagen/lufah/compare/0.9.0...0.9.1
