@@ -32,7 +32,7 @@ if "%1" == "uninstall-user" (
 
 if "%1" == "install-uv" (
 	call :bootstrap || exit /b 1
-	"%PYTHON%" -m pipx install uv
+	"%PYTHON%" -m pipx install --upgrade uv
 	if errorlevel 1 exit /b 1
 	"%PYTHON%" -m pipx ensurepath
 	if errorlevel 1 exit /b 1

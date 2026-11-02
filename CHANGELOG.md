@@ -5,6 +5,7 @@
 ### Fixed
 
 - Improved install instructions
+- Improved Makefile and uv bootstrap
 
 ---
 
