@@ -6,29 +6,56 @@ A python command line utility for macOS, Linux, Windows
 
 ## Install or upgrade from PyPI
 
-Install Python 3.15.2 or later from [python.org](https://www.python.org/downloads/).
-This release includes updated pip certificates to address the eMudhra/emSign
-certificate [incident](https://emudhra.we-have-a-problem.com).
+Install requires python 3.11 or later.
+Python 3.15.2+ is recommended.
+Python 3.16 is untested and in alpha.
 
-Use the same Python 3.15.2+ interpreter for all commands below. If `python`
-does not select it, replace `python` with the full path to that interpreter.
+These instructions are complicated by mitigation of the
+eMudhra/emSign certificate incident.
+See
+-  https://emudhra.we-have-a-problem.com
+-  https://discuss.python.org/t/information-for-python-users-regarding-emudhra-emsign-ca-certificate-security-incident/109576
+-  https://support.apple.com/en-us/149555
+
+Note that tools such as `curl`, `wget`, `git` may be compromised if you have not updated/patched your SSL certificates.
+These instructions do not use those tools.
+
+You can get a standalone python installer for some platforms from [python.org](https://www.python.org/downloads/).
+
+Windows users can get prompted to install from the Microsoft Store by simply running `python`.
+
+```
+python --version
+```
 
 macOS / Linux:
 ```
-python3.15 --version  # must be 3.15.2 or later
+python3 --version  # must be 3.11 or later
+mkdir -p "$HOME/.local/pipx"  # helpful on macOS; not needed on Linux
 bootstrap=$(mktemp -d)
-python3.15 -m venv "$bootstrap"
-source "$bootstrap/bin/activate"
-pip install pipx
+python3 -m venv "$bootstrap/.venv"
+source "$bootstrap/.venv/bin/activate"
+
+# Safely install pinned pip. This is one line.
+pip install "pip @ https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"
+
+pip install --upgrade "pip>=26.2.2"
+pip install "pipx>=1.18.7"
+
 pipx install --upgrade pipx lufah
 pipx ensurepath
 deactivate
+rm -r "$bootstrap/.venv"
 ```
 
 Windows Command Prompt:
 ```
 python --version
-python -m pip install --upgrade pipx
+
+python -m pip install "pip @ https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"
+
+python -m pip install --upgrade "pip>=26.2.2"
+python -m pip install --upgrade "pipx>=1.18.7"
 python -m pipx install --upgrade lufah
 python -m pipx ensurepath
 ```
