@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.33.0"]
 build-backend = "hatchling.build"
 
 [project]
@@ -44,7 +44,7 @@ Changelog = "https://github.com/kbernhagen/lufah/blob/main/CHANGELOG.md"
 path = "src/lufah/__init__.py"
 
 [tool.uv]
-required-version = ">=0.13.5"
+required-version = ">=0.13.6"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -54,7 +54,7 @@ asyncio_default_fixture_loop_scope = "function"
 dev = [
     "argh",
     "pip>=26.2.2",
-    "pipx",
+    "pipx>=1.18.7",
     "pylint",
     "pytest",
     "pytest-asyncio",

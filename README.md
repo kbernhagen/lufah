@@ -6,28 +6,30 @@ A python command line utility for macOS, Linux, Windows
 
 ## Install or upgrade from PyPI
 
-Install Python 3.15.1 or later from [python.org](https://www.python.org/downloads/).
+Install Python 3.15.2 or later from [python.org](https://www.python.org/downloads/).
 This release includes updated pip certificates to address the eMudhra/emSign
-certificate incident.
+certificate [incident](https://emudhra.we-have-a-problem.com).
 
-Use the same Python 3.15.1+ interpreter for all commands below. If `python`
+Use the same Python 3.15.2+ interpreter for all commands below. If `python`
 does not select it, replace `python` with the full path to that interpreter.
 
 macOS / Linux:
 ```
-python3.15 --version
-python3.15 -m venv --upgrade /tmp/venv-lufah
-source /tmp/venv-lufah/bin/activate
-python3.15 -m pip install --upgrade pipx
-python3.15 -m pipx install --force lufah
-python3.15 -m pipx ensurepath
+python3.15 --version  # must be 3.15.2 or later
+bootstrap=$(mktemp -d)
+python3.15 -m venv "$bootstrap"
+source "$bootstrap/bin/activate"
+pip install pipx
+pipx install --upgrade pipx lufah
+pipx ensurepath
+deactivate
 ```
 
 Windows Command Prompt:
 ```
 python --version
 python -m pip install --upgrade pipx
-python -m pipx install --force lufah
+python -m pipx install --upgrade lufah
 python -m pipx ensurepath
 ```
 
@@ -35,9 +37,8 @@ Restart your terminal if `lufah` is not found after `ensurepath`.
 
 ## Uninstall
 
-With pipx:
 ```
-python3.15 -m pipx uninstall lufah
+pipx uninstall lufah
 ```
 
 ## Usage
@@ -193,7 +194,7 @@ Commands start and stop are macOS-only.
 
 The `top` command is glitchy on Windows when the window is resized.
 Type space to force a redraw.
-To use `lufah top` on Windows, you may need to manually install `windows-curses`.
+To use `lufah top` on Windows, you may need to `pip install windows-curses`.
 
 ## Example Output
 
