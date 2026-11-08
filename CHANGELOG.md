@@ -6,6 +6,7 @@
 
 - Improved install instructions
 - Improved Makefile and uv bootstrap
+- Use uv to install/uninstall lufah
 
 ---
 

@@ -40,10 +40,12 @@ source "$bootstrap/.venv/bin/activate"
 pip install "pip @ https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"
 
 pip install --upgrade "pip>=26.2.2"
-pip install "pipx>=1.18.7"
+pip install "pipx>=1.18.7" "uv>=0.13.6"
 
-pipx install --upgrade pipx lufah
+pipx install --upgrade uv
 pipx ensurepath
+pipx uninstall lufah || true
+uv tool install --upgrade --python 3.15.2 lufah
 deactivate
 rm -r "$bootstrap/.venv"
 ```
@@ -56,8 +58,9 @@ python -m pip install "pip @ https://files.pythonhosted.org/packages/3f/06/3e442
 
 python -m pip install --upgrade "pip>=26.2.2"
 python -m pip install --upgrade "pipx>=1.18.7"
-python -m pipx install --upgrade lufah
+python -m pipx install --upgrade "uv>=0.13.6"
 python -m pipx ensurepath
+uv tool install --upgrade --python 3.15.2 lufah
 ```
 
 Restart your terminal if `lufah` is not found after `ensurepath`.
@@ -65,7 +68,7 @@ Restart your terminal if `lufah` is not found after `ensurepath`.
 ## Uninstall
 
 ```
-pipx uninstall lufah
+uv tool uninstall lufah
 ```
 
 ## Usage

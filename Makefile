@@ -14,24 +14,14 @@ help:
 .DEFAULT_GOAL := help
 
 .PHONY: install-user
-install-user: $(VENV)  # install lufah and pipx via pipx for current user
-	"$(PYTHON)" -m pipx install --upgrade pipx
-	"$(PYTHON)" -m pipx install --force .
-	"$(PYTHON)" -m pipx ensurepath --prepend
+install-user: uninstall-user  # (re)install lufah via uv for current user
+	"$(UV)" tool install --force .  # force to ensure latest is installed
+	"$(PYTHON)" -m pipx ensurepath
 
 .PHONY: uninstall-user
-uninstall-user: $(VENV)  # uninstall via pipx for current user
-	"$(PYTHON)" -m pipx uninstall lufah
-
-$(VENV):
-	@# create minimal venv to (un)install lufah
-	@python3 -c 'import sys; sys.version_info >= (3, 11) or sys.exit("Python 3.11+ required; found " + sys.version.split()[0])'
-	python3 -m venv "$(VENV)"
-	@# safely install pip 26.2.2
-	@# https://discuss.python.org/t/information-for-python-users-regarding-emudhra-emsign-ca-certificate-security-incident/109576
-	"$(PYTHON)" -m pip install "pip @ https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"
-	"$(PYTHON)" -m pip install --upgrade "pip>=26.2.2"
-	"$(PYTHON)" -m pip install "pipx>=1.18.7"
+uninstall-user: ensure-uv  # uninstall via pipx and uv for current user
+	"$(UV)" tool uninstall lufah || true
+	"$(PYTHON)" -m pipx uninstall lufah || true
 
 .PHONY: ensure-uv
 ensure-uv:

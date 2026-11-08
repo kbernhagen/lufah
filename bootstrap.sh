@@ -1,5 +1,5 @@
 #!/bin/bash -e
-# bootstrap uv, pipx from python 3.11+ temporary venv away from project venv
+# bootstrap uv from python 3.11+ temporary venv away from project venv
 # efficiently create project venv with uv
 
 export UV_SYSTEM_CERTS=1
@@ -16,18 +16,22 @@ mkdir -p "$HOME/.local/pipx"
 # create temporary venv
 # bootstrap=$(mktemp -d)
 bootstrap=".venv-bootstrap"
-trap 'rm -rf "$bootstrap"' EXIT
+# trap 'rm -rf "$bootstrap"' EXIT
 python3 -m venv --clear "$bootstrap"
 
 # install pinned pip; upgrade without alleged risk of downgrade due to python package
+# https://discuss.python.org/t/information-for-python-users-regarding-emudhra-emsign-ca-certificate-security-incident/109576
 "$bootstrap/bin/pip" install \
   "pip @ https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"
 "$bootstrap/bin/pip" install --upgrade "pip>=26.2.2"
 
 "$bootstrap/bin/pip" install "pipx>=1.18.7" "uv>=0.13.6"
 
-"$bootstrap/bin/pipx" ensurepath --prepend
-"$bootstrap/bin/pipx" install --upgrade "pipx>=1.18.7" "uv>=0.13.6"
+"$bootstrap/bin/pipx" ensurepath
+# we used to install pipx, which can be insecure
+"$bootstrap/bin/pipx" uninstall pipx || true
+# this can fail if uv is not managed by pipx
+"$bootstrap/bin/pipx" install --upgrade "uv>=0.13.6" || true
 
 "$bootstrap/bin/uv" python install ">=3.15.2,<3.16"
 "$bootstrap/bin/uv" sync -p ">=3.15.2,<3.16" --frozen
