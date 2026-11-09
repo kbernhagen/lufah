@@ -2,7 +2,6 @@ override VENV := .venv
 override PYTHON := $(VENV)/bin/python
 UV ?= $(HOME)/.local/bin/uv
 
-export UV_SYSTEM_CERTS=1
 export UV_MANAGED_PYTHON=1
 
 .PHONY: help

@@ -2,7 +2,6 @@
 # bootstrap uv from python 3.11+ temporary venv away from project venv
 # efficiently create project venv with uv
 
-export UV_SYSTEM_CERTS=1
 export UV_MANAGED_PYTHON=1
 
 # require python 3.11+ which supports pip 26.2.2
