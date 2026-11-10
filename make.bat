@@ -9,10 +9,10 @@ if "%1"=="help" goto help
 
 if "%1"=="install-user" (
 	call :bootstrap
+	if errorlevel 1 exit /b 1
 	"%UV%" tool uninstall lufah
 	"%PYTHON%" -m pipx uninstall lufah
-	if errorlevel 1 exit /b 1
-	"%UV%" tool install --force .
+	"%UV%" tool install --managed-python -p ">=3.15.2,<3.16" --force .
 	if errorlevel 1 exit /b 1
 	"%PYTHON%" -m pipx ensurepath
 	if errorlevel 1 exit /b 1
@@ -36,14 +36,22 @@ echo.  uninstall-user  uninstall via uv and pipx for current user
 exit /b 0
 
 :bootstrap
-python -c "import sys; print('Python ' + sys.version.split()[0]); sys.exit(sys.version_info < (3, 11))"
+REM require a patched python 3.11-3.15 for safe bootstrap
+python -c "import sys; ^
+version = sys.version_info; ^
+patched_minor_floors = {11: 18, 12: 16, 13: 18, 14: 10, 15: 2}; ^
+is_supported = ( ^
+    version.major == 3 and ^
+    version.minor in patched_minor_floors and ^
+    version.micro >= patched_minor_floors[version.minor] ^
+); ^
+print('Python ' + sys.version.split()[0]); ^
+sys.exit(not is_supported)"
 if errorlevel 1 (
-	echo Python 3.11 or newer is required.
+	echo Patched Python 3.11-3.15 is required.
 	exit /b 1
 )
 python -m venv "%VENV%"
-if errorlevel 1 exit /b 1
-"%PYTHON%" -m pip install "pip @ https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"
 if errorlevel 1 exit /b 1
 "%PYTHON%" -m pip install --upgrade "pip>=26.2.2"
 if errorlevel 1 exit /b 1

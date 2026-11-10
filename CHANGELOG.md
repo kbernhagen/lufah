@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Minimum python 3.11.18
+- Require a known patched python in bootstrap scripts
+
 ### Fixed
 
 - Improved install instructions

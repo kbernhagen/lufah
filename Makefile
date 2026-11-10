@@ -14,7 +14,7 @@ help:
 
 .PHONY: install-user
 install-user: uninstall-user  # (re)install lufah via uv for current user
-	"$(UV)" tool install --force .  # force to ensure latest is installed
+	"$(UV)" tool install -p ">=3.15.2,<3.16" --force .  # force to ensure latest is installed
 	"$(PYTHON)" -m pipx ensurepath
 
 .PHONY: uninstall-user
@@ -72,7 +72,7 @@ clean:  # remove all build products
 
 .PHONY: clean-venv
 clean-venv:  # remove venv
-	rm -rf "$(VENV)"
+	rm -rf "$(VENV)" .venv-bootstrap
 
 .PHONY: clean-all
 clean-all: clean clean-venv  # clean all
