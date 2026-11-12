@@ -1,12 +1,27 @@
 #!/bin/bash -e
-# bootstrap uv, pipx from python 3.11+ temporary venv away from project venv
+# bootstrap pipx install uv from patched python 3.11.18+
 # efficiently create project venv with uv
 
-export UV_SYSTEM_CERTS=1
 export UV_MANAGED_PYTHON=1
 
-# require python 3.11+ which supports pip 26.2.2
-python3 -c 'import sys; sys.version_info >= (3, 11) or sys.exit("Python 3.11+ required; found " + sys.version.split()[0])'
+# require a patched python 3.11-3.15; 3.16 is not supported
+# current patched versions are 3.11.18, 3.12.16, 3.13.18, 3.14.10, 3.15.2
+python3 - <<'PY'
+import sys
+
+version = sys.version_info
+patched_minor_floors = {11: 18, 12: 16, 13: 18, 14: 10, 15: 2}
+is_supported = (
+    version.major == 3
+    and version.minor in patched_minor_floors
+    and version.micro >= patched_minor_floors[version.minor]
+)
+if not is_supported:
+    sys.exit(
+        "Patched Python 3.11-3.15 required; found "
+        f"{version.major}.{version.minor}.{version.micro}"
+    )
+PY
 
 set -x
 
@@ -19,15 +34,13 @@ bootstrap=".venv-bootstrap"
 trap 'rm -rf "$bootstrap"' EXIT
 python3 -m venv --clear "$bootstrap"
 
-# install pinned pip; upgrade without alleged risk of downgrade due to python package
-"$bootstrap/bin/pip" install \
-  "pip @ https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"
 "$bootstrap/bin/pip" install --upgrade "pip>=26.2.2"
-
 "$bootstrap/bin/pip" install "pipx>=1.18.7" "uv>=0.13.6"
 
-"$bootstrap/bin/pipx" ensurepath --prepend
-"$bootstrap/bin/pipx" install --upgrade "pipx>=1.18.7" "uv>=0.13.6"
+"$bootstrap/bin/pipx" ensurepath
+# we used to install pipx, which can be insecure
+"$bootstrap/bin/pipx" uninstall pipx || true
+# this can fail if uv is not managed by pipx
+"$bootstrap/bin/pipx" install --upgrade "uv>=0.13.6" || true
 
-"$bootstrap/bin/uv" python install ">=3.15.2,<3.16"
 "$bootstrap/bin/uv" sync -p ">=3.15.2,<3.16" --frozen

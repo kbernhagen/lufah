@@ -6,66 +6,84 @@ A python command line utility for macOS, Linux, Windows
 
 ## Install or upgrade from PyPI
 
-Install requires python 3.11 or later.
-Python 3.15.2+ is recommended.
-Python 3.16 is untested and in alpha.
+If you already have [uv](https://docs.astral.sh/uv/) 0.13.6 or later, the recommended install command is the same for all platforms. DO NOT use their `uv` installer command unless you are certain you have properly updated your security certificates.
+```
+uv tool install -U -p 3.15.2 lufah
+```
 
-These instructions are complicated by mitigation of the
-eMudhra/emSign certificate incident.
-See
+Otherwise, install requires a patched python 3.11.18 or later.
+Python 3.15.2+ is strongly recommended.
+Python 3.16 is untested, is in alpha, and may not be patched.
+
+Python will be used to install/upgrade `uv` and `lufah` using `pipx`.
+A `uv` upgrade will fail if you did not previously install using `pipx`.
+
+References to the eMudhra/emSign certificate incident:
+
 -  https://emudhra.we-have-a-problem.com
 -  https://discuss.python.org/t/information-for-python-users-regarding-emudhra-emsign-ca-certificate-security-incident/109576
 -  https://support.apple.com/en-us/149555
 
-Note that tools such as `curl`, `wget`, `git` may be compromised if you have not updated/patched your SSL certificates.
+Note that tools such as `curl`, `wget`, `git` may be compromised if you have not updated/patched your certificates.
 These instructions do not use those tools.
 
 You can get a standalone python installer for some platforms from [python.org](https://www.python.org/downloads/).
 
 Windows users can get prompted to install from the Microsoft Store by simply running `python`.
-
+If it is not a patched version, get 3.15.2+ from [python.org](https://www.python.org/downloads/).
 ```
 python --version
 ```
 
-macOS / Linux:
+Linux users should first try getting `python3-pip` and `python3-venv` from their package manager.
+
+### macOS / Linux:
+
+Check that you have a patched python.
+Version floors are 3.11.18, 3.12.16, 3.13.18, 3.14.10, 3.15.2
 ```
-python3 --version  # must be 3.11 or later
+python3 --version
+```
+If you have a patched version, it is safe to continue.
+Run one command at a time.
+```
 mkdir -p "$HOME/.local/pipx"  # helpful on macOS; not needed on Linux
 bootstrap=$(mktemp -d)
 python3 -m venv "$bootstrap/.venv"
 source "$bootstrap/.venv/bin/activate"
-
-# Safely install pinned pip. This is one line.
-pip install "pip @ https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"
-
 pip install --upgrade "pip>=26.2.2"
-pip install "pipx>=1.18.7"
-
-pipx install --upgrade pipx lufah
+pip install "pipx>=1.18.7" "uv>=0.13.6"
+pipx install --upgrade "uv>=0.13.6"
 pipx ensurepath
+pipx uninstall lufah || true
+uv tool install --upgrade --python 3.15.2 lufah
 deactivate
 rm -r "$bootstrap/.venv"
 ```
 
-Windows Command Prompt:
+### Windows Command Prompt:
+
+Check that you have a patched python.
+Version floors are 3.11.18, 3.12.16, 3.13.18, 3.14.10, 3.15.2
 ```
 python --version
-
-python -m pip install "pip @ https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"
-
+```
+If you have a patched version, it is safe to continue.
+Run one command at a time.
+```
 python -m pip install --upgrade "pip>=26.2.2"
 python -m pip install --upgrade "pipx>=1.18.7"
-python -m pipx install --upgrade lufah
+python -m pipx install --upgrade "uv>=0.13.6"
 python -m pipx ensurepath
+uv tool install --upgrade --python 3.15.2 lufah
 ```
 
-Restart your terminal if `lufah` is not found after `ensurepath`.
+Restart your terminal if `lufah` is not found.
 
 ## Uninstall
 
 ```
-pipx uninstall lufah
+uv tool uninstall lufah
 ```
 
 ## Usage
