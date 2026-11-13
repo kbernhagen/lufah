@@ -8,7 +8,6 @@ export UV_MANAGED_PYTHON=1
 # current patched versions are 3.11.18, 3.12.16, 3.13.18, 3.14.10, 3.15.2
 python3 - <<'PY'
 import sys
-
 version = sys.version_info
 patched_minor_floors = {11: 18, 12: 16, 13: 18, 14: 10, 15: 2}
 is_supported = (
@@ -20,7 +19,9 @@ if not is_supported:
     sys.exit(
         "Patched Python 3.11-3.15 required; found "
         f"{version.major}.{version.minor}.{version.micro}"
+        "\nPatched version floors are 3.11.18, 3.12.16, 3.13.18, 3.14.10, 3.15.2"
     )
+print(f"Using Python {version.major}.{version.minor}.{version.micro}")
 PY
 
 set -x

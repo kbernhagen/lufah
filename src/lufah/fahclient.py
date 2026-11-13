@@ -218,7 +218,9 @@ class FahClient:
             await self._dispatch_handlers(snapshot)
             self._receive_task = asyncio.create_task(self._receive_messages())
         except Exception as e:
-            logger.error("%s:Exception while receiving initial message: %s", self._name, e)
+            logger.error(
+                "%s:Exception while receiving initial message: %s", self._name, e
+            )
             await self.close()
             raise
 
