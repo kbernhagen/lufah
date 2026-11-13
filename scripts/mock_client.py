@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Mock FahClient Server"""
+
 from __future__ import annotations
 
 __version__ = "0.1.0"
@@ -61,7 +62,9 @@ class MockServer:  # pylint: disable=R0902
         self._clients = set()  # Set of connected WebSocket clients
         self._state = Updatable()
         self._updates: asyncio.Queue | None = None  # must be created inside async loop
-        self._shutdown_event: asyncio.Event | None = None  # must be created inside async loop
+        self._shutdown_event: asyncio.Event | None = (
+            None  # must be created inside async loop
+        )
 
     async def _initialize_state(self):
         """Initialize state and updates from data_file."""

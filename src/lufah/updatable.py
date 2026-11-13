@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 """Updatable from Web Control translated to python"""
+
 from __future__ import annotations
 
 __all__ = ["Updatable"]

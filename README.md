@@ -6,17 +6,21 @@ A python command line utility for macOS, Linux, Windows
 
 ## Install or upgrade from PyPI
 
-If you already have [uv](https://docs.astral.sh/uv/) 0.13.6 or later, the recommended install command is the same for all platforms. DO NOT use their `uv` installer command unless you are certain you have properly updated your security certificates.
+If you already have [uv](https://docs.astral.sh/uv/) 0.13.6 or later,
+the recommended install command is the same for all platforms:
 ```
-uv tool install -U -p 3.15.2 lufah
+uv tool install --upgrade --python 3.15.2 lufah
 ```
+
+DO NOT use Astral's uv standalone installer unless you are certain
+you have properly updated your certificates.
 
 Otherwise, install requires a patched python 3.11.18 or later.
 Python 3.15.2+ is strongly recommended.
 Python 3.16 is untested, is in alpha, and may not be patched.
 
-Python will be used to install/upgrade `uv` and `lufah` using `pipx`.
-A `uv` upgrade will fail if you did not previously install using `pipx`.
+A patched python will be used to install/upgrade `uv` and `lufah` using `pipx`.
+A `uv` upgrade will fail if you did not previously install it using `pipx`.
 
 References to the eMudhra/emSign certificate incident:
 
@@ -30,10 +34,7 @@ These instructions do not use those tools.
 You can get a standalone python installer for some platforms from [python.org](https://www.python.org/downloads/).
 
 Windows users can get prompted to install from the Microsoft Store by simply running `python`.
-If it is not a patched version, get 3.15.2+ from [python.org](https://www.python.org/downloads/).
-```
-python --version
-```
+If a patched version is not offered, get 3.15.2+ from [python.org](https://www.python.org/downloads/).
 
 Linux users should first try getting `python3-pip` and `python3-venv` from their package manager.
 
@@ -70,6 +71,7 @@ python --version
 ```
 If you have a patched version, it is safe to continue.
 Run one command at a time.
+Ignore warnings about an installed script not being on PATH.
 ```
 python -m pip install --upgrade "pip>=26.2.2"
 python -m pip install --upgrade "pipx>=1.18.7"

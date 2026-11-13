@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+---
+
+## [0.12.1] - 2026-11-13
+
 ### Changed
 
 - Minimum python 3.11.18
@@ -157,7 +161,8 @@ Support for FAH older than v8.3 is deprecated.
 - Allow configuring group options without specifying group if there is only one group
 
 
-[unreleased]: https://github.com/kbernhagen/lufah/compare/0.12.0...HEAD
+[unreleased]: https://github.com/kbernhagen/lufah/compare/0.12.1...HEAD
+[0.12.1]: https://github.com/kbernhagen/lufah/compare/0.12.0...0.12.1
 [0.12.0]: https://github.com/kbernhagen/lufah/compare/0.11.0...0.12.0
 [0.11.0]: https://github.com/kbernhagen/lufah/compare/0.10.0...0.11.0
 [0.10.0]: https://github.com/kbernhagen/lufah/compare/0.9.1...0.10.0
